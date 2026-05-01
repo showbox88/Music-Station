@@ -3,11 +3,11 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   root: resolve(__dirname),
-  // Frontend is mounted at /app/ behind Tailscale serve (smart-trip MCP
-  // already owns the root /). All asset URLs in built HTML get this prefix.
-  base: '/app/',
+  // Production: mounted at /app/ behind Tailscale serve.
+  // Dev: served at root by Vite dev server, no prefix needed.
+  base: command === 'build' ? '/app/' : '/',
   plugins: [react()],
   build: {
     outDir: resolve(__dirname, 'dist'),
@@ -27,4 +27,4 @@ export default defineConfig({
       '/api': process.env.VITE_API_TARGET ?? 'http://127.0.0.1:3002',
     },
   },
-});
+}));
