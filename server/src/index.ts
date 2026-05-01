@@ -54,11 +54,24 @@ app.use('/api/status', statusRouter({ db, musicDir: MUSIC_DIR, startedAt }));
 app.use('/api', (_req, res) => res.status(404).json({ error: 'not found' }));
 
 // Production: serve built frontend if web/dist exists.
+//
+// Mounted at BOTH `/` and `/app` so it works regardless of how Tailscale
+// serve forwards the request:
+//   - If Tailscale forwards `/app/assets/foo.css` as-is → /app mount strips
+//     /app and serves from webDist
+//   - If Tailscale strips the prefix and forwards `/assets/foo.css` → root
+//     mount serves directly
+// Vite base = '/app/' so the HTML references the /app/-prefixed URLs, which
+// is the path Tailscale routes here.
 const webDist = resolve(here, '..', '..', 'web', 'dist');
 if (existsSync(webDist)) {
-  console.error(`[music-station] serving frontend from ${webDist}`);
+  console.error(`[music-station] serving frontend from ${webDist} at / and /app`);
+  app.use('/app', express.static(webDist));
   app.use(express.static(webDist));
-  // SPA fallback — anything not matched goes to index.html
+  // SPA fallback — anything not matched (and not /api/*) goes to index.html
+  app.get(/^\/(app(\/.*)?)?$/, (_req, res) => {
+    res.sendFile(join(webDist, 'index.html'));
+  });
   app.get('*', (_req, res) => {
     res.sendFile(join(webDist, 'index.html'));
   });
