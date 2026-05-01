@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+
+# DB lives outside repo, but ignore any stray copy
+*.db
+*.db-journal
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Local Claude Code per-machine settings
+.claude/settings.local.json

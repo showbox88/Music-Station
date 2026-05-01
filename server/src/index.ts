@@ -1,0 +1,76 @@
+/**
+ * music-station server entry.
+ *
+ * - Loads .env (PORT/HOST/MUSIC_DIR/DB_PATH/PUBLIC_URL)
+ * - Opens SQLite (creates tables if absent)
+ * - Triggers an initial library scan in background
+ * - Starts Express with /api/tracks, /api/status routes
+ * - In production: also serves the built frontend from web/dist as static
+ *
+ * Designed to run behind Tailscale serve at /app/* + /api/*.
+ */
+import { config as loadEnv } from 'dotenv';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import express from 'express';
+import { openDatabase } from './db/schema.js';
+import { scanLibrary } from './scanner.js';
+import { tracksRouter } from './api/tracks.js';
+import { statusRouter } from './api/status.js';
+
+const here = dirname(fileURLToPath(import.meta.url));
+// .env lives at repo root (../../ from server/dist/ or server/src/)
+loadEnv({ path: resolve(here, '..', '..', '.env') });
+
+const PORT = Number(process.env.PORT ?? 3002);
+const HOST = process.env.HOST ?? '127.0.0.1';
+const MUSIC_DIR = process.env.MUSIC_DIR ?? '/opt/music';
+const DB_PATH = process.env.DB_PATH ?? '/var/lib/music-station/library.db';
+const PUBLIC_URL = process.env.PUBLIC_URL ?? '';
+
+const startedAt = new Date();
+console.error(`[music-station] starting…`);
+console.error(`  PORT=${PORT} HOST=${HOST}`);
+console.error(`  MUSIC_DIR=${MUSIC_DIR}`);
+console.error(`  DB_PATH=${DB_PATH}`);
+console.error(`  PUBLIC_URL=${PUBLIC_URL || '(unset)'}`);
+
+const db = openDatabase(DB_PATH);
+
+// Initial scan in background; API serves whatever is in DB so far.
+scanLibrary(db, MUSIC_DIR)
+  .then((r) => console.error(`[music-station] initial scan: ${JSON.stringify(r)}`))
+  .catch((err) => console.error(`[music-station] initial scan failed:`, err));
+
+const app = express();
+app.use(express.json({ limit: '4mb' }));
+
+// API routes
+app.use('/api/tracks', tracksRouter({ db, publicUrl: PUBLIC_URL }));
+app.use('/api/status', statusRouter({ db, musicDir: MUSIC_DIR, startedAt }));
+
+// Catch-all 404 for /api/*
+app.use('/api', (_req, res) => res.status(404).json({ error: 'not found' }));
+
+// Production: serve built frontend if web/dist exists.
+const webDist = resolve(here, '..', '..', 'web', 'dist');
+if (existsSync(webDist)) {
+  console.error(`[music-station] serving frontend from ${webDist}`);
+  app.use(express.static(webDist));
+  // SPA fallback — anything not matched goes to index.html
+  app.get('*', (_req, res) => {
+    res.sendFile(join(webDist, 'index.html'));
+  });
+} else {
+  console.error(`[music-station] (no built frontend at ${webDist} — dev mode?)`);
+  app.get('/', (_req, res) => {
+    res.type('text').send(
+      'music-station API is running.\nFrontend not built. Run `npm run build:web` or use `npm run dev`.\n\nAPI: GET /api/status, /api/tracks',
+    );
+  });
+}
+
+app.listen(PORT, HOST, () => {
+  console.error(`[music-station] listening on ${HOST}:${PORT}`);
+});

@@ -1,0 +1,40 @@
+# Systemd unit for music-station web app.
+#
+# Install:
+#   sudo cp systemd/music-station.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now music-station
+#   sudo journalctl -u music-station -f
+#
+# Adjust User= and WorkingDirectory= to match your deploy.
+
+[Unit]
+Description=music-station web app
+Documentation=https://github.com/showbox88/music-station
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mcp
+Group=mcp
+WorkingDirectory=/opt/music-station
+ExecStart=/usr/bin/node server/dist/index.js
+Restart=on-failure
+RestartSec=5s
+EnvironmentFile=/opt/music-station/.env
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/music-station /var/lib/music-station /opt/music
+ProtectKernelTunables=true
+ProtectKernelModules=true
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
