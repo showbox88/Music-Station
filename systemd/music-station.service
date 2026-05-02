@@ -29,7 +29,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/music-station /var/lib/music-station /opt/music
+ReadWritePaths=/opt/music-station /var/lib/music-station /opt/music /opt/music-covers
 ProtectKernelTunables=true
 ProtectKernelModules=true
 

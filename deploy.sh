@@ -25,6 +25,13 @@ cd "$REPO_DIR"
 echo "==> [music-station] git pull"
 runuser -u mcp -- git pull --ff-only
 
+# Sync systemd unit if it changed in the repo (idempotent: copy + reload)
+if ! cmp -s "$REPO_DIR/systemd/$SERVICE.service" "/etc/systemd/system/$SERVICE.service" 2>/dev/null; then
+  echo "==> [music-station] systemd unit changed; syncing"
+  cp "$REPO_DIR/systemd/$SERVICE.service" "/etc/systemd/system/$SERVICE.service"
+  systemctl daemon-reload
+fi
+
 echo "==> [music-station] npm install (only changed deps)"
 runuser -u mcp -- npm install --silent --no-audit --no-fund
 
