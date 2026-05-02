@@ -8,6 +8,7 @@
  * has full height for the list).
  */
 import { usePlayer } from './PlayerContext';
+import CoverThumb from '../components/CoverThumb';
 
 function fmt(sec: number): string {
   if (!Number.isFinite(sec) || sec < 0) return '0:00';
@@ -25,11 +26,14 @@ export default function PlayerBar() {
   return (
     <div className="border-t border-zinc-800 bg-zinc-950/95 backdrop-blur px-4 py-2 flex items-center gap-4">
       {/* Now playing info */}
-      <div className="min-w-0 flex-1 max-w-xs">
-        <div className="text-sm font-medium truncate">{p.current.title || p.current.rel_path}</div>
-        <div className="text-xs text-zinc-500 truncate">
-          {p.current.artist || '—'}
-          {p.current.album ? ` · ${p.current.album}` : ''}
+      <div className="min-w-0 flex-1 max-w-xs flex items-center gap-3">
+        <CoverThumb src={p.current.cover_url} size={44} />
+        <div className="min-w-0">
+          <div className="text-sm font-medium truncate">{p.current.title || p.current.rel_path}</div>
+          <div className="text-xs text-zinc-500 truncate">
+            {p.current.artist || '—'}
+            {p.current.album ? ` · ${p.current.album}` : ''}
+          </div>
         </div>
       </div>
 

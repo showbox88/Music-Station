@@ -22,6 +22,8 @@ interface TrackRow {
   size_bytes: number;
   bitrate: number | null;
   mime: string | null;
+  rating: number | null;
+  cover_filename: string | null;
   added_at: string;
   modified_at: string;
   last_edited_at: string | null;
@@ -31,11 +33,19 @@ interface Deps {
   db: Database;
   publicUrl: string;
   musicDir: string;
+  coverDir: string;
 }
 
 function buildAudioUrl(publicUrl: string, relPath: string): string {
   const encoded = relPath.split('/').map(encodeURIComponent).join('/');
   return `${publicUrl.replace(/\/+$/, '')}/audio/${encoded}`;
+}
+
+function buildCoverUrl(coverFilename: string | null): string | null {
+  if (!coverFilename) return null;
+  // Served by Express static at /api/covers/<filename>; relative path keeps
+  // both LAN and Funnel use cases working without baking PUBLIC_URL in.
+  return `/api/covers/${encodeURIComponent(coverFilename)}`;
 }
 
 function dto(row: TrackRow, publicUrl: string) {
@@ -52,14 +62,16 @@ function dto(row: TrackRow, publicUrl: string) {
     size_bytes: row.size_bytes,
     bitrate: row.bitrate,
     mime: row.mime,
+    rating: row.rating ?? 0,
     added_at: row.added_at,
     modified_at: row.modified_at,
     last_edited_at: row.last_edited_at,
     url: buildAudioUrl(publicUrl, row.rel_path),
+    cover_url: buildCoverUrl(row.cover_filename),
   };
 }
 
-export function tracksRouter({ db, publicUrl, musicDir }: Deps): Router {
+export function tracksRouter({ db, publicUrl, musicDir, coverDir }: Deps): Router {
   const r = Router();
 
   // GET /api/tracks?q=...&artist=...&album=...&limit=...&offset=...
@@ -145,18 +157,26 @@ export function tracksRouter({ db, publicUrl, musicDir }: Deps): Router {
       'genre',
       'year',
       'track_no',
+      'rating',
     ];
     const updates: Partial<TrackRow> = {};
     for (const k of allowed) {
       if (k in body) {
         const v = body[k];
-        // null / "" / undefined → store NULL; else coerce numeric fields
+        // null / "" / undefined → store NULL (or 0 for rating); else coerce
         if (v === null || v === undefined || v === '') {
-          (updates as any)[k] = null;
+          (updates as any)[k] = k === 'rating' ? 0 : null;
         } else if (k === 'year' || k === 'track_no') {
           const n = Number(v);
           if (!Number.isFinite(n) || n < 0 || n > 99999) {
             res.status(400).json({ error: `${k} must be a non-negative integer` });
+            return;
+          }
+          (updates as any)[k] = Math.trunc(n);
+        } else if (k === 'rating') {
+          const n = Number(v);
+          if (!Number.isFinite(n) || n < 0 || n > 5) {
+            res.status(400).json({ error: 'rating must be 0..5' });
             return;
           }
           (updates as any)[k] = Math.trunc(n);
@@ -206,6 +226,15 @@ export function tracksRouter({ db, publicUrl, musicDir }: Deps): Router {
       } else {
         res.status(500).json({ error: `failed to delete file: ${err?.message ?? err}` });
         return;
+      }
+    }
+
+    // Best-effort cover cleanup. Failure is non-fatal.
+    if (row.cover_filename) {
+      try {
+        await unlink(join(coverDir, row.cover_filename));
+      } catch {
+        /* ignore */
       }
     }
 

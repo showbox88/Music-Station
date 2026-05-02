@@ -3,6 +3,8 @@ import { api } from '../api';
 import type { Track } from '../types';
 import EditTrackModal from './EditTrackModal';
 import AddToPlaylistMenu from './AddToPlaylistMenu';
+import StarRating from './StarRating';
+import CoverThumb from './CoverThumb';
 import { usePlayer } from '../player/PlayerContext';
 
 function formatDuration(sec: number | null): string {
@@ -99,12 +101,14 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
           <thead className="text-xs uppercase text-zinc-500 sticky top-0 bg-zinc-950">
             <tr className="border-b border-zinc-800">
               <th className="text-left font-medium py-2 pl-6 w-10">▶</th>
+              <th className="text-left font-medium py-2 w-12"></th>
               <th className="text-left font-medium py-2">Title</th>
               <th className="text-left font-medium py-2">Artist</th>
               <th className="text-left font-medium py-2">Album</th>
               <th className="text-left font-medium py-2">Genre</th>
+              <th className="text-left font-medium py-2 w-20">Year</th>
+              <th className="text-left font-medium py-2 w-24">Rating</th>
               <th className="text-right font-medium py-2 w-20">Duration</th>
-              <th className="text-right font-medium py-2 w-20">Size</th>
               <th className="text-right font-medium py-2 pr-6 w-28"></th>
             </tr>
           </thead>
@@ -133,6 +137,9 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
                     {player.current?.id === t.id && player.isPlaying ? '♪' : '▶'}
                   </button>
                 </td>
+                <td className="py-1 pr-2">
+                  <CoverThumb src={t.cover_url} size={32} />
+                </td>
                 <td className="py-2 pr-3 font-medium">
                   {t.last_edited_at && (
                     <span
@@ -145,11 +152,24 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
                 <td className="py-2 pr-3 text-zinc-400">{t.artist || '—'}</td>
                 <td className="py-2 pr-3 text-zinc-400">{t.album || '—'}</td>
                 <td className="py-2 pr-3 text-zinc-500">{t.genre || '—'}</td>
-                <td className="py-2 pr-3 text-zinc-500 text-right tabular-nums">
-                  {formatDuration(t.duration_sec)}
+                <td className="py-2 pr-3 text-zinc-500 tabular-nums">{t.year ?? '—'}</td>
+                <td className="py-2 pr-3">
+                  <StarRating
+                    value={t.rating}
+                    onChange={async (v) => {
+                      try {
+                        const updated = await api.updateTrack(t.id, { rating: v });
+                        setTracks((prev) =>
+                          prev.map((x) => (x.id === t.id ? { ...updated, cover_url: x.cover_url } : x)),
+                        );
+                      } catch (e: any) {
+                        alert(`Rating update failed: ${e?.message ?? e}`);
+                      }
+                    }}
+                  />
                 </td>
                 <td className="py-2 pr-3 text-zinc-500 text-right tabular-nums">
-                  {formatBytes(t.size_bytes)}
+                  {formatDuration(t.duration_sec)}
                 </td>
                 <td className="pr-6 text-right whitespace-nowrap">
                   <button
@@ -181,7 +201,7 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
             ))}
             {tracks.length === 0 && !loading && (
               <tr>
-                <td colSpan={8} className="text-center py-12 text-zinc-500">
+                <td colSpan={10} className="text-center py-12 text-zinc-500">
                   {debouncedQ ? `No tracks matching "${debouncedQ}"` : 'No tracks indexed yet. Drop MP3s into the music dir and click Rescan.'}
                 </td>
               </tr>

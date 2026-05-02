@@ -38,6 +38,8 @@ interface TrackRow {
   size_bytes: number;
   bitrate: number | null;
   mime: string | null;
+  rating: number | null;
+  cover_filename: string | null;
   added_at: string;
   modified_at: string;
   last_edited_at: string | null;
@@ -67,10 +69,14 @@ function trackDto(row: TrackRow, publicUrl: string) {
     size_bytes: row.size_bytes,
     bitrate: row.bitrate,
     mime: row.mime,
+    rating: row.rating ?? 0,
     added_at: row.added_at,
     modified_at: row.modified_at,
     last_edited_at: row.last_edited_at,
     url: buildAudioUrl(publicUrl, row.rel_path),
+    cover_url: row.cover_filename
+      ? `/api/covers/${encodeURIComponent(row.cover_filename)}`
+      : null,
   };
 }
 

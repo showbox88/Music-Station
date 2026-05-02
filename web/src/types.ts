@@ -11,10 +11,12 @@ export interface Track {
   size_bytes: number;
   bitrate: number | null;
   mime: string | null;
+  rating: number;             // 0..5
   added_at: string;
   modified_at: string;
   last_edited_at: string | null;
   url: string;
+  cover_url: string | null;
 }
 
 export interface TrackListResponse {

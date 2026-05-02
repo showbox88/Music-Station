@@ -8,6 +8,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { PlaylistDetail, Track } from '../types';
 import { usePlayer } from '../player/PlayerContext';
+import StarRating from './StarRating';
+import CoverThumb from './CoverThumb';
 
 interface Props {
   playlistId: number;
@@ -117,9 +119,11 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
             <tr className="border-b border-zinc-800">
               <th className="text-left font-medium py-2 pl-6 w-12">#</th>
               <th className="text-left font-medium py-2 w-10">▶</th>
+              <th className="text-left font-medium py-2 w-12"></th>
               <th className="text-left font-medium py-2">Title</th>
               <th className="text-left font-medium py-2">Artist</th>
               <th className="text-left font-medium py-2">Album</th>
+              <th className="text-left font-medium py-2 w-24">Rating</th>
               <th className="text-right font-medium py-2 w-20">Duration</th>
               <th className="text-right font-medium py-2 pr-6 w-28"></th>
             </tr>
@@ -143,6 +147,9 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                     {player.current?.id === t.id && player.isPlaying ? '♪' : '▶'}
                   </button>
                 </td>
+                <td className="py-1 pr-2">
+                  <CoverThumb src={t.cover_url} size={32} />
+                </td>
                 <td className="py-2 pr-3 font-medium">
                   {t.last_edited_at && (
                     <span
@@ -154,6 +161,9 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                 </td>
                 <td className="py-2 pr-3 text-zinc-400">{t.artist || '—'}</td>
                 <td className="py-2 pr-3 text-zinc-400">{t.album || '—'}</td>
+                <td className="py-2 pr-3">
+                  <StarRating value={t.rating} />
+                </td>
                 <td className="py-2 pr-3 text-zinc-500 text-right tabular-nums">
                   {formatDuration(t.duration_sec)}
                 </td>
@@ -186,7 +196,7 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
             ))}
             {data && data.tracks.length === 0 && (
               <tr>
-                <td colSpan={7} className="text-center py-12 text-zinc-500">
+                <td colSpan={9} className="text-center py-12 text-zinc-500">
                   No tracks in this playlist yet. Switch to All Tracks and click + to add.
                 </td>
               </tr>

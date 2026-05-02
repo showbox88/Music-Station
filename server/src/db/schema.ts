@@ -58,11 +58,19 @@ export function openDatabase(dbPath: string): Database.Database {
     -- (SQLite is fine with no-op when the column already exists thanks to
     -- IF NOT EXISTS pattern via PRAGMA.)
   `);
-  // Migration helper: add last_edited_at if it's missing (for DBs created
-  // before this column was added).
+  // Migration helper: add new columns if missing (idempotent).
   const cols = db.prepare(`PRAGMA table_info(tracks)`).all() as Array<{ name: string }>;
-  if (!cols.some((c) => c.name === 'last_edited_at')) {
+  const has = (n: string) => cols.some((c) => c.name === n);
+  if (!has('last_edited_at')) {
     db.exec(`ALTER TABLE tracks ADD COLUMN last_edited_at TEXT`);
+  }
+  if (!has('rating')) {
+    // 0..5 stars. 0 = unrated.
+    db.exec(`ALTER TABLE tracks ADD COLUMN rating INTEGER DEFAULT 0`);
+  }
+  if (!has('cover_filename')) {
+    // Filename inside COVER_DIR (e.g. "47.jpg"). NULL = no custom cover.
+    db.exec(`ALTER TABLE tracks ADD COLUMN cover_filename TEXT`);
   }
   db.exec(`
 

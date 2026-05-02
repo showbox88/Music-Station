@@ -7,6 +7,15 @@ export interface TrackEdit {
   genre?: string | null;
   year?: number | null;
   track_no?: number | null;
+  rating?: number | null;
+}
+
+export interface CoverSearchResult {
+  source: string;
+  artist: string | null;
+  album: string | null;
+  thumbnail_url: string | null;
+  full_url: string | null;
 }
 
 // Production base = '/app/', dev base = '/'. Vite injects the value at build.
@@ -91,6 +100,23 @@ export const api = {
     deleteReq<{ ok: boolean }>(`/playlists/${id}/tracks/${trackId}`),
   reorderPlaylist: (id: number, trackIds: number[]) =>
     putJson<{ ok: boolean; count: number }>(`/playlists/${id}/order`, { track_ids: trackIds }),
+
+  // ----- covers -----
+  searchCovers: (q: string, limit = 12) =>
+    getJson<{ count: number; results: CoverSearchResult[] }>(
+      `/covers/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+  uploadCover: async (trackId: number, file: File) => {
+    const fd = new FormData();
+    fd.append('cover', file, file.name);
+    const res = await fetch(url(`/tracks/${trackId}/cover`), { method: 'POST', body: fd });
+    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+    return res.json() as Promise<{ ok: boolean; cover_url: string }>;
+  },
+  setCoverFromUrl: (trackId: number, srcUrl: string) =>
+    postJson<{ ok: boolean; cover_url: string }>(`/tracks/${trackId}/cover/url`, { url: srcUrl }),
+  deleteCover: (trackId: number) =>
+    deleteReq<{ ok: boolean }>(`/tracks/${trackId}/cover`),
 
   uploadTracks: async (
     files: File[],

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api, type TrackEdit } from '../api';
 import type { Track } from '../types';
+import StarRating from './StarRating';
+import CoverPicker from './CoverPicker';
 
 interface Props {
   track: Track;
@@ -16,7 +18,9 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
     genre: track.genre ?? '',
     year: track.year != null ? String(track.year) : '',
     track_no: track.track_no != null ? String(track.track_no) : '',
+    rating: track.rating ?? 0,
   });
+  const [coverUrl, setCoverUrl] = useState<string | null>(track.cover_url);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -40,9 +44,11 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
         genre: form.genre.trim() || null,
         year: form.year.trim() ? Number(form.year) : null,
         track_no: form.track_no.trim() ? Number(form.track_no) : null,
+        rating: form.rating,
       };
       const updated = await api.updateTrack(track.id, payload);
-      onSaved(updated);
+      // Cover URL may have been changed by CoverPicker out-of-band; reflect it
+      onSaved({ ...updated, cover_url: coverUrl });
       onClose();
     } catch (e: any) {
       setErr(String(e?.message ?? e));
@@ -68,6 +74,18 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
             Edits go to the database only — the MP3 file is never modified.
           </p>
         </div>
+
+        <Field label="Cover">
+          <CoverPicker track={{ ...track, cover_url: coverUrl }} onChanged={setCoverUrl} />
+        </Field>
+
+        <Field label="Rating">
+          <StarRating
+            value={form.rating}
+            onChange={(v) => setForm({ ...form, rating: v })}
+            size="md"
+          />
+        </Field>
 
         <Field label="Title">
           <input
