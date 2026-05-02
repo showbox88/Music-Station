@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import type { Track } from '../types';
 import EditTrackModal from './EditTrackModal';
+import AddToPlaylistMenu from './AddToPlaylistMenu';
 
 function formatDuration(sec: number | null): string {
   if (sec == null) return '—';
@@ -27,6 +28,7 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState<Track | null>(null);
+  const [addingTo, setAddingTo] = useState<{ track: Track; x: number; y: number } | null>(null);
 
   // Debounce search
   const [debouncedQ, setDebouncedQ] = useState(q);
@@ -101,7 +103,7 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
               <th className="text-left font-medium py-2">Genre</th>
               <th className="text-right font-medium py-2 w-20">Duration</th>
               <th className="text-right font-medium py-2 w-20">Size</th>
-              <th className="text-right font-medium py-2 pr-6 w-20"></th>
+              <th className="text-right font-medium py-2 pr-6 w-28"></th>
             </tr>
           </thead>
           <tbody>
@@ -141,6 +143,16 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
                 </td>
                 <td className="pr-6 text-right whitespace-nowrap">
                   <button
+                    onClick={(e) => {
+                      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      setAddingTo({ track: t, x: r.left, y: r.bottom + 4 });
+                    }}
+                    title="Add to playlist"
+                    className="text-zinc-500 hover:text-blue-400 px-2"
+                  >
+                    +
+                  </button>
+                  <button
                     onClick={() => setEditing(t)}
                     title="Edit metadata"
                     className="text-zinc-500 hover:text-zinc-100 px-2"
@@ -175,6 +187,15 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
           onSaved={(updated) => {
             setTracks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
           }}
+        />
+      )}
+
+      {addingTo && (
+        <AddToPlaylistMenu
+          track={addingTo.track}
+          anchor={{ x: addingTo.x, y: addingTo.y }}
+          onClose={() => setAddingTo(null)}
+          onAdded={() => onChanged?.()}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import type { Status, Track, TrackListResponse } from './types';
+import type { Playlist, PlaylistDetail, Status, Track, TrackListResponse } from './types';
 
 export interface TrackEdit {
   title?: string | null;
@@ -44,6 +44,12 @@ async function putJson<T>(path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+async function deleteReq<T>(path: string): Promise<T> {
+  const res = await fetch(url(path), { method: 'DELETE' });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
+  return res.json();
+}
+
 export interface TracksQuery {
   q?: string;
   artist?: string;
@@ -69,6 +75,23 @@ export const api = {
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
     return res.json() as Promise<{ ok: boolean; deleted_id: number; file_removed: boolean }>;
   },
+  // ----- playlists -----
+  listPlaylists: () => getJson<{ count: number; playlists: Playlist[] }>('/playlists'),
+  getPlaylist: (id: number) => getJson<PlaylistDetail>(`/playlists/${id}`),
+  createPlaylist: (name: string, description?: string) =>
+    postJson<Playlist>('/playlists', { name, description }),
+  updatePlaylist: (id: number, fields: { name?: string; description?: string }) =>
+    putJson<Playlist>(`/playlists/${id}`, fields),
+  deletePlaylist: (id: number) => deleteReq<{ ok: boolean }>(`/playlists/${id}`),
+  addTracksToPlaylist: (id: number, trackIds: number[]) =>
+    postJson<{ ok: boolean; added: number; skipped: number }>(`/playlists/${id}/tracks`, {
+      track_ids: trackIds,
+    }),
+  removeTrackFromPlaylist: (id: number, trackId: number) =>
+    deleteReq<{ ok: boolean }>(`/playlists/${id}/tracks/${trackId}`),
+  reorderPlaylist: (id: number, trackIds: number[]) =>
+    putJson<{ ok: boolean; count: number }>(`/playlists/${id}/order`, { track_ids: trackIds }),
+
   uploadTracks: async (
     files: File[],
     onProgress?: (loaded: number, total: number) => void,

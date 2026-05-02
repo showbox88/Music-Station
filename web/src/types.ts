@@ -35,3 +35,19 @@ export interface Status {
   started_at: string;
   uptime_sec: number;
 }
+
+export interface Playlist {
+  id: number;
+  name: string;
+  description: string | null;
+  created_at: string;
+  track_count: number;
+}
+
+export interface PlaylistDetail {
+  id: number;
+  name: string;
+  description: string | null;
+  created_at: string;
+  tracks: Track[];
+}
