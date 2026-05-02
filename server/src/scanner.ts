@@ -116,24 +116,27 @@ export async function scanLibrary(db: Database, musicDir: string): Promise<ScanR
     removed = toRemove.length;
   }
 
-  // Upsert tracks. Process in chunks to keep memory bounded.
-  const upsertStmt = db.prepare(`
+  // Two statements:
+  //   - insertStmt:  for new files only — populates subjective metadata from ID3
+  //   - refreshStmt: for files we already know — only refresh objective fields
+  //                  (size, duration, bitrate, mime). Never touches title/artist/
+  //                  album/genre/year/track_no — those are user-managed once they
+  //                  land in the DB.
+  const insertStmt = db.prepare(`
     INSERT INTO tracks (rel_path, title, artist, album, genre, year, track_no,
                         duration_sec, size_bytes, bitrate, mime)
     VALUES (@rel_path, @title, @artist, @album, @genre, @year, @track_no,
             @duration_sec, @size_bytes, @bitrate, @mime)
-    ON CONFLICT (rel_path) DO UPDATE SET
-      title        = excluded.title,
-      artist       = excluded.artist,
-      album        = excluded.album,
-      genre        = excluded.genre,
-      year         = excluded.year,
-      track_no     = excluded.track_no,
-      duration_sec = excluded.duration_sec,
-      size_bytes   = excluded.size_bytes,
-      bitrate      = excluded.bitrate,
-      mime         = excluded.mime,
-      modified_at  = datetime('now')
+  `);
+
+  const refreshStmt = db.prepare(`
+    UPDATE tracks
+       SET duration_sec = @duration_sec,
+           size_bytes   = @size_bytes,
+           bitrate      = @bitrate,
+           mime         = @mime,
+           modified_at  = datetime('now')
+     WHERE rel_path = @rel_path
   `);
 
   for (const rel of fsRelPaths) {
@@ -144,10 +147,19 @@ export async function scanLibrary(db: Database, musicDir: string): Promise<ScanR
         failed++;
         continue;
       }
-      const existed = dbRelPaths.has(rel);
-      upsertStmt.run(t);
-      if (existed) updated++;
-      else inserted++;
+      if (dbRelPaths.has(rel)) {
+        refreshStmt.run({
+          rel_path: t.rel_path,
+          duration_sec: t.duration_sec,
+          size_bytes: t.size_bytes,
+          bitrate: t.bitrate,
+          mime: t.mime,
+        });
+        updated++;
+      } else {
+        insertStmt.run(t);
+        inserted++;
+      }
     } catch {
       failed++;
     }

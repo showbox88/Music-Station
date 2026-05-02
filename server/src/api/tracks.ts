@@ -22,6 +22,7 @@ interface TrackRow {
   mime: string | null;
   added_at: string;
   modified_at: string;
+  last_edited_at: string | null;
 }
 
 interface Deps {
@@ -50,6 +51,7 @@ function dto(row: TrackRow, publicUrl: string) {
     mime: row.mime,
     added_at: row.added_at,
     modified_at: row.modified_at,
+    last_edited_at: row.last_edited_at,
     url: buildAudioUrl(publicUrl, row.rel_path),
   };
 }
@@ -117,6 +119,65 @@ export function tracksRouter({ db, publicUrl }: Deps): Router {
       return;
     }
     res.json(dto(row, publicUrl));
+  });
+
+  // PUT /api/tracks/:id — update subjective metadata fields. Writes only to
+  // the DB; the underlying MP3 file is never modified. last_edited_at is
+  // stamped so the UI can mark "edited" rows.
+  r.put('/:id(\\d+)', (req, res) => {
+    const id = Number(req.params.id);
+    const existing = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as
+      | TrackRow
+      | undefined;
+    if (!existing) {
+      res.status(404).json({ error: 'track not found' });
+      return;
+    }
+
+    const body = req.body ?? {};
+    const allowed: Array<keyof TrackRow> = [
+      'title',
+      'artist',
+      'album',
+      'genre',
+      'year',
+      'track_no',
+    ];
+    const updates: Partial<TrackRow> = {};
+    for (const k of allowed) {
+      if (k in body) {
+        const v = body[k];
+        // null / "" / undefined → store NULL; else coerce numeric fields
+        if (v === null || v === undefined || v === '') {
+          (updates as any)[k] = null;
+        } else if (k === 'year' || k === 'track_no') {
+          const n = Number(v);
+          if (!Number.isFinite(n) || n < 0 || n > 99999) {
+            res.status(400).json({ error: `${k} must be a non-negative integer` });
+            return;
+          }
+          (updates as any)[k] = Math.trunc(n);
+        } else {
+          (updates as any)[k] = String(v).trim();
+        }
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: 'no editable fields in body' });
+      return;
+    }
+
+    const sets = Object.keys(updates).map((k) => `${k} = @${k}`);
+    sets.push(`last_edited_at = datetime('now')`);
+    sets.push(`modified_at = datetime('now')`);
+    db.prepare(`UPDATE tracks SET ${sets.join(', ')} WHERE id = @id`).run({
+      ...updates,
+      id,
+    });
+
+    const fresh = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as TrackRow;
+    res.json(dto(fresh, publicUrl));
   });
 
   return r;

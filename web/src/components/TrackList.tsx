@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import type { Track } from '../types';
+import EditTrackModal from './EditTrackModal';
 
 function formatDuration(sec: number | null): string {
   if (sec == null) return '—';
@@ -20,6 +21,7 @@ export default function TrackList({ refreshKey }: { refreshKey: number }) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Track | null>(null);
 
   // Debounce search
   const [debouncedQ, setDebouncedQ] = useState(q);
@@ -79,7 +81,8 @@ export default function TrackList({ refreshKey }: { refreshKey: number }) {
               <th className="text-left font-medium py-2">Album</th>
               <th className="text-left font-medium py-2">Genre</th>
               <th className="text-right font-medium py-2 w-20">Duration</th>
-              <th className="text-right font-medium py-2 pr-6 w-20">Size</th>
+              <th className="text-right font-medium py-2 w-20">Size</th>
+              <th className="text-right font-medium py-2 pr-6 w-12"></th>
             </tr>
           </thead>
           <tbody>
@@ -99,21 +102,38 @@ export default function TrackList({ refreshKey }: { refreshKey: number }) {
                     ▶
                   </a>
                 </td>
-                <td className="py-2 pr-3 font-medium">{t.title || '—'}</td>
+                <td className="py-2 pr-3 font-medium">
+                  {t.last_edited_at && (
+                    <span
+                      className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 mr-2 align-middle"
+                      title={`Edited ${t.last_edited_at}`}
+                    />
+                  )}
+                  {t.title || '—'}
+                </td>
                 <td className="py-2 pr-3 text-zinc-400">{t.artist || '—'}</td>
                 <td className="py-2 pr-3 text-zinc-400">{t.album || '—'}</td>
                 <td className="py-2 pr-3 text-zinc-500">{t.genre || '—'}</td>
                 <td className="py-2 pr-3 text-zinc-500 text-right tabular-nums">
                   {formatDuration(t.duration_sec)}
                 </td>
-                <td className="py-2 pr-6 text-zinc-500 text-right tabular-nums">
+                <td className="py-2 pr-3 text-zinc-500 text-right tabular-nums">
                   {formatBytes(t.size_bytes)}
+                </td>
+                <td className="pr-6 text-right">
+                  <button
+                    onClick={() => setEditing(t)}
+                    title="Edit metadata"
+                    className="text-zinc-500 hover:text-zinc-100 px-2"
+                  >
+                    ✎
+                  </button>
                 </td>
               </tr>
             ))}
             {tracks.length === 0 && !loading && (
               <tr>
-                <td colSpan={7} className="text-center py-12 text-zinc-500">
+                <td colSpan={8} className="text-center py-12 text-zinc-500">
                   {debouncedQ ? `No tracks matching "${debouncedQ}"` : 'No tracks indexed yet. Drop MP3s into the music dir and click Rescan.'}
                 </td>
               </tr>
@@ -121,6 +141,16 @@ export default function TrackList({ refreshKey }: { refreshKey: number }) {
           </tbody>
         </table>
       </div>
+
+      {editing && (
+        <EditTrackModal
+          track={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(updated) => {
+            setTracks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+          }}
+        />
+      )}
     </div>
   );
 }

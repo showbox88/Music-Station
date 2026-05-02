@@ -1,4 +1,13 @@
-import type { Status, TrackListResponse } from './types';
+import type { Status, Track, TrackListResponse } from './types';
+
+export interface TrackEdit {
+  title?: string | null;
+  artist?: string | null;
+  album?: string | null;
+  genre?: string | null;
+  year?: number | null;
+  track_no?: number | null;
+}
 
 // Production base = '/app/', dev base = '/'. Vite injects the value at build.
 // API endpoints live under <base>api/. After Tailscale strips the /app prefix
@@ -25,6 +34,16 @@ async function postJson<T>(path: string, body?: unknown): Promise<T> {
   return res.json();
 }
 
+async function putJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(url(path), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
+  return res.json();
+}
+
 export interface TracksQuery {
   q?: string;
   artist?: string;
@@ -44,4 +63,5 @@ export const api = {
     Object.entries(q).forEach(([k, v]) => v !== undefined && v !== '' && params.set(k, String(v)));
     return getJson<TrackListResponse>(`/tracks?${params.toString()}`);
   },
+  updateTrack: (id: number, fields: TrackEdit) => putJson<Track>(`/tracks/${id}`, fields),
 };

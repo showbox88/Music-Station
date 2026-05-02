@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .input {
+    @apply w-full px-3 py-1.5 rounded bg-zinc-800 border border-zinc-700
+           focus:border-zinc-500 outline-none text-sm;
+  }
+}
+
 html, body, #root {
   height: 100%;
 }

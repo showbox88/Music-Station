@@ -13,6 +13,7 @@ export interface Track {
   mime: string | null;
   added_at: string;
   modified_at: string;
+  last_edited_at: string | null;
   url: string;
 }
 
