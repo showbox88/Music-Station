@@ -3,6 +3,7 @@ import { api } from '../api';
 import type { Track } from '../types';
 import EditTrackModal from './EditTrackModal';
 import AddToPlaylistMenu from './AddToPlaylistMenu';
+import { usePlayer } from '../player/PlayerContext';
 
 function formatDuration(sec: number | null): string {
   if (sec == null) return '—';
@@ -29,6 +30,7 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState<Track | null>(null);
   const [addingTo, setAddingTo] = useState<{ track: Track; x: number; y: number } | null>(null);
+  const player = usePlayer();
 
   // Debounce search
   const [debouncedQ, setDebouncedQ] = useState(q);
@@ -113,15 +115,23 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
                 className="border-b border-zinc-900 hover:bg-zinc-900/50"
               >
                 <td className="pl-6">
-                  <a
-                    href={t.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="Play in new tab"
-                    className="inline-block w-6 h-6 leading-6 text-center rounded hover:bg-zinc-700 text-zinc-400 hover:text-zinc-100"
+                  <button
+                    onClick={() => {
+                      // Play the current visible list, starting from this track
+                      const idx = tracks.findIndex((x) => x.id === t.id);
+                      player.playList(tracks, Math.max(0, idx));
+                    }}
+                    title={
+                      player.current?.id === t.id && player.isPlaying
+                        ? 'Now playing'
+                        : 'Play (queues this view)'
+                    }
+                    className={`inline-block w-6 h-6 leading-6 text-center rounded hover:bg-zinc-700 ${
+                      player.current?.id === t.id ? 'text-blue-400' : 'text-zinc-400 hover:text-zinc-100'
+                    }`}
                   >
-                    ▶
-                  </a>
+                    {player.current?.id === t.id && player.isPlaying ? '♪' : '▶'}
+                  </button>
                 </td>
                 <td className="py-2 pr-3 font-medium">
                   {t.last_edited_at && (

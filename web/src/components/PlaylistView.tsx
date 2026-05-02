@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { PlaylistDetail, Track } from '../types';
+import { usePlayer } from '../player/PlayerContext';
 
 interface Props {
   playlistId: number;
@@ -25,6 +26,7 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
   const [data, setData] = useState<PlaylistDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const player = usePlayer();
 
   function load() {
     setLoading(true);
@@ -66,13 +68,36 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="px-6 py-3 border-b border-zinc-800 bg-zinc-900/50">
+      <div className="px-6 py-3 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between">
         {data ? (
           <>
-            <h2 className="text-lg font-semibold">{data.name}</h2>
-            <div className="text-xs text-zinc-500">
-              {data.tracks.length} track{data.tracks.length !== 1 ? 's' : ''}
-              {data.description ? ` · ${data.description}` : ''}
+            <div>
+              <h2 className="text-lg font-semibold">{data.name}</h2>
+              <div className="text-xs text-zinc-500">
+                {data.tracks.length} track{data.tracks.length !== 1 ? 's' : ''}
+                {data.description ? ` · ${data.description}` : ''}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => data.tracks.length && player.playList(data.tracks, 0)}
+                disabled={data.tracks.length === 0}
+                className="px-3 py-1.5 rounded text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50"
+              >
+                ▶ Play
+              </button>
+              <button
+                onClick={() => {
+                  if (data.tracks.length === 0) return;
+                  // Toggle shuffle on, then play
+                  if (!player.shuffle) player.toggleShuffle();
+                  player.playList(data.tracks, 0);
+                }}
+                disabled={data.tracks.length === 0}
+                className="px-3 py-1.5 rounded text-sm bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50"
+              >
+                🔀 Shuffle
+              </button>
             </div>
           </>
         ) : (
@@ -104,15 +129,19 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
               <tr key={t.id} className="border-b border-zinc-900 hover:bg-zinc-900/50">
                 <td className="pl-6 text-zinc-500 tabular-nums">{idx + 1}</td>
                 <td>
-                  <a
-                    href={t.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="Play in new tab"
-                    className="inline-block w-6 h-6 leading-6 text-center rounded hover:bg-zinc-700 text-zinc-400 hover:text-zinc-100"
+                  <button
+                    onClick={() => data && player.playList(data.tracks, idx)}
+                    title={
+                      player.current?.id === t.id && player.isPlaying
+                        ? 'Now playing'
+                        : 'Play (queues this playlist)'
+                    }
+                    className={`inline-block w-6 h-6 leading-6 text-center rounded hover:bg-zinc-700 ${
+                      player.current?.id === t.id ? 'text-blue-400' : 'text-zinc-400 hover:text-zinc-100'
+                    }`}
                   >
-                    ▶
-                  </a>
+                    {player.current?.id === t.id && player.isPlaying ? '♪' : '▶'}
+                  </button>
                 </td>
                 <td className="py-2 pr-3 font-medium">
                   {t.last_edited_at && (

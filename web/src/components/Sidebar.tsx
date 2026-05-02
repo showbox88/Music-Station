@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { Playlist } from '../types';
+import { usePlayer } from '../player/PlayerContext';
 
 export type View = { kind: 'all' } | { kind: 'playlist'; id: number };
 
@@ -20,6 +21,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged }: Props)
   const [err, setErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const player = usePlayer();
 
   function load() {
     api
@@ -54,6 +56,16 @@ export default function Sidebar({ view, setView, refreshKey, onChanged }: Props)
       onChanged();
     } catch (e: any) {
       alert(String(e?.message ?? e));
+    }
+  }
+
+  async function onPlayPlaylist(p: Playlist) {
+    if (p.track_count === 0) return;
+    try {
+      const detail = await api.getPlaylist(p.id);
+      player.playList(detail.tracks, 0);
+    } catch (e: any) {
+      alert(`Failed to start playlist: ${e?.message ?? e}`);
     }
   }
 
@@ -122,6 +134,17 @@ export default function Sidebar({ view, setView, refreshKey, onChanged }: Props)
               <span className="flex-1 truncate">{p.name}</span>
               <span className="text-xs text-zinc-500 ml-2 tabular-nums">{p.track_count}</span>
               <span className="ml-2 opacity-0 group-hover:opacity-100 flex gap-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPlayPlaylist(p);
+                  }}
+                  className="text-xs px-1 text-blue-400 hover:text-blue-300 disabled:opacity-30"
+                  title="Play playlist"
+                  disabled={p.track_count === 0}
+                >
+                  ▶
+                </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
