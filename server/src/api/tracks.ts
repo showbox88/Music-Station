@@ -6,6 +6,8 @@
  */
 import { Router } from 'express';
 import type { Database } from 'better-sqlite3';
+import { unlink } from 'node:fs/promises';
+import { join } from 'node:path';
 
 interface TrackRow {
   id: number;
@@ -28,6 +30,7 @@ interface TrackRow {
 interface Deps {
   db: Database;
   publicUrl: string;
+  musicDir: string;
 }
 
 function buildAudioUrl(publicUrl: string, relPath: string): string {
@@ -56,7 +59,7 @@ function dto(row: TrackRow, publicUrl: string) {
   };
 }
 
-export function tracksRouter({ db, publicUrl }: Deps): Router {
+export function tracksRouter({ db, publicUrl, musicDir }: Deps): Router {
   const r = Router();
 
   // GET /api/tracks?q=...&artist=...&album=...&limit=...&offset=...
@@ -178,6 +181,36 @@ export function tracksRouter({ db, publicUrl }: Deps): Router {
 
     const fresh = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as TrackRow;
     res.json(dto(fresh, publicUrl));
+  });
+
+  // DELETE /api/tracks/:id — removes the audio file from disk and the row
+  // from the DB (cascades to playlist_tracks). If the file is already gone
+  // (e.g. removed via Samba), we still clean up the DB row.
+  r.delete('/:id(\\d+)', async (req, res) => {
+    const id = Number(req.params.id);
+    const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as TrackRow | undefined;
+    if (!row) {
+      res.status(404).json({ error: 'track not found' });
+      return;
+    }
+
+    const abs = join(musicDir, ...row.rel_path.split('/'));
+    let fileRemoved = false;
+    try {
+      await unlink(abs);
+      fileRemoved = true;
+    } catch (err: any) {
+      if (err?.code === 'ENOENT') {
+        // already gone — that's fine, just clean up DB
+        fileRemoved = false;
+      } else {
+        res.status(500).json({ error: `failed to delete file: ${err?.message ?? err}` });
+        return;
+      }
+    }
+
+    db.prepare('DELETE FROM tracks WHERE id = ?').run(id);
+    res.json({ ok: true, deleted_id: id, rel_path: row.rel_path, file_removed: fileRemoved });
   });
 
   return r;

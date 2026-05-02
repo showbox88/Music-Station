@@ -15,7 +15,12 @@ function formatBytes(b: number): string {
   return `${(b / 1024).toFixed(0)} KB`;
 }
 
-export default function TrackList({ refreshKey }: { refreshKey: number }) {
+interface Props {
+  refreshKey: number;
+  onChanged?: () => void;
+}
+
+export default function TrackList({ refreshKey, onChanged }: Props) {
   const [q, setQ] = useState('');
   const [tracks, setTracks] = useState<Track[]>([]);
   const [total, setTotal] = useState(0);
@@ -50,6 +55,20 @@ export default function TrackList({ refreshKey }: { refreshKey: number }) {
 
   const showing = useMemo(() => tracks.length, [tracks]);
 
+  async function onDelete(t: Track) {
+    if (!confirm(`Delete "${t.title || t.rel_path}"?\n\nThis removes the file from disk and the track from the library.`)) {
+      return;
+    }
+    try {
+      await api.deleteTrack(t.id);
+      setTracks((prev) => prev.filter((x) => x.id !== t.id));
+      setTotal((n) => n - 1);
+      onChanged?.();
+    } catch (e: any) {
+      alert(`Delete failed: ${e?.message ?? e}`);
+    }
+  }
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="px-6 py-3 border-b border-zinc-800 flex items-center gap-3 bg-zinc-900/50">
@@ -82,7 +101,7 @@ export default function TrackList({ refreshKey }: { refreshKey: number }) {
               <th className="text-left font-medium py-2">Genre</th>
               <th className="text-right font-medium py-2 w-20">Duration</th>
               <th className="text-right font-medium py-2 w-20">Size</th>
-              <th className="text-right font-medium py-2 pr-6 w-12"></th>
+              <th className="text-right font-medium py-2 pr-6 w-20"></th>
             </tr>
           </thead>
           <tbody>
@@ -120,13 +139,20 @@ export default function TrackList({ refreshKey }: { refreshKey: number }) {
                 <td className="py-2 pr-3 text-zinc-500 text-right tabular-nums">
                   {formatBytes(t.size_bytes)}
                 </td>
-                <td className="pr-6 text-right">
+                <td className="pr-6 text-right whitespace-nowrap">
                   <button
                     onClick={() => setEditing(t)}
                     title="Edit metadata"
                     className="text-zinc-500 hover:text-zinc-100 px-2"
                   >
                     ✎
+                  </button>
+                  <button
+                    onClick={() => onDelete(t)}
+                    title="Delete (file + DB)"
+                    className="text-zinc-500 hover:text-red-400 px-2"
+                  >
+                    ✕
                   </button>
                 </td>
               </tr>

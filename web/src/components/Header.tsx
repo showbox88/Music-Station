@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { Status } from '../types';
+import UploadZone from './UploadZone';
 
-export default function Header({ onRescanned }: { onRescanned?: () => void }) {
+interface HeaderProps {
+  onRescanned?: () => void;
+  onUploaded?: () => void;
+}
+
+export default function Header({ onRescanned, onUploaded }: HeaderProps) {
   const [status, setStatus] = useState<Status | null>(null);
   const [scanning, setScanning] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -36,6 +42,12 @@ export default function Header({ onRescanned }: { onRescanned?: () => void }) {
       </div>
       <div className="flex items-center gap-2">
         {err && <span className="text-xs text-red-400">{err}</span>}
+        <UploadZone
+          onUploaded={() => {
+            load();
+            onUploaded?.();
+          }}
+        />
         <button
           onClick={onRescan}
           disabled={scanning}

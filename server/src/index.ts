@@ -18,6 +18,7 @@ import { openDatabase } from './db/schema.js';
 import { scanLibrary } from './scanner.js';
 import { tracksRouter } from './api/tracks.js';
 import { statusRouter } from './api/status.js';
+import { uploadRouter } from './api/upload.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // .env lives at repo root (../../ from server/dist/ or server/src/)
@@ -47,8 +48,9 @@ const app = express();
 app.use(express.json({ limit: '4mb' }));
 
 // API routes
-app.use('/api/tracks', tracksRouter({ db, publicUrl: PUBLIC_URL }));
+app.use('/api/tracks', tracksRouter({ db, publicUrl: PUBLIC_URL, musicDir: MUSIC_DIR }));
 app.use('/api/status', statusRouter({ db, musicDir: MUSIC_DIR, startedAt }));
+app.use('/api/upload', uploadRouter({ db, musicDir: MUSIC_DIR }));
 
 // Catch-all 404 for /api/*
 app.use('/api', (_req, res) => res.status(404).json({ error: 'not found' }));

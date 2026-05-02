@@ -64,4 +64,49 @@ export const api = {
     return getJson<TrackListResponse>(`/tracks?${params.toString()}`);
   },
   updateTrack: (id: number, fields: TrackEdit) => putJson<Track>(`/tracks/${id}`, fields),
+  deleteTrack: async (id: number) => {
+    const res = await fetch(url(`/tracks/${id}`), { method: 'DELETE' });
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
+    return res.json() as Promise<{ ok: boolean; deleted_id: number; file_removed: boolean }>;
+  },
+  uploadTracks: async (
+    files: File[],
+    onProgress?: (loaded: number, total: number) => void,
+  ): Promise<UploadResponse> => {
+    const fd = new FormData();
+    for (const f of files) fd.append('files', f, f.name);
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url('/upload'));
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress(e.loaded, e.total);
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch (e) {
+            reject(new Error(`Bad JSON response: ${xhr.responseText}`));
+          }
+        } else {
+          reject(new Error(`${xhr.status}: ${xhr.responseText}`));
+        }
+      };
+      xhr.onerror = () => reject(new Error('network error'));
+      xhr.send(fd);
+    });
+  },
 };
+
+export interface UploadResponse {
+  ok: boolean;
+  uploaded: Array<{ filename: string; size_bytes: number }>;
+  scan: {
+    scanned_files: number;
+    inserted: number;
+    updated: number;
+    removed: number;
+    failed: number;
+    took_ms: number;
+  };
+}
