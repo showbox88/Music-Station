@@ -60,8 +60,7 @@ export default function CoverPicker({ track, onChanged }: Props) {
     }
   }
 
-  async function handleSearch(e?: React.FormEvent) {
-    e?.preventDefault();
+  async function handleSearch() {
     if (!query.trim()) return;
     setBusy(true);
     setErr(null);
@@ -142,17 +141,29 @@ export default function CoverPicker({ track, onChanged }: Props) {
       </div>
 
       {searching && (
-        <form onSubmit={handleSearch} className="space-y-2">
+        // Note: NOT a <form> — this lives inside EditTrackModal's outer
+        // <form>, and nested forms cause the inner submit to trigger the
+        // outer form's onSubmit (which closes the modal). Using a div +
+        // explicit button type=button + Enter key handler instead.
+        <div className="space-y-2">
           <div className="flex gap-2">
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSearch();
+                }
+              }}
               placeholder="Artist + album (e.g. Pink Floyd Dark Side)"
               className="input text-xs"
             />
             <button
-              type="submit"
+              type="button"
+              onClick={handleSearch}
               disabled={busy || !query.trim()}
               className="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50"
             >
@@ -188,7 +199,7 @@ export default function CoverPicker({ track, onChanged }: Props) {
               Tip: try just the album name or "artist + album". Source: iTunes.
             </div>
           )}
-        </form>
+        </div>
       )}
     </div>
   );
