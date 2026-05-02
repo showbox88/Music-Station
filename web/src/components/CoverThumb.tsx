@@ -1,7 +1,24 @@
 /**
  * Small cover thumbnail. Falls back to a music note emoji on missing or error.
+ *
+ * Server returns cover URLs as `/api/covers/<file>` (relative to backend
+ * root). In production the app is mounted at `/app/`, so we need to prefix
+ * BASE_URL minus its trailing slash, yielding `/app/api/covers/<file>`,
+ * which Tailscale routes to music-station and strips `/app` → backend
+ * static serves from /api/covers/. In dev BASE_URL is `/` and the prefix
+ * collapses, so vite proxy /api still works.
  */
 import { useState } from 'react';
+
+function resolveSrc(src: string | null): string | null {
+  if (!src) return null;
+  if (/^https?:/i.test(src) || src.startsWith('data:') || src.startsWith('blob:')) return src;
+  if (src.startsWith('/')) {
+    const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+    return `${base}${src}`;
+  }
+  return src;
+}
 
 interface Props {
   src: string | null;
@@ -12,7 +29,8 @@ interface Props {
 
 export default function CoverThumb({ src, size = 36, className = '', alt = '' }: Props) {
   const [errored, setErrored] = useState(false);
-  const showImg = src && !errored;
+  const resolved = resolveSrc(src);
+  const showImg = resolved && !errored;
   const dim = `${size}px`;
 
   return (
@@ -22,7 +40,7 @@ export default function CoverThumb({ src, size = 36, className = '', alt = '' }:
     >
       {showImg ? (
         <img
-          src={src}
+          src={resolved}
           alt={alt}
           loading="lazy"
           onError={() => setErrored(true)}
