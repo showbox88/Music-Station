@@ -59,127 +59,137 @@ export default function NowPlayingView({ open, onClose }: Props) {
   const subtitle = [t.artist, t.year].filter(Boolean).join(' · ');
 
   return (
-    <div className="fixed inset-0 z-40 text-white overflow-hidden bg-gradient-to-b from-[#1a0d35] via-[#2d1466] to-[#421b80] flex flex-col">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-5 pt-5 pb-2 shrink-0">
-        <button
-          onClick={onClose}
-          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-2xl"
-          title="Back to library"
-        >
-          ‹
-        </button>
-        <div className="text-center min-w-0 flex-1 px-3">
-          <div className="text-base font-medium truncate">{t.album || '—'}</div>
-          {subtitle && (
-            <div className="text-[11px] text-purple-200/70 truncate mt-0.5">{subtitle}</div>
-          )}
-        </div>
-        {/* Spacer to balance the back arrow */}
-        <div className="w-10" />
-      </div>
-
-      {/* Decorative top wave */}
-      <div className="px-2 -mt-1 mb-2 shrink-0">
+    <div className="fixed inset-0 z-40 text-white overflow-hidden bg-gradient-to-b from-[#1a0d35] via-[#2d1466] to-[#421b80]">
+      {/* Top wave decoration spans full width */}
+      <div className="absolute top-12 left-0 right-0 pointer-events-none">
         <Wave />
       </div>
 
-      {/* Vinyl */}
-      <div className="flex-1 flex items-center justify-center min-h-0 relative">
-        <Vinyl coverUrl={t.cover_url} spinning={p.isPlaying} />
-        <Tonearm playing={p.isPlaying} />
-      </div>
+      {/* Centered column for everything */}
+      <div className="relative h-full max-w-xl mx-auto flex flex-col px-6">
+        {/* Top bar */}
+        <div className="flex items-center justify-between pt-5 pb-2 shrink-0">
+          <button
+            onClick={onClose}
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-2xl"
+            title="Back to library"
+          >
+            ‹
+          </button>
+          <div className="text-center min-w-0 flex-1 px-3">
+            <div className="text-base font-medium truncate">{t.album || '—'}</div>
+            {subtitle && (
+              <div className="text-[11px] text-purple-200/70 truncate mt-0.5">{subtitle}</div>
+            )}
+          </div>
+          <div className="w-10" />
+        </div>
 
-      {/* Progress */}
-      <div className="px-8 mt-2 shrink-0">
-        <input
-          type="range"
-          min={0}
-          max={Math.max(0, p.duration)}
-          step={0.5}
-          value={p.position}
-          onChange={(e) => p.seek(Number(e.target.value))}
-          className="w-full accent-pink-300"
-          style={{
-            background: `linear-gradient(to right,
-              #f9a8d4 0%,
-              #f9a8d4 ${(p.position / Math.max(1, p.duration)) * 100}%,
-              rgba(255,255,255,0.2) ${(p.position / Math.max(1, p.duration)) * 100}%,
-              rgba(255,255,255,0.2) 100%)`,
-            WebkitAppearance: 'none',
-            height: 3,
-            borderRadius: 9999,
-          }}
-        />
-        <div className="flex justify-between text-[11px] text-purple-200/80 tabular-nums mt-1">
-          <span>{fmt(p.position)}</span>
-          <span>{fmtNeg(remaining)}</span>
+        {/* Vinyl + tonearm together (sized container so tonearm is positioned
+            relative to the disc, not the page) */}
+        <div className="flex-1 flex items-center justify-center min-h-0">
+          <div
+            className="relative"
+            style={{ width: 'min(72vw, 320px)', aspectRatio: '1 / 1' }}
+          >
+            <Vinyl coverUrl={t.cover_url} spinning={p.isPlaying} />
+            <Tonearm playing={p.isPlaying} />
+          </div>
+        </div>
+
+        {/* Progress */}
+        <div className="mt-2 shrink-0">
+          <input
+            type="range"
+            min={0}
+            max={Math.max(0, p.duration)}
+            step={0.5}
+            value={p.position}
+            onChange={(e) => p.seek(Number(e.target.value))}
+            className="w-full accent-pink-300"
+            style={{
+              background: `linear-gradient(to right,
+                #f9a8d4 0%,
+                #f9a8d4 ${(p.position / Math.max(1, p.duration)) * 100}%,
+                rgba(255,255,255,0.2) ${(p.position / Math.max(1, p.duration)) * 100}%,
+                rgba(255,255,255,0.2) 100%)`,
+              WebkitAppearance: 'none',
+              height: 3,
+              borderRadius: 9999,
+            }}
+          />
+          <div className="flex justify-between text-[11px] text-purple-200/80 tabular-nums mt-1">
+            <span>{fmt(p.position)}</span>
+            <span>{fmtNeg(remaining)}</span>
+          </div>
+        </div>
+
+        {/* Title + artist */}
+        <div className="text-center mt-5 mb-4 shrink-0">
+          <div className="text-2xl font-medium text-[#7fb3ff] truncate">
+            {t.title || t.rel_path}
+          </div>
+          <div className="text-base text-[#7fb3ff]/80 mt-1 truncate">{t.artist || ''}</div>
+        </div>
+
+        {/* Transport */}
+        <div className="flex items-center justify-between gap-2 pb-8 shrink-0">
+          <button
+            onClick={p.cycleRepeat}
+            title={`Repeat: ${p.repeat}`}
+            className={`w-10 h-10 flex items-center justify-center rounded-full text-xl ${
+              p.repeat !== 'off' ? 'text-pink-300' : 'text-white/70 hover:text-white'
+            }`}
+          >
+            {p.repeat === 'one' ? '🔂' : '🔁'}
+          </button>
+          <button
+            onClick={p.prev}
+            title="Previous"
+            className="w-12 h-12 flex items-center justify-center rounded-full border border-white/40 hover:bg-white/10"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M6 6h2v12H6zM9.5 12l8.5 6V6z" />
+            </svg>
+          </button>
+          <button
+            onClick={p.togglePlay}
+            title={p.isPlaying ? 'Pause' : 'Play'}
+            className="w-16 h-16 flex items-center justify-center rounded-full border-2 border-white hover:bg-white/10"
+          >
+            {p.isPlaying ? (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="5" width="4" height="14" />
+                <rect x="14" y="5" width="4" height="14" />
+              </svg>
+            ) : (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            )}
+          </button>
+          <button
+            onClick={p.next}
+            title="Next"
+            className="w-12 h-12 flex items-center justify-center rounded-full border border-white/40 hover:bg-white/10"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z" />
+            </svg>
+          </button>
+          <button
+            onClick={p.toggleShuffle}
+            title="Shuffle"
+            className={`w-10 h-10 flex items-center justify-center rounded-full text-xl ${
+              p.shuffle ? 'text-pink-300' : 'text-white/70 hover:text-white'
+            }`}
+          >
+            🔀
+          </button>
         </div>
       </div>
 
-      {/* Title + artist */}
-      <div className="text-center mt-5 mb-4 px-6 shrink-0">
-        <div className="text-2xl font-medium text-[#7fb3ff]">{t.title || t.rel_path}</div>
-        <div className="text-base text-[#7fb3ff]/80 mt-1">{t.artist || ''}</div>
-      </div>
-
-      {/* Transport */}
-      <div className="flex items-center justify-around px-8 pb-8 shrink-0">
-        <button
-          onClick={p.cycleRepeat}
-          title={`Repeat: ${p.repeat}`}
-          className={`w-10 h-10 flex items-center justify-center rounded-full text-xl ${
-            p.repeat !== 'off' ? 'text-pink-300' : 'text-white/70 hover:text-white'
-          }`}
-        >
-          {p.repeat === 'one' ? '🔂' : '🔁'}
-        </button>
-        <button
-          onClick={p.prev}
-          title="Previous"
-          className="w-12 h-12 flex items-center justify-center rounded-full border border-white/40 hover:bg-white/10"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M6 6h2v12H6zM9.5 12l8.5 6V6z" />
-          </svg>
-        </button>
-        <button
-          onClick={p.togglePlay}
-          title={p.isPlaying ? 'Pause' : 'Play'}
-          className="w-16 h-16 flex items-center justify-center rounded-full border-2 border-white hover:bg-white/10"
-        >
-          {p.isPlaying ? (
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="5" width="4" height="14" />
-              <rect x="14" y="5" width="4" height="14" />
-            </svg>
-          ) : (
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          )}
-        </button>
-        <button
-          onClick={p.next}
-          title="Next"
-          className="w-12 h-12 flex items-center justify-center rounded-full border border-white/40 hover:bg-white/10"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z" />
-          </svg>
-        </button>
-        <button
-          onClick={p.toggleShuffle}
-          title="Shuffle / queue"
-          className={`w-10 h-10 flex items-center justify-center rounded-full text-xl ${
-            p.shuffle ? 'text-pink-300' : 'text-white/70 hover:text-white'
-          }`}
-        >
-          🔀
-        </button>
-      </div>
-
-      {/* Bottom-right collapse */}
+      {/* Bottom-right collapse — anchored to the page, not the column */}
       <button
         onClick={onClose}
         title="Collapse"
@@ -236,47 +246,43 @@ function Wave() {
 
 function Vinyl({ coverUrl, spinning }: { coverUrl: string | null; spinning: boolean }) {
   return (
-    <div className="relative" style={{ width: 'min(75vw, 380px)', aspectRatio: '1 / 1' }}>
-      {/* Outer disc */}
+    <div
+      className="absolute inset-0 rounded-full shadow-2xl"
+      style={{
+        background: 'radial-gradient(circle at 30% 30%, #2a2a35 0%, #0d0d14 60%, #050507 100%)',
+        animation: 'mw-spin 8s linear infinite',
+        animationPlayState: spinning ? 'running' : 'paused',
+      }}
+    >
+      {/* Concentric grooves */}
+      <div className="absolute inset-2 rounded-full border border-white/5" />
+      <div className="absolute inset-6 rounded-full border border-white/5" />
+      <div className="absolute inset-12 rounded-full border border-white/5" />
+      <div className="absolute inset-20 rounded-full border border-white/5" />
+      {/* Center label area = the album cover */}
       <div
-        className="absolute inset-0 rounded-full shadow-2xl"
+        className="absolute rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center"
         style={{
-          background:
-            'radial-gradient(circle at 30% 30%, #2a2a35 0%, #0d0d14 60%, #050507 100%)',
-          animation: 'mw-spin 8s linear infinite',
-          animationPlayState: spinning ? 'running' : 'paused',
+          top: '28%',
+          left: '28%',
+          width: '44%',
+          height: '44%',
+          boxShadow: '0 0 0 6px #1a0d35, 0 0 0 7px rgba(255,255,255,0.15)',
         }}
       >
-        {/* Concentric grooves */}
-        <div className="absolute inset-2 rounded-full border border-white/5" />
-        <div className="absolute inset-6 rounded-full border border-white/5" />
-        <div className="absolute inset-12 rounded-full border border-white/5" />
-        <div className="absolute inset-20 rounded-full border border-white/5" />
-        {/* Center label area = the album cover */}
-        <div
-          className="absolute rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center"
-          style={{
-            top: '28%',
-            left: '28%',
-            width: '44%',
-            height: '44%',
-            boxShadow: '0 0 0 6px #1a0d35, 0 0 0 7px rgba(255,255,255,0.15)',
-          }}
-        >
-          <CenterCover src={coverUrl} />
-        </div>
-        {/* Center spindle hole */}
-        <div
-          className="absolute rounded-full bg-[#2d1466]"
-          style={{
-            top: 'calc(50% - 6px)',
-            left: 'calc(50% - 6px)',
-            width: 12,
-            height: 12,
-            boxShadow: 'inset 0 0 4px rgba(0,0,0,0.6)',
-          }}
-        />
+        <CenterCover src={coverUrl} />
       </div>
+      {/* Center spindle hole */}
+      <div
+        className="absolute rounded-full bg-[#2d1466]"
+        style={{
+          top: 'calc(50% - 6px)',
+          left: 'calc(50% - 6px)',
+          width: 12,
+          height: 12,
+          boxShadow: 'inset 0 0 4px rgba(0,0,0,0.6)',
+        }}
+      />
     </div>
   );
 }
@@ -298,18 +304,22 @@ function CenterCover({ src }: { src: string | null }) {
 }
 
 function Tonearm({ playing }: { playing: boolean }) {
-  // A subtle decorative SVG tonearm in the bottom-right of the vinyl area.
-  // Slight tilt difference depending on playback state.
+  // The pivot lives at the upper-right OUTSIDE the disc; the arm reaches
+  // toward the center. Sized as a percentage of the parent (vinyl wrapper)
+  // so it scales with the disc on any screen.
   return (
     <svg
       viewBox="0 0 200 200"
       className="absolute pointer-events-none transition-transform duration-700"
       style={{
-        right: '6%',
-        top: '38%',
-        width: 'min(45vw, 220px)',
-        transform: playing ? 'rotate(-12deg)' : 'rotate(-22deg)',
-        transformOrigin: '85% 15%',
+        // Tonearm svg occupies a square the same size as the vinyl, but
+        // shifted up-right so the pivot sits near the disc's outer edge.
+        top: '-20%',
+        right: '-18%',
+        width: '70%',
+        height: '70%',
+        transform: playing ? 'rotate(0deg)' : 'rotate(-15deg)',
+        transformOrigin: '88% 12%',
       }}
     >
       <defs>
@@ -318,21 +328,19 @@ function Tonearm({ playing }: { playing: boolean }) {
           <stop offset="1" stopColor="#5b8cff" />
         </linearGradient>
       </defs>
+      {/* Arm: pivot at upper-right (170,30), reaches toward (40,170) */}
+      <line
+        x1="170" y1="30" x2="60" y2="160"
+        stroke="url(#mw-arm)"
+        strokeWidth="6"
+        strokeLinecap="round"
+      />
       {/* Pivot disc */}
       <circle cx="170" cy="30" r="14" fill="#5b8cff" />
       <circle cx="170" cy="30" r="6" fill="#dff3ff" />
-      {/* Arm */}
-      <rect
-        x="40"
-        y="26"
-        width="130"
-        height="8"
-        rx="4"
-        fill="url(#mw-arm)"
-      />
-      {/* Cartridge */}
-      <rect x="34" y="20" width="22" height="20" rx="3" fill="#9be3ff" />
-      <rect x="36" y="38" width="18" height="6" rx="1.5" fill="#dff3ff" />
+      {/* Cartridge at the tip */}
+      <circle cx="60" cy="160" r="10" fill="#9be3ff" />
+      <circle cx="60" cy="160" r="4" fill="#1a0d35" />
     </svg>
   );
 }
