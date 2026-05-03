@@ -215,30 +215,37 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                 <td className="py-2 pr-3 text-zinc-500 text-right tabular-nums">
                   {formatDuration(t.duration_sec)}
                 </td>
-                <td className="pr-6 text-right whitespace-nowrap">
-                  <button
-                    onClick={() => move(idx, -1)}
-                    disabled={idx === 0}
-                    title="Move up"
-                    className="text-zinc-500 hover:text-zinc-100 px-1 disabled:opacity-30"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    onClick={() => move(idx, 1)}
-                    disabled={idx === (data?.tracks.length ?? 0) - 1}
-                    title="Move down"
-                    className="text-zinc-500 hover:text-zinc-100 px-1 disabled:opacity-30"
-                  >
-                    ↓
-                  </button>
-                  <button
-                    onClick={() => remove(t)}
-                    title="Remove from playlist"
-                    className="text-zinc-500 hover:text-red-400 px-2"
-                  >
-                    ✕
-                  </button>
+                <td className="pr-2 md:pr-4 text-right whitespace-nowrap">
+                  <div className="inline-flex items-center gap-1.5 md:gap-2">
+                    {/* Reorder arrows are desktop-only — drag/up-down on
+                        a phone is awkward, leave it for the desktop view. */}
+                    <button
+                      onClick={() => move(idx, -1)}
+                      disabled={idx === 0}
+                      title="Move up"
+                      className="hidden md:flex w-8 h-8 rounded-full bezel items-center justify-center text-zinc-300 hover:text-white disabled:opacity-30"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      onClick={() => move(idx, 1)}
+                      disabled={idx === (data?.tracks.length ?? 0) - 1}
+                      title="Move down"
+                      className="hidden md:flex w-8 h-8 rounded-full bezel items-center justify-center text-zinc-300 hover:text-white disabled:opacity-30"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      onClick={() => remove(t)}
+                      title="Remove from playlist"
+                      className="w-8 h-8 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-red-400"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
                 </td>
               </tr>
               );

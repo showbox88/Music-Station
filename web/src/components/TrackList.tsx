@@ -110,7 +110,7 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
               <th className="hidden xl:table-cell text-left font-medium py-2 w-20">Year</th>
               <th className="hidden md:table-cell text-left font-medium py-2 w-24">Rating</th>
               <th className="hidden md:table-cell text-right font-medium py-2 w-20">Duration</th>
-              <th className="text-right font-medium py-2 pr-3 md:pr-6 w-16 md:w-28"></th>
+              <th className="text-right font-medium py-2 pr-2 md:pr-4 w-24 md:w-32"></th>
             </tr>
           </thead>
           <tbody>
@@ -228,31 +228,39 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
                 <td className="hidden md:table-cell py-2 pr-3 text-zinc-500 text-right tabular-nums">
                   {formatDuration(t.duration_sec)}
                 </td>
-                <td className="pr-3 md:pr-6 text-right whitespace-nowrap">
-                  <button
-                    onClick={(e) => {
-                      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      setAddingTo({ track: t, x: r.left, y: r.bottom + 4 });
-                    }}
-                    title="Add to playlist"
-                    className="text-zinc-500 hover:text-blue-400 px-2"
-                  >
-                    +
-                  </button>
-                  <button
-                    onClick={() => setEditing(t)}
-                    title="Edit metadata"
-                    className="hidden md:inline text-zinc-500 hover:text-zinc-100 px-2"
-                  >
-                    ✎
-                  </button>
-                  <button
-                    onClick={() => onDelete(t)}
-                    title="Delete (file + DB)"
-                    className="text-zinc-500 hover:text-red-400 px-2"
-                  >
-                    ✕
-                  </button>
+                <td className="pr-2 md:pr-4 text-right whitespace-nowrap">
+                  <div className="inline-flex items-center gap-1.5 md:gap-2">
+                    <button
+                      onClick={(e) => {
+                        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        setAddingTo({ track: t, x: r.left, y: r.bottom + 4 });
+                      }}
+                      title="Add to playlist"
+                      className="w-8 h-8 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-blue-400"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setEditing(t)}
+                      title="Edit metadata"
+                      className="hidden md:flex w-8 h-8 rounded-full bezel items-center justify-center text-zinc-300 hover:text-white"
+                    >
+                      ✎
+                    </button>
+                    <button
+                      onClick={() => onDelete(t)}
+                      title="Delete (file + DB)"
+                      className="w-8 h-8 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-red-400"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
                 </td>
               </tr>
               );
