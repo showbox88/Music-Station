@@ -1,8 +1,13 @@
 /**
- * LyricsPanel — renders synced (.lrc) or plain lyrics in two display modes.
+ * LyricsPanel — renders synced (.lrc) or plain lyrics in three display modes.
  *
  *   mode='compact'   3 fixed-height lines: previous / current (highlighted) /
  *                    next. No scroll bar. Used embedded inside NowPlayingView.
+ *
+ *   mode='inline'    Scrollable list sized for a small in-page container
+ *                    (e.g. replacing the 200px visualizer area). Smaller
+ *                    pad/font than 'full'. Clicks bubble up so the parent
+ *                    can use the area as a toggle target.
  *
  *   mode='full'      Full scrollable list. Auto-scrolls the current line to
  *                    the vertical center. Click a line to seek the audio
@@ -73,7 +78,7 @@ function findActiveIndex(lines: LyricsLine[], currentMs: number): number {
 
 interface Props {
   parsed: ParsedLyrics;
-  mode: 'compact' | 'full';
+  mode: 'compact' | 'inline' | 'full';
   /** Lead time in ms — highlight a line a hair before its timestamp so it
    *  feels in-sync rather than chasing. Empirically ~150ms feels right. */
   lead?: number;
@@ -91,10 +96,11 @@ export default function LyricsPanel({ parsed, mode, lead = 150 }: Props) {
     return <CompactView lines={parsed.lines} activeIdx={activeIdx} hasTs={parsed.hasTimestamps} />;
   }
   return (
-    <FullView
+    <ScrollView
       parsed={parsed}
       activeIdx={activeIdx}
       onSeek={(ms) => seek(ms / 1000)}
+      variant={mode}
     />
   );
 }
@@ -144,32 +150,43 @@ function CompactView({
   );
 }
 
-function FullView({
+function ScrollView({
   parsed,
   activeIdx,
   onSeek,
+  variant,
 }: {
   parsed: ParsedLyrics;
   activeIdx: number;
   onSeek: (ms: number) => void;
+  variant: 'inline' | 'full';
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const lineRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const isInline = variant === 'inline';
 
-  // Auto-scroll the active line into vertical center.
+  // Auto-scroll the active line into vertical center of THIS container.
+  // We use scrollTop rather than el.scrollIntoView because the latter would
+  // also scroll the page when the container itself is partly off-screen.
   useEffect(() => {
     if (activeIdx < 0) return;
+    const container = containerRef.current;
     const el = lineRefs.current[activeIdx];
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!container || !el) return;
+    const target =
+      el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2;
+    container.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
   }, [activeIdx]);
 
   if (!parsed.hasTimestamps) {
-    // Plain text: render the raw block, monospace-ish, no sync, no seek.
     return (
       <div
         ref={containerRef}
-        className="h-full overflow-y-auto px-6 py-10 text-zinc-300 text-base leading-relaxed whitespace-pre-wrap text-center"
+        className={`h-full overflow-y-auto whitespace-pre-wrap text-center ${
+          isInline
+            ? 'px-4 py-4 text-zinc-300 text-sm leading-relaxed'
+            : 'px-6 py-10 text-zinc-300 text-base leading-relaxed'
+        }`}
       >
         {parsed.raw}
       </div>
@@ -179,28 +196,40 @@ function FullView({
   return (
     <div
       ref={containerRef}
-      className="h-full overflow-y-auto px-6 text-center"
+      className={`h-full overflow-y-auto text-center ${isInline ? 'px-3' : 'px-6'}`}
       style={{
-        // Big top/bottom padding so the first and last lines can scroll into the center
-        paddingTop: '40vh',
-        paddingBottom: '40vh',
+        // Pad top/bottom so the first and last lines can sit at the
+        // center. Full-screen uses viewport units; inline uses a smaller
+        // pixel pad sized for the ~200px container in NowPlayingView.
+        paddingTop: isInline ? 70 : '40vh',
+        paddingBottom: isInline ? 70 : '40vh',
         scrollBehavior: 'smooth',
       }}
     >
       {parsed.lines.map((line, i) => {
         const isActive = i === activeIdx;
         const distance = Math.abs(i - activeIdx);
-        // Fade out lines further from the active one
-        const opacity = isActive ? 1 : Math.max(0.25, 1 - distance * 0.18);
+        const opacity = isActive ? 1 : Math.max(0.25, 1 - distance * 0.22);
         return (
           <div
             key={`${i}-${line.ms}`}
             ref={(el) => {
               lineRefs.current[i] = el;
             }}
-            onClick={() => onSeek(line.ms)}
-            className={`cursor-pointer py-2 transition-all duration-200 ${
-              isActive ? 'text-xl font-medium glow-text' : 'text-base text-zinc-300'
+            onClick={(e) => {
+              // In inline mode the parent uses click to toggle the panel;
+              // stop propagation only on actual line clicks so seek wins.
+              e.stopPropagation();
+              onSeek(line.ms);
+            }}
+            className={`cursor-pointer transition-all duration-200 ${
+              isInline
+                ? isActive
+                  ? 'text-base font-medium py-1 glow-text'
+                  : 'text-sm text-zinc-300 py-0.5'
+                : isActive
+                  ? 'text-xl font-medium py-2 glow-text'
+                  : 'text-base text-zinc-300 py-2'
             }`}
             style={{
               opacity,

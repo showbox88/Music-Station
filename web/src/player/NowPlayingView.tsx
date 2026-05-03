@@ -60,6 +60,7 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
   const p = usePlayer();
   const [eqOpen, setEqOpen] = useState(false);
   const [lyricsFull, setLyricsFull] = useState(false);
+  const [vizMode, setVizMode] = useState<'wave' | 'lyrics'>('wave');
   const [lyrics, setLyrics] = useState<LyricsState>({ status: 'idle' });
   const [fetchingLyrics, setFetchingLyrics] = useState(false);
   // Optimistic favorite state: the queue's track object is shared and
@@ -103,6 +104,14 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
       cancelled = true;
     };
   }, [p.current?.id]);
+
+  // If the new track has no lyrics, fall back to wave mode so the
+  // visualizer area isn't stuck on an empty placeholder.
+  useEffect(() => {
+    if (lyrics.status !== 'present' && vizMode === 'lyrics') {
+      setVizMode('wave');
+    }
+  }, [lyrics.status, vizMode]);
 
   async function handleFetchLyrics() {
     const id = p.current?.id;
@@ -251,9 +260,43 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
           </button>
         </div>
 
-        {/* Real-time frequency-bar visualizer */}
-        <div className="shrink-0 mt-2">
-          <AudioVisualizer height={200} bars={56} />
+        {/* Visualizer area — doubles as a tap target to swap with an
+            inline scrolling lyrics panel. Hint icon in the corner indicates
+            the current mode and what a click will do. */}
+        <div
+          className="shrink-0 mt-2 relative cursor-pointer group"
+          onClick={() => {
+            if (vizMode === 'lyrics') setVizMode('wave');
+            else if (lyrics.status === 'present') setVizMode('lyrics');
+          }}
+          title={
+            vizMode === 'lyrics'
+              ? '点击返回音波'
+              : lyrics.status === 'present'
+                ? '点击切换为滚动歌词'
+                : '先下载这首歌的歌词才能切换'
+          }
+          style={{ height: 200 }}
+        >
+          {vizMode === 'wave' ? (
+            <AudioVisualizer height={200} bars={56} />
+          ) : lyrics.status === 'present' ? (
+            <LyricsPanel parsed={lyrics.parsed} mode="inline" />
+          ) : null}
+          {/* Tiny corner indicator — wave bars when in lyrics mode, lyric
+              dots when in wave mode. Only visible on hover to avoid
+              competing with the visualizer / lyrics for attention. */}
+          <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-70 transition-opacity pointer-events-none">
+            {vizMode === 'wave' ? (
+              <span className="text-[10px] text-zinc-300 bg-black/40 px-1.5 py-0.5 rounded">
+                {lyrics.status === 'present' ? '点击 → 歌词' : '需先下载歌词'}
+              </span>
+            ) : (
+              <span className="text-[10px] text-zinc-300 bg-black/40 px-1.5 py-0.5 rounded">
+                点击 → 音波
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Progress — recessed track + magenta fill */}
