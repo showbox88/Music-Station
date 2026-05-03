@@ -34,11 +34,55 @@ export default function PlayerBar({ onExpand }: Props) {
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 -4px 12px rgba(0,0,0,0.5)',
       }}
     >
-      {/* Now playing info — clickable to open the fullscreen view */}
+      {/* Mobile layout: large cover with translucent play overlay, title +
+          artist beside it. Cover taps toggle play; the text taps open
+          the full player. (Buttons-inside-buttons is invalid HTML, so the
+          two roles live in sibling buttons here.) */}
+      <div className="md:hidden flex items-center gap-3 flex-1 min-w-0">
+        <button
+          onClick={p.togglePlay}
+          title={p.isPlaying ? 'Pause' : 'Play'}
+          className="relative shrink-0 rounded-md overflow-hidden"
+          style={{ width: 80, height: 80 }}
+        >
+          <CoverThumb src={p.current.cover_url} size={80} />
+          {/* Center icon — 60% opacity, no background */}
+          <span
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            style={{ color: 'rgba(255,255,255,0.6)' }}
+          >
+            {p.isPlaying ? (
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="5" width="4" height="14" />
+                <rect x="14" y="5" width="4" height="14" />
+              </svg>
+            ) : (
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            )}
+          </span>
+        </button>
+        <button
+          onClick={onExpand}
+          title="Open full player"
+          className="min-w-0 flex-1 text-left rounded-lg px-1 py-1 hover:bg-white/5"
+        >
+          <div className="text-sm font-medium truncate whitespace-nowrap">
+            {p.current.title || p.current.rel_path}
+          </div>
+          <div className="text-xs text-zinc-500 truncate whitespace-nowrap">
+            {p.current.artist || '—'}
+            {p.current.album ? ` · ${p.current.album}` : ''}
+          </div>
+        </button>
+      </div>
+
+      {/* Desktop layout: single button containing cover + text. */}
       <button
         onClick={onExpand}
         title="Open full player"
-        className="min-w-0 flex-1 md:flex-none md:max-w-xs flex items-center gap-3 text-left rounded-lg px-1 md:px-2 py-1 hover:bg-white/5"
+        className="hidden md:flex min-w-0 md:flex-none md:max-w-xs items-center gap-3 text-left rounded-lg px-1 md:px-2 py-1 hover:bg-white/5"
       >
         <CoverThumb src={p.current.cover_url} size={44} />
         <div className="min-w-0">
@@ -81,24 +125,6 @@ export default function PlayerBar({ onExpand }: Props) {
           </svg>
         </TransportBtn>
       </div>
-
-      {/* Mobile-only standalone play button (no transport pill). */}
-      <button
-        onClick={p.togglePlay}
-        title={p.isPlaying ? 'Pause' : 'Play'}
-        className="md:hidden w-10 h-10 rounded-full play-btn flex items-center justify-center shrink-0"
-      >
-        {p.isPlaying ? (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="5" width="4" height="14" />
-            <rect x="14" y="5" width="4" height="14" />
-          </svg>
-        ) : (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-        )}
-      </button>
 
       {/* Progress — recessed track with magenta fill (desktop only) */}
       <div className="hidden md:flex flex-1 items-center gap-2 min-w-0">
@@ -169,12 +195,13 @@ export default function PlayerBar({ onExpand }: Props) {
         /{p.queue.length}
       </div>
 
-      {/* Expand — keep on both, but on mobile this is the main way to
-          access prev/next/seek/volume. */}
+      {/* Expand button — desktop only. On mobile, tapping the title or
+          the cover already gets you in (and NowPlaying has its own back
+          button), so the chevron is just clutter. */}
       <button
         onClick={onExpand}
         title="Open full player"
-        className="shrink-0 w-9 h-9 rounded-full bezel flex items-center justify-center text-zinc-400 hover:text-white"
+        className="hidden md:flex shrink-0 w-9 h-9 rounded-full bezel items-center justify-center text-zinc-400 hover:text-white"
       >
         ⤢
       </button>
