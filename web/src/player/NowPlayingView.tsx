@@ -350,43 +350,104 @@ function CenterCover({ src }: { src: string | null }) {
 }
 
 function Tonearm({ playing }: { playing: boolean }) {
-  // The pivot lives at the upper-right OUTSIDE the disc; the arm reaches
-  // toward the center. Sized as a percentage of the parent (vinyl wrapper)
-  // so it scales with the disc on any screen.
+  // Realistic-ish turntable tonearm: counterweight + pivot housing on a
+  // base mount, S-curved aluminum arm tube, angled headshell with the
+  // stylus tip resting on the record (with a subtle magenta glow).
+  // Pivot at viewBox (176, 24) so it sits just outside the disc's upper-right.
   return (
     <svg
       viewBox="0 0 200 200"
       className="absolute pointer-events-none transition-transform duration-700"
       style={{
-        // Tonearm svg occupies a square the same size as the vinyl, but
-        // shifted up-right so the pivot sits near the disc's outer edge.
         top: '-20%',
         right: '-18%',
         width: '70%',
         height: '70%',
-        transform: playing ? 'rotate(0deg)' : 'rotate(-15deg)',
+        transform: playing ? 'rotate(0deg)' : 'rotate(-18deg)',
         transformOrigin: '88% 12%',
+        filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.6))',
       }}
     >
       <defs>
-        <linearGradient id="mw-arm" x1="0" x2="1">
-          <stop offset="0" stopColor="#9be3ff" />
-          <stop offset="1" stopColor="#5b8cff" />
+        {/* Brushed-aluminum gradient for the arm tube */}
+        <linearGradient id="ta-metal" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#e6e6ea" />
+          <stop offset="40%" stopColor="#a8a8b0" />
+          <stop offset="100%" stopColor="#4a4a52" />
         </linearGradient>
+        {/* Dark-anodized for housings */}
+        <linearGradient id="ta-dark" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#3a3a3e" />
+          <stop offset="100%" stopColor="#15151a" />
+        </linearGradient>
+        <radialGradient id="ta-pivot" cx="35%" cy="30%">
+          <stop offset="0%" stopColor="#f0f0f4" />
+          <stop offset="60%" stopColor="#9a9aa0" />
+          <stop offset="100%" stopColor="#2a2a30" />
+        </radialGradient>
       </defs>
-      {/* Arm: pivot at upper-right (170,30), reaches toward (40,170) */}
-      <line
-        x1="170" y1="30" x2="60" y2="160"
-        stroke="url(#mw-arm)"
-        strokeWidth="6"
+
+      {/* Counterweight: ribbed cylinder behind the pivot */}
+      <g>
+        <rect x="178" y="6" width="20" height="14" rx="3"
+              fill="url(#ta-dark)" stroke="#000" strokeWidth="0.5" />
+        <line x1="180" y1="10" x2="196" y2="10" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
+        <line x1="180" y1="13" x2="196" y2="13" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5" />
+        <line x1="180" y1="16" x2="196" y2="16" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5" />
+      </g>
+
+      {/* Pivot base plate (the mount on the plinth) */}
+      <circle cx="176" cy="24" r="18" fill="url(#ta-dark)" stroke="#000" strokeWidth="0.5" />
+      <circle cx="176" cy="24" r="14" fill="url(#ta-pivot)" />
+      <circle cx="176" cy="24" r="3" fill="#0a0a0c" />
+
+      {/* Cueing lever (lift) just to the left of the pivot */}
+      <rect x="158" y="32" width="3" height="14" rx="1.5"
+            fill="url(#ta-metal)" stroke="#1a1a1c" strokeWidth="0.3" />
+      <rect x="156" y="44" width="7" height="3" rx="1" fill="url(#ta-dark)" />
+
+      {/* Arm tube — gentle S-curve from pivot to headshell */}
+      {/* Outer thicker tube for depth */}
+      <path
+        d="M 168 32 Q 130 70, 105 92 T 60 142"
+        stroke="#1a1a1c"
+        strokeWidth="7"
+        fill="none"
         strokeLinecap="round"
       />
-      {/* Pivot disc */}
-      <circle cx="170" cy="30" r="14" fill="#5b8cff" />
-      <circle cx="170" cy="30" r="6" fill="#dff3ff" />
-      {/* Cartridge at the tip */}
-      <circle cx="60" cy="160" r="10" fill="#9be3ff" />
-      <circle cx="60" cy="160" r="4" fill="#1a0d35" />
+      <path
+        d="M 168 32 Q 130 70, 105 92 T 60 142"
+        stroke="url(#ta-metal)"
+        strokeWidth="5"
+        fill="none"
+        strokeLinecap="round"
+      />
+      {/* Highlight strip on tube (specular) */}
+      <path
+        d="M 168 30 Q 130 68, 105 90 T 62 140"
+        stroke="rgba(255,255,255,0.25)"
+        strokeWidth="1"
+        fill="none"
+        strokeLinecap="round"
+      />
+
+      {/* Headshell + stylus at the tip, angled to point at the spindle */}
+      <g transform="translate(60, 142) rotate(-35)">
+        {/* Headshell body */}
+        <rect x="-14" y="-6" width="24" height="12" rx="2"
+              fill="url(#ta-dark)" stroke="#000" strokeWidth="0.5" />
+        {/* Cartridge mount detail (screws) */}
+        <circle cx="-8" cy="-3" r="0.8" fill="#888" />
+        <circle cx="-8" cy="3" r="0.8" fill="#888" />
+        <circle cx="6" cy="-3" r="0.8" fill="#888" />
+        <circle cx="6" cy="3" r="0.8" fill="#888" />
+        {/* Cartridge body extending below the headshell */}
+        <rect x="-4" y="6" width="8" height="6" rx="0.5" fill="#0a0a0c" />
+        {/* Stylus + glowing tip */}
+        <line x1="0" y1="12" x2="0" y2="16" stroke="#cccccc" strokeWidth="0.8" />
+        <circle cx="0" cy="16" r="1.6" fill="var(--accent)" />
+        <circle cx="0" cy="16" r="3" fill="var(--accent)" opacity="0.4" />
+      </g>
     </svg>
   );
 }
