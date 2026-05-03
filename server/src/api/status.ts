@@ -5,6 +5,7 @@
  */
 import { Router } from 'express';
 import type { Database } from 'better-sqlite3';
+import { statfs } from 'node:fs/promises';
 import { scanLibrary } from '../scanner.js';
 import { autoFetchMissingCovers } from './covers.js';
 
@@ -35,6 +36,31 @@ export function statusRouter({ db, musicDir, coverDir, startedAt }: Deps): Route
       started_at: startedAt.toISOString(),
       uptime_sec: Math.round((Date.now() - startedAt.getTime()) / 1000),
     });
+  });
+
+  // Filesystem free/used for the music dir's mount point. The library size
+  // is the SUM(size_bytes) from the tracks table — cheaper than walking the
+  // directory and good enough as a "how much space am I using" indicator.
+  r.get('/disk', async (_req, res) => {
+    try {
+      const fs = await statfs(musicDir);
+      const total = Number(fs.blocks) * Number(fs.bsize);
+      const free = Number(fs.bavail) * Number(fs.bsize);
+      const used = total - free;
+      const librarySize =
+        (db.prepare('SELECT COALESCE(SUM(size_bytes),0) AS s FROM tracks').get() as { s: number })
+          .s ?? 0;
+      res.json({
+        ok: true,
+        music_dir: musicDir,
+        total_bytes: total,
+        free_bytes: free,
+        used_bytes: used,
+        library_bytes: librarySize,
+      });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: String(err?.message ?? err) });
+    }
   });
 
   // Manual rescan trigger. Also auto-fetches covers for any track missing

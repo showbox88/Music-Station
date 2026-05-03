@@ -70,8 +70,18 @@ export interface TracksQuery {
   dir?: 'asc' | 'desc';
 }
 
+export interface DiskInfo {
+  ok: boolean;
+  music_dir: string;
+  total_bytes: number;
+  free_bytes: number;
+  used_bytes: number;
+  library_bytes: number;
+}
+
 export const api = {
   status: () => getJson<Status>('/status'),
+  disk: () => getJson<DiskInfo>('/status/disk'),
   rescan: () =>
     postJson<{
       ok: boolean;

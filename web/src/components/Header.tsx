@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { Status } from '../types';
 import UploadZone from './UploadZone';
+import DiskBar from './DiskBar';
 
 interface HeaderProps {
   onRescanned?: () => void;
@@ -15,6 +16,8 @@ export default function Header({ onRescanned, onUploaded }: HeaderProps) {
   const [scanning, setScanning] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<RescanStats | null>(null);
+  // Bumped whenever something changes the library so DiskBar refetches.
+  const [diskRefresh, setDiskRefresh] = useState(0);
 
   const load = () => {
     api.status().then(setStatus).catch((e) => setErr(String(e)));
@@ -28,6 +31,7 @@ export default function Header({ onRescanned, onUploaded }: HeaderProps) {
       const result = await api.rescan();
       setLastResult(result);
       load();
+      setDiskRefresh((n) => n + 1);
       onRescanned?.();
       // Auto-clear the result blurb after 8 seconds
       setTimeout(() => setLastResult(null), 8000);
@@ -62,9 +66,11 @@ export default function Header({ onRescanned, onUploaded }: HeaderProps) {
               : 'no cover fetch'}
           </span>
         )}
+        <DiskBar refreshKey={diskRefresh} />
         <UploadZone
           onUploaded={() => {
             load();
+            setDiskRefresh((n) => n + 1);
             onUploaded?.();
           }}
         />
