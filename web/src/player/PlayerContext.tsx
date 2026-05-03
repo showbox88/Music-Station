@@ -92,9 +92,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolumeState] = useState(0.9);
+  // Volume is persisted to localStorage so it survives refresh.
+  const [volume, setVolumeState] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0.9;
+    const raw = window.localStorage.getItem('mw.volume');
+    const v = raw == null ? NaN : Number(raw);
+    return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 0.9;
+  });
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<RepeatMode>('off');
+
+  // Persist volume changes
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('mw.volume', String(volume));
+    } catch {
+      /* private mode / quota */
+    }
+  }, [volume]);
 
   // Resolve current queue index (handles shuffle indirection)
   const currentQueueIndex = useMemo(() => {
