@@ -80,13 +80,18 @@ export default function NowPlayingView({ open, onClose }: Props) {
       <div className="relative h-full max-w-xl mx-auto flex flex-col px-6">
         {/* Top bar */}
         <div className="flex items-center justify-between pt-5 pb-2 shrink-0">
+          {/* Back button — desktop only. On mobile, tap the vinyl to
+              close (less chrome at the top). */}
           <button
             onClick={onClose}
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-2xl"
+            className="hidden md:flex w-10 h-10 items-center justify-center rounded-full hover:bg-white/10 text-2xl"
             title="Back to library"
           >
             ‹
           </button>
+          {/* Spacer that keeps the title centered when the back button
+              is hidden. */}
+          <div className="md:hidden w-10 h-10 shrink-0" />
           <div className="text-center min-w-0 flex-1 px-3">
             <div className="text-base font-medium truncate">{t.album || '—'}</div>
             {subtitle && (
@@ -116,15 +121,20 @@ export default function NowPlayingView({ open, onClose }: Props) {
         </div>
 
         {/* Vinyl + tonearm together (sized container so tonearm is positioned
-            relative to the disc, not the page) */}
-        <div className="flex-1 flex items-center justify-center min-h-0">
-          <div
-            className="relative"
-            style={{ width: 'min(72vw, 320px)', aspectRatio: '1 / 1' }}
+            relative to the disc, not the page). On mobile the disc is
+            slightly smaller and pushed down so the tonearm doesn't
+            collide with the EQ / DOLBY buttons in the top bar; tapping
+            the disc closes the view (replaces the back arrow). */}
+        <div className="flex-1 flex items-start md:items-center justify-center min-h-0 pt-6 md:pt-0">
+          <button
+            onClick={onClose}
+            title="Back to library"
+            className="relative md:cursor-default md:pointer-events-none"
+            style={{ width: 'min(62vw, 320px)', aspectRatio: '1 / 1' }}
           >
             <Vinyl coverUrl={t.cover_url} spinning={p.isPlaying} />
             <Tonearm playing={p.isPlaying} />
-          </div>
+          </button>
         </div>
 
         {/* Real-time frequency-bar visualizer */}
@@ -228,8 +238,8 @@ export default function NowPlayingView({ open, onClose }: Props) {
           </button>
         </div>
 
-        {/* Volume — magenta-fill recessed slider, subtle row below transport */}
-        <div className="flex items-center gap-3 pb-6 shrink-0 px-2">
+        {/* Volume — desktop only; phone uses hardware volume keys. */}
+        <div className="hidden md:flex items-center gap-3 pb-6 shrink-0 px-2">
           <button
             onClick={() => p.setVolume(p.volume > 0 ? 0 : 0.7)}
             title={p.volume > 0 ? 'Mute' : 'Unmute'}
@@ -262,15 +272,6 @@ export default function NowPlayingView({ open, onClose }: Props) {
           </span>
         </div>
       </div>
-
-      {/* Bottom-right collapse */}
-      <button
-        onClick={onClose}
-        title="Collapse"
-        className="absolute bottom-3 right-3 w-9 h-9 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-white"
-      >
-        ⤡
-      </button>
 
       {/* Equalizer modal */}
       <EQPanel open={eqOpen} onClose={() => setEqOpen(false)} />
