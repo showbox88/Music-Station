@@ -11,6 +11,13 @@ export interface TrackEdit {
   favorited?: boolean;
 }
 
+export interface LyricsResponse {
+  found: boolean;
+  source?: 'local' | 'lrclib' | 'netease' | null;
+  synced?: string;
+  has_timestamps?: boolean;
+}
+
 export interface CoverSearchResult {
   source: string;
   artist: string | null;
@@ -146,6 +153,14 @@ export const api = {
     postJson<{ ok: boolean; cover_url: string }>(`/tracks/${trackId}/cover/url`, { url: srcUrl }),
   deleteCover: (trackId: number) =>
     deleteReq<{ ok: boolean }>(`/tracks/${trackId}/cover`),
+
+  // ----- lyrics -----
+  getLyrics: (trackId: number) =>
+    getJson<LyricsResponse>(`/tracks/${trackId}/lyrics`),
+  fetchLyrics: (trackId: number) =>
+    postJson<LyricsResponse & { ok: boolean }>(`/tracks/${trackId}/lyrics/fetch`),
+  deleteLyrics: (trackId: number) =>
+    deleteReq<{ ok: boolean }>(`/tracks/${trackId}/lyrics`),
 
   uploadTracks: async (
     files: File[],

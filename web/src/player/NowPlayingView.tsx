@@ -14,9 +14,17 @@ import { useEffect, useState } from 'react';
 import { usePlayer } from './PlayerContext';
 import AudioVisualizer from './AudioVisualizer';
 import EQPanel from './EQPanel';
+import LyricsPanel, { parseLrc, type ParsedLyrics } from './LyricsPanel';
 import { RepeatIcon, RepeatOneIcon, ShuffleIcon, VolumeIcon } from '../components/Icons';
 import { api } from '../api';
 import AddToPlaylistMenu from '../components/AddToPlaylistMenu';
+
+type LyricsState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'absent' }
+  | { status: 'error'; message: string }
+  | { status: 'present'; parsed: ParsedLyrics; source: string | null };
 
 function resolveCoverSrc(src: string | null): string | null {
   if (!src) return null;
@@ -51,6 +59,9 @@ function fmtNeg(remaining: number): string {
 export default function NowPlayingView({ open, onClose, onLibraryChange }: Props) {
   const p = usePlayer();
   const [eqOpen, setEqOpen] = useState(false);
+  const [lyricsFull, setLyricsFull] = useState(false);
+  const [lyrics, setLyrics] = useState<LyricsState>({ status: 'idle' });
+  const [fetchingLyrics, setFetchingLyrics] = useState(false);
   // Optimistic favorite state: the queue's track object is shared and
   // doesn't update on its own; we mirror it locally for instant feedback
   // and reset whenever the playing track changes.
@@ -59,6 +70,62 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
   useEffect(() => {
     setFavOpt(null);
   }, [p.current?.id]);
+
+  // Load cached lyrics whenever the playing track changes. Local-only —
+  // never auto-fetches; the user must press the download button.
+  useEffect(() => {
+    const id = p.current?.id;
+    if (!id) {
+      setLyrics({ status: 'idle' });
+      return;
+    }
+    let cancelled = false;
+    setLyrics({ status: 'loading' });
+    api
+      .getLyrics(id)
+      .then((r) => {
+        if (cancelled) return;
+        if (r.found && r.synced) {
+          setLyrics({
+            status: 'present',
+            parsed: parseLrc(r.synced),
+            source: r.source ?? null,
+          });
+        } else {
+          setLyrics({ status: 'absent' });
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLyrics({ status: 'error', message: String(err?.message ?? err) });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [p.current?.id]);
+
+  async function handleFetchLyrics() {
+    const id = p.current?.id;
+    if (!id || fetchingLyrics) return;
+    setFetchingLyrics(true);
+    try {
+      const r = await api.fetchLyrics(id);
+      if (r.ok && r.synced) {
+        setLyrics({
+          status: 'present',
+          parsed: parseLrc(r.synced),
+          source: r.source ?? null,
+        });
+      } else {
+        setLyrics({ status: 'absent' });
+        alert('两个歌词源都没找到这首歌的歌词');
+      }
+    } catch (err: any) {
+      alert(`下载歌词失败：${err?.message ?? err}`);
+    } finally {
+      setFetchingLyrics(false);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -135,6 +202,35 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
             }`}
           >
             EQ
+          </button>
+          <button
+            onClick={() => {
+              if (lyrics.status === 'present') setLyricsFull(true);
+              else handleFetchLyrics();
+            }}
+            title={
+              lyrics.status === 'present'
+                ? '查看完整歌词'
+                : lyrics.status === 'loading'
+                  ? '加载中...'
+                  : fetchingLyrics
+                    ? '下载中...'
+                    : '下载歌词'
+            }
+            disabled={fetchingLyrics || lyrics.status === 'loading'}
+            className={`w-10 h-10 ml-1 rounded-full bezel flex items-center justify-center ${
+              lyrics.status === 'present'
+                ? 'glow-text glow-ring'
+                : 'text-zinc-300 hover:text-white'
+            } disabled:opacity-50`}
+          >
+            {/* Microphone-ish icon for "lyrics" — speaker bubble with note inside */}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="3" width="6" height="11" rx="3" />
+              <path d="M5 11a7 7 0 0 0 14 0" />
+              <line x1="12" y1="18" x2="12" y2="22" />
+              <line x1="8" y1="22" x2="16" y2="22" />
+            </svg>
           </button>
         </div>
 
@@ -247,8 +343,44 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
           </div>
         </div>
 
+        {/* Embedded lyrics strip — 3-line compact view with the current line
+            highlighted. Click anywhere on the strip to expand to fullscreen.
+            When no lyrics cached, shows a "下载歌词" prompt. */}
+        <div
+          className="mt-4 mb-1 shrink-0 cursor-pointer"
+          onClick={() => {
+            if (lyrics.status === 'present') setLyricsFull(true);
+          }}
+          title={lyrics.status === 'present' ? '点击查看完整歌词' : undefined}
+        >
+          {lyrics.status === 'present' ? (
+            <LyricsPanel parsed={lyrics.parsed} mode="compact" />
+          ) : lyrics.status === 'loading' ? (
+            <div className="text-center text-zinc-500 text-xs h-14 flex items-center justify-center">
+              加载歌词…
+            </div>
+          ) : lyrics.status === 'absent' || lyrics.status === 'idle' ? (
+            <div className="text-center h-14 flex items-center justify-center">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleFetchLyrics();
+                }}
+                disabled={fetchingLyrics}
+                className="text-xs text-zinc-400 hover:text-white px-3 py-1.5 rounded-full bezel disabled:opacity-50"
+              >
+                {fetchingLyrics ? '下载歌词中…' : '下载歌词'}
+              </button>
+            </div>
+          ) : (
+            <div className="text-center text-zinc-500 text-xs h-14 flex items-center justify-center">
+              加载失败
+            </div>
+          )}
+        </div>
+
         {/* Title + artist */}
-        <div className="text-center mt-5 mb-4 shrink-0">
+        <div className="text-center mt-2 mb-4 shrink-0">
           <div className="text-2xl font-medium glow-text truncate">
             {t.title || t.rel_path}
           </div>
@@ -363,6 +495,19 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
       {/* Equalizer modal */}
       <EQPanel open={eqOpen} onClose={() => setEqOpen(false)} />
 
+      {/* Fullscreen lyrics overlay (z-50 sits above NowPlayingView's z-40) */}
+      {lyricsFull && lyrics.status === 'present' && (
+        <FullscreenLyrics
+          parsed={lyrics.parsed}
+          source={lyrics.source}
+          title={t.title || t.rel_path}
+          artist={t.artist || ''}
+          onClose={() => setLyricsFull(false)}
+          onRefetch={handleFetchLyrics}
+          refetching={fetchingLyrics}
+        />
+      )}
+
       {/* Embedded styles for vinyl spin */}
       <style>{`
         @keyframes mw-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -465,6 +610,79 @@ function CenterCover({ src }: { src: string | null }) {
       onError={() => setErrored(true)}
       className="w-full h-full object-cover"
     />
+  );
+}
+
+function FullscreenLyrics({
+  parsed,
+  source,
+  title,
+  artist,
+  onClose,
+  onRefetch,
+  refetching,
+}: {
+  parsed: ParsedLyrics;
+  source: string | null;
+  title: string;
+  artist: string;
+  onClose: () => void;
+  onRefetch: () => void;
+  refetching: boolean;
+}) {
+  // Esc closes the overlay (the underlying NowPlayingView's Esc handler
+  // also fires, but it's idempotent — closing twice is a no-op).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 text-white flex flex-col"
+      style={{
+        background:
+          'radial-gradient(ellipse at 50% 0%, #2a1620 0%, #0d0d0e 60%), #0d0d0e',
+      }}
+    >
+      <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
+        <button
+          onClick={onClose}
+          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-2xl"
+          title="关闭歌词"
+        >
+          ‹
+        </button>
+        <div className="text-center min-w-0 flex-1 px-3">
+          <div className="text-base font-medium truncate">{title}</div>
+          <div className="text-[11px] text-zinc-400 truncate mt-0.5">
+            {artist}
+            {source ? ` · ${source}` : ''}
+          </div>
+        </div>
+        <button
+          onClick={onRefetch}
+          disabled={refetching}
+          title="重新下载（覆盖现有）"
+          className="w-10 h-10 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-white disabled:opacity-50"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+        </button>
+      </div>
+      <div className="flex-1 min-h-0">
+        <LyricsPanel parsed={parsed} mode="full" />
+      </div>
+    </div>
   );
 }
 

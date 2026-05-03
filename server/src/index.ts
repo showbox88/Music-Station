@@ -21,6 +21,7 @@ import { statusRouter } from './api/status.js';
 import { uploadRouter } from './api/upload.js';
 import { playlistsRouter } from './api/playlists.js';
 import { coversRouter } from './api/covers.js';
+import { lyricsRouter } from './api/lyrics.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // .env lives at repo root (../../ from server/dist/ or server/src/)
@@ -30,6 +31,7 @@ const PORT = Number(process.env.PORT ?? 3002);
 const HOST = process.env.HOST ?? '127.0.0.1';
 const MUSIC_DIR = process.env.MUSIC_DIR ?? '/opt/music';
 const COVER_DIR = process.env.COVER_DIR ?? '/opt/music-covers';
+const LYRICS_DIR = process.env.LYRICS_DIR ?? '/opt/music/lyrics';
 const DB_PATH = process.env.DB_PATH ?? '/var/lib/music-station/library.db';
 const PUBLIC_URL = process.env.PUBLIC_URL ?? '';
 
@@ -40,6 +42,7 @@ console.error(`  MUSIC_DIR=${MUSIC_DIR}`);
 console.error(`  DB_PATH=${DB_PATH}`);
 console.error(`  PUBLIC_URL=${PUBLIC_URL || '(unset)'}`);
 console.error(`  COVER_DIR=${COVER_DIR}`);
+console.error(`  LYRICS_DIR=${LYRICS_DIR}`);
 
 const db = openDatabase(DB_PATH);
 
@@ -63,6 +66,8 @@ app.use('/api/playlists', playlistsRouter({ db, publicUrl: PUBLIC_URL }));
 // coversRouter mounts at /api so its routes can be /api/tracks/:id/cover
 // (track-scoped cover ops) AND /api/covers/search (library-wide search)
 app.use('/api', coversRouter({ db, coverDir: COVER_DIR }));
+// Same pattern: lyricsRouter exposes /api/tracks/:id/lyrics{,/fetch}
+app.use('/api', lyricsRouter({ db, lyricsDir: LYRICS_DIR }));
 
 // Catch-all 404 for /api/*
 app.use('/api', (_req, res) => res.status(404).json({ error: 'not found' }));
