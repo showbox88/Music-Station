@@ -94,26 +94,29 @@ body {
       0 0 28px var(--accent-glow);
   }
 
-  /* Solid magenta button with soft halo — for the central play button.
-     Avoids gradient banding that bezel can show on small circular shapes. */
+  /* Central play button — same dark bezel face as the other transport
+     buttons, with magenta-glow icon and a stronger soft halo so it still
+     reads as the primary action without being a separate visual style. */
   .play-btn {
-    background:
-      radial-gradient(circle at 30% 30%, #ff5fc7 0%, #ff2db5 55%, #c8228e 100%);
-    color: white;
+    background: linear-gradient(180deg, #2e2e30 0%, #1c1c1e 100%);
+    border: 1px solid var(--bg-edge);
+    color: var(--accent);
+    text-shadow:
+      0 0 6px var(--accent-glow),
+      0 0 12px var(--accent-glow);
     box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
       0 0 8px var(--accent-glow-strong),
       0 0 22px var(--accent-glow),
-      0 0 40px var(--accent-glow),
-      inset 0 1px 1px rgba(255, 255, 255, 0.25),
-      inset 0 -1px 2px rgba(0, 0, 0, 0.25);
+      0 0 40px var(--accent-glow);
   }
   .play-btn:hover {
+    color: var(--accent-soft);
     box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
       0 0 10px var(--accent-glow-strong),
       0 0 26px var(--accent-glow),
-      0 0 48px var(--accent-glow),
-      inset 0 1px 1px rgba(255, 255, 255, 0.3),
-      inset 0 -1px 2px rgba(0, 0, 0, 0.25);
+      0 0 48px var(--accent-glow);
   }
 
   /* Input override — recessed look to match knobs */
