@@ -13,6 +13,7 @@
 import { useEffect, useState } from 'react';
 import { usePlayer } from './PlayerContext';
 import AudioVisualizer from './AudioVisualizer';
+import { RepeatIcon, RepeatOneIcon, ShuffleIcon, VolumeIcon } from '../components/Icons';
 
 function resolveCoverSrc(src: string | null): string | null {
   if (!src) return null;
@@ -151,11 +152,11 @@ export default function NowPlayingView({ open, onClose }: Props) {
           <button
             onClick={p.cycleRepeat}
             title={`Repeat: ${p.repeat}`}
-            className={`w-10 h-10 rounded-full bezel flex items-center justify-center text-base ${
-              p.repeat !== 'off' ? 'glow-text glow-ring' : 'text-zinc-400 hover:text-white'
+            className={`w-10 h-10 rounded-full bezel flex items-center justify-center ${
+              p.repeat !== 'off' ? 'glow-text glow-ring' : 'text-zinc-300 hover:text-white'
             }`}
           >
-            {p.repeat === 'one' ? '🔂' : '🔁'}
+            {p.repeat === 'one' ? <RepeatOneIcon /> : <RepeatIcon />}
           </button>
 
           <div className="recess-pill flex items-center gap-1.5 px-2 py-1.5">
@@ -171,7 +172,7 @@ export default function NowPlayingView({ open, onClose }: Props) {
             <button
               onClick={p.togglePlay}
               title={p.isPlaying ? 'Pause' : 'Play'}
-              className="w-14 h-14 rounded-full bezel glow-ring flex items-center justify-center glow-text"
+              className="w-14 h-14 rounded-full play-btn flex items-center justify-center"
             >
               {p.isPlaying ? (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -198,11 +199,11 @@ export default function NowPlayingView({ open, onClose }: Props) {
           <button
             onClick={p.toggleShuffle}
             title="Shuffle"
-            className={`w-10 h-10 rounded-full bezel flex items-center justify-center text-base ${
-              p.shuffle ? 'glow-text glow-ring' : 'text-zinc-400 hover:text-white'
+            className={`w-10 h-10 rounded-full bezel flex items-center justify-center ${
+              p.shuffle ? 'glow-text glow-ring' : 'text-zinc-300 hover:text-white'
             }`}
           >
-            🔀
+            <ShuffleIcon />
           </button>
         </div>
 
@@ -211,9 +212,9 @@ export default function NowPlayingView({ open, onClose }: Props) {
           <button
             onClick={() => p.setVolume(p.volume > 0 ? 0 : 0.7)}
             title={p.volume > 0 ? 'Mute' : 'Unmute'}
-            className="text-zinc-400 hover:text-white text-base shrink-0 w-6 text-center"
+            className="text-zinc-300 hover:text-white shrink-0 w-6 flex items-center justify-center"
           >
-            {p.volume === 0 ? '🔇' : p.volume < 0.5 ? '🔉' : '🔊'}
+            <VolumeIcon level={p.volume === 0 ? 0 : p.volume < 0.5 ? 1 : 2} />
           </button>
           <input
             type="range"

@@ -7,6 +7,7 @@
  */
 import { usePlayer } from './PlayerContext';
 import CoverThumb from '../components/CoverThumb';
+import { RepeatIcon, RepeatOneIcon, ShuffleIcon } from '../components/Icons';
 
 interface Props {
   onExpand?: () => void;
@@ -59,8 +60,7 @@ export default function PlayerBar({ onExpand }: Props) {
         <button
           onClick={p.togglePlay}
           title={p.isPlaying ? 'Pause' : 'Play'}
-          className="w-10 h-10 rounded-full bezel glow-ring flex items-center justify-center glow-text"
-          style={{ color: 'var(--accent)' }}
+          className="w-10 h-10 rounded-full play-btn flex items-center justify-center"
         >
           {p.isPlaying ? (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -108,9 +108,11 @@ export default function PlayerBar({ onExpand }: Props) {
 
       {/* Mode toggles */}
       <div className="flex items-center gap-2 shrink-0">
-        <ModeBtn active={p.shuffle} onClick={p.toggleShuffle} title="Shuffle">🔀</ModeBtn>
+        <ModeBtn active={p.shuffle} onClick={p.toggleShuffle} title="Shuffle">
+          <ShuffleIcon />
+        </ModeBtn>
         <ModeBtn active={p.repeat !== 'off'} onClick={p.cycleRepeat} title={`Repeat: ${p.repeat}`}>
-          {p.repeat === 'one' ? '🔂' : '🔁'}
+          {p.repeat === 'one' ? <RepeatOneIcon /> : <RepeatIcon />}
         </ModeBtn>
       </div>
 
@@ -194,8 +196,8 @@ function ModeBtn({
     <button
       onClick={onClick}
       title={title}
-      className={`w-8 h-8 rounded-full bezel flex items-center justify-center text-base ${
-        active ? 'glow-text glow-ring' : 'text-zinc-400 hover:text-white'
+      className={`w-8 h-8 rounded-full bezel flex items-center justify-center ${
+        active ? 'glow-text glow-ring' : 'text-zinc-100 hover:text-white'
       }`}
     >
       {children}
