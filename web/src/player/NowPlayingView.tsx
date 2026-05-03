@@ -199,6 +199,40 @@ export default function NowPlayingView({ open, onClose }: Props) {
             🔀
           </button>
         </div>
+
+        {/* Volume — magenta-fill recessed slider, subtle row below transport */}
+        <div className="flex items-center gap-3 pb-6 shrink-0 px-2">
+          <button
+            onClick={() => p.setVolume(p.volume > 0 ? 0 : 0.7)}
+            title={p.volume > 0 ? 'Mute' : 'Unmute'}
+            className="text-zinc-400 hover:text-white text-base shrink-0 w-6 text-center"
+          >
+            {p.volume === 0 ? '🔇' : p.volume < 0.5 ? '🔉' : '🔊'}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={p.volume}
+            onChange={(e) => p.setVolume(Number(e.target.value))}
+            className="flex-1"
+            style={{
+              background: `linear-gradient(to right,
+                var(--accent) 0%,
+                var(--accent-soft) ${p.volume * 100}%,
+                #0a0a0b ${p.volume * 100}%,
+                #1a1a1c 100%)`,
+              WebkitAppearance: 'none',
+              height: 4,
+              borderRadius: 9999,
+              boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.8)',
+            }}
+          />
+          <span className="text-xs text-zinc-500 tabular-nums w-9 text-right shrink-0">
+            {Math.round(p.volume * 100)}%
+          </span>
+        </div>
       </div>
 
       {/* Bottom-right collapse */}
