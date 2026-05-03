@@ -22,9 +22,18 @@
 
 html, body, #root {
   height: 100%;
+  /* Mobile browsers: 100% of html resolves against the layout viewport
+   * which doesn't match the visible area when the URL bar is showing,
+   * leaving a gap of dead space below the PlayerBar. dvh tracks the
+   * actual visible viewport. Older browsers ignore this line. */
+  height: 100dvh;
 }
 
 body {
+  /* Lock the app shell to the viewport so the flex column (header /
+   * scroll area / player bar) can never spill past the visible area. */
+  overflow: hidden;
+  overscroll-behavior: none;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   background: var(--bg-base);
