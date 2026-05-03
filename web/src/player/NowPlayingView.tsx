@@ -94,17 +94,13 @@ export default function NowPlayingView({ open, onClose }: Props) {
             )}
           </div>
           <button
-            onClick={() => p.spatial.setOn(!p.spatial.on)}
-            title={
-              p.spatial.on
-                ? 'Cinema enhance ON — bass + treble lift + stereo widener'
-                : 'Cinema enhance OFF (Dolby-style simulated effect)'
-            }
-            className={`w-10 h-10 rounded-full bezel flex items-center justify-center text-[9px] font-semibold tracking-wider mr-1 ${
-              p.spatial.on ? 'glow-text glow-ring' : 'text-zinc-300 hover:text-white'
+            onClick={() => p.spatial.cycle()}
+            title={`Spatial reverb: ${p.spatial.preset.toUpperCase()} — click to cycle Off → Cinema → Hall → Club. Real ConvolverNode with synthesized IR.`}
+            className={`min-w-[3.5rem] h-10 px-2 rounded-full bezel flex items-center justify-center text-[10px] font-semibold tracking-wider mr-1 ${
+              p.spatial.preset !== 'off' ? 'glow-text glow-ring' : 'text-zinc-300 hover:text-white'
             }`}
           >
-            DOLBY
+            {p.spatial.preset === 'off' ? 'DOLBY' : p.spatial.preset.toUpperCase()}
           </button>
           <button
             onClick={() => setEqOpen(true)}

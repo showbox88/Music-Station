@@ -52,13 +52,21 @@ export interface EQController {
   reset: () => void;
 }
 
-/* -------------------- Cinema / Dolby-style enhancer --------------------
- * Adds: low shelf bass boost, high shelf treble boost, and a Haas-style
- * stereo widener (L↔R cross-feed delay). Not licensed Dolby — it's a
- * simulated enhance you can A/B against the dry signal. */
+/* -------------------- Spatial / Cinema enhancer --------------------
+ * Real convolution reverb (Web Audio's ConvolverNode) driven by IRs we
+ * synthesize at runtime — no external files, no licensing. Each preset
+ * uses a different decay length / envelope to evoke a particular space:
+ *   - cinema: 1.8s, smoother decay, gentle bass lift
+ *   - hall:   3.5s, longer tail, neutral EQ
+ *   - club:   1.0s, dense early reflections, mild bass lift
+ * Toggle button cycles through 'off' → cinema → hall → club → off. */
+export type SpatialPreset = 'off' | 'cinema' | 'hall' | 'club';
+export const SPATIAL_PRESETS: SpatialPreset[] = ['off', 'cinema', 'hall', 'club'];
+
 export interface SpatialController {
-  on: boolean;
-  setOn: (on: boolean) => void;
+  preset: SpatialPreset;
+  setPreset: (p: SpatialPreset) => void;
+  cycle: () => void;
 }
 
 interface EQState {
@@ -123,6 +131,53 @@ function clampDb(v: number, lo: number, hi: number): number {
 function dbToLinear(db: number): number {
   return Math.pow(10, db / 20);
 }
+
+/** Synthesize a stereo impulse response: white noise shaped by an
+ *  exponential decay envelope. Decorrelating L/R (independent noise per
+ *  channel) plus a tiny pre-delay on one channel gives a wide, natural
+ *  reverb tail. predelaySec: silence at the head before reflections start
+ *  (a few ms = small room, 30–80ms = hall). decayPow: how fast the tail
+ *  fades — 2 = natural, higher = punchier/shorter feel. */
+function synthIR(
+  ctx: AudioContext,
+  durationSec: number,
+  predelaySec: number,
+  decayPow: number,
+): AudioBuffer {
+  const sr = ctx.sampleRate;
+  const length = Math.max(1, Math.floor(sr * durationSec));
+  const predelay = Math.max(0, Math.floor(sr * predelaySec));
+  const buf = ctx.createBuffer(2, length, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = buf.getChannelData(ch);
+    // Slightly different predelay per channel for stereo width.
+    const channelPredelay = predelay + (ch === 1 ? Math.floor(sr * 0.004) : 0);
+    for (let i = 0; i < length; i++) {
+      if (i < channelPredelay) {
+        data[i] = 0;
+        continue;
+      }
+      const t = (i - channelPredelay) / Math.max(1, length - channelPredelay);
+      const env = Math.pow(1 - t, decayPow);
+      data[i] = (Math.random() * 2 - 1) * env;
+    }
+  }
+  return buf;
+}
+
+interface SpatialPresetConfig {
+  durationSec: number;
+  predelaySec: number;
+  decayPow: number;
+  wet: number;       // 0..1, how loud the reverb mix is
+  bassDb: number;    // cinema-style low-shelf lift
+}
+
+const SPATIAL_PRESET_CONFIG: Record<Exclude<SpatialPreset, 'off'>, SpatialPresetConfig> = {
+  cinema: { durationSec: 1.8, predelaySec: 0.025, decayPow: 2.2, wet: 0.32, bassDb: 4 },
+  hall:   { durationSec: 3.5, predelaySec: 0.05,  decayPow: 2.4, wet: 0.38, bassDb: 1.5 },
+  club:   { durationSec: 1.0, predelaySec: 0.008, decayPow: 1.8, wet: 0.28, bassDb: 3 },
+};
 
 interface PlayerState {
   queue: Track[];
@@ -195,26 +250,27 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const eqFiltersRef = useRef<BiquadFilterNode[]>([]);
   const preampNodeRef = useRef<GainNode | null>(null);
-  // Cinema-style enhancement nodes. Bass/treble shelves drive a fixed
-  // boost when on; the splitter/merger pair plus delay+gain implement a
-  // Haas-style cross-feed for perceived stereo widening.
-  const spatialBassRef = useRef<BiquadFilterNode | null>(null);
-  const spatialTrebleRef = useRef<BiquadFilterNode | null>(null);
-  const spatialCrossLRef = useRef<GainNode | null>(null);
-  const spatialCrossRRef = useRef<GainNode | null>(null);
+  // Convolution reverb chain. Wet path (convolver) is mixed with dry
+  // path via two gains; preset selection swaps the IR + tweaks gains
+  // and the bass-shelf "cinema lift". IRs are cached once generated.
+  const convolverRef = useRef<ConvolverNode | null>(null);
+  const wetGainRef = useRef<GainNode | null>(null);
+  const dryGainRef = useRef<GainNode | null>(null);
+  const cinemaBassRef = useRef<BiquadFilterNode | null>(null);
+  const irCacheRef = useRef<Map<SpatialPreset, AudioBuffer>>(new Map());
 
-  // Spatial toggle, persisted in localStorage.
-  const [spatialOn, setSpatialOnState] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.localStorage.getItem('mw.spatial') === '1';
+  const [spatialPreset, setSpatialPresetState] = useState<SpatialPreset>(() => {
+    if (typeof window === 'undefined') return 'off';
+    const v = window.localStorage.getItem('mw.spatial.preset');
+    return SPATIAL_PRESETS.includes(v as SpatialPreset) ? (v as SpatialPreset) : 'off';
   });
   useEffect(() => {
     try {
-      window.localStorage.setItem('mw.spatial', spatialOn ? '1' : '0');
+      window.localStorage.setItem('mw.spatial.preset', spatialPreset);
     } catch {
       /* ignore */
     }
-  }, [spatialOn]);
+  }, [spatialPreset]);
 
   // EQ state is per-track: each track id maps to its own gains/preamp/bypass.
   // The "active" state below is what the EQ panel controls and what gets
@@ -241,19 +297,37 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Apply spatial-enhance toggle to its nodes whenever it changes.
+  // Apply current spatial preset whenever it changes (or once the graph
+  // exists). Generates and caches the IR on first use of each preset.
   useEffect(() => {
-    const bass = spatialBassRef.current;
-    const treble = spatialTrebleRef.current;
-    const cl = spatialCrossLRef.current;
-    const cr = spatialCrossRRef.current;
-    const t = audioCtxRef.current?.currentTime ?? 0;
-    // Smooth ramp avoids audible clicks when toggling mid-playback.
-    if (bass) bass.gain.linearRampToValueAtTime(spatialOn ? 5 : 0, t + 0.05);
-    if (treble) treble.gain.linearRampToValueAtTime(spatialOn ? 3.5 : 0, t + 0.05);
-    if (cl) cl.gain.linearRampToValueAtTime(spatialOn ? 0.32 : 0, t + 0.05);
-    if (cr) cr.gain.linearRampToValueAtTime(spatialOn ? 0.32 : 0, t + 0.05);
-  }, [spatialOn]);
+    const ctx = audioCtxRef.current;
+    const conv = convolverRef.current;
+    const dry = dryGainRef.current;
+    const wet = wetGainRef.current;
+    const bass = cinemaBassRef.current;
+    if (!ctx || !conv || !dry || !wet || !bass) return;
+
+    const t0 = ctx.currentTime;
+    if (spatialPreset === 'off') {
+      // Smooth fade to fully dry, no bass lift.
+      wet.gain.linearRampToValueAtTime(0, t0 + 0.06);
+      dry.gain.linearRampToValueAtTime(1, t0 + 0.06);
+      bass.gain.linearRampToValueAtTime(0, t0 + 0.06);
+      return;
+    }
+    const cfg = SPATIAL_PRESET_CONFIG[spatialPreset];
+    let ir = irCacheRef.current.get(spatialPreset);
+    if (!ir) {
+      ir = synthIR(ctx, cfg.durationSec, cfg.predelaySec, cfg.decayPow);
+      irCacheRef.current.set(spatialPreset, ir);
+    }
+    conv.buffer = ir;
+    wet.gain.linearRampToValueAtTime(cfg.wet, t0 + 0.06);
+    // Slight dry attenuation so total perceived loudness stays steady
+    // when the wet signal is added in.
+    dry.gain.linearRampToValueAtTime(0.85, t0 + 0.06);
+    bass.gain.linearRampToValueAtTime(cfg.bassDb, t0 + 0.06);
+  }, [spatialPreset]);
 
   // Apply EQ state to filter nodes whenever it changes (only if graph exists),
   // and persist under the active track's id.
@@ -310,65 +384,38 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         filters.push(f);
       }
 
-      // Spatial / cinema enhance stage: bass + treble shelves and a
-      // Haas-style stereo widener (cross-feed delay between L/R channels).
-      // Gains start at the values the toggle effect below will set.
-      const spatialBass = ctx.createBiquadFilter();
-      spatialBass.type = 'lowshelf';
-      spatialBass.frequency.value = 110;
-      spatialBass.gain.value = spatialOn ? 5 : 0;
+      // Spatial chain (parallel dry + convolved wet):
+      //   eq output ─┬─ dryGain ──────────────┐
+      //              └─ convolver → wetGain ──┴→ cinemaBass → analyser
+      const dryGain = ctx.createGain();
+      const wetGain = ctx.createGain();
+      const convolver = ctx.createConvolver();
+      const cinemaBass = ctx.createBiquadFilter();
+      cinemaBass.type = 'lowshelf';
+      cinemaBass.frequency.value = 110;
+      cinemaBass.gain.value = 0;
+      dryGain.gain.value = 1;
+      wetGain.gain.value = 0;
 
-      const spatialTreble = ctx.createBiquadFilter();
-      spatialTreble.type = 'highshelf';
-      spatialTreble.frequency.value = 8000;
-      spatialTreble.gain.value = spatialOn ? 3.5 : 0;
-
-      const splitter = ctx.createChannelSplitter(2);
-      const merger = ctx.createChannelMerger(2);
-      const directL = ctx.createGain();
-      const directR = ctx.createGain();
-      directL.gain.value = 1;
-      directR.gain.value = 1;
-      const delayL = ctx.createDelay(0.1);
-      delayL.delayTime.value = 0.012;
-      const delayR = ctx.createDelay(0.1);
-      delayR.delayTime.value = 0.018;
-      const crossL = ctx.createGain();
-      const crossR = ctx.createGain();
-      // Cross-feed amount when ON; zero kills the widener entirely.
-      crossL.gain.value = spatialOn ? 0.32 : 0;
-      crossR.gain.value = spatialOn ? 0.32 : 0;
-
-      // Wire: source → preamp → eq filters → spatialBass → spatialTreble
-      //       → splitter ⇒ direct + delayed cross-feed ⇒ merger → analyser
+      // Wire: source → preamp → eq filters → split into dry + wet
       source.connect(preamp);
       let prev: AudioNode = preamp;
       for (const f of filters) {
         prev.connect(f);
         prev = f;
       }
-      prev.connect(spatialBass);
-      spatialBass.connect(spatialTreble);
-      spatialTreble.connect(splitter);
-      // Direct paths (untouched L/R)
-      splitter.connect(directL, 0);
-      directL.connect(merger, 0, 0);
-      splitter.connect(directR, 1);
-      directR.connect(merger, 0, 1);
-      // Cross-feed: R-delayed into L output, L-delayed into R output.
-      splitter.connect(delayL, 1);
-      delayL.connect(crossL);
-      crossL.connect(merger, 0, 0);
-      splitter.connect(delayR, 0);
-      delayR.connect(crossR);
-      crossR.connect(merger, 0, 1);
-      merger.connect(analyser);
+      prev.connect(dryGain);
+      prev.connect(convolver);
+      convolver.connect(wetGain);
+      dryGain.connect(cinemaBass);
+      wetGain.connect(cinemaBass);
+      cinemaBass.connect(analyser);
       analyser.connect(ctx.destination);
 
-      spatialBassRef.current = spatialBass;
-      spatialTrebleRef.current = spatialTreble;
-      spatialCrossLRef.current = crossL;
-      spatialCrossRRef.current = crossR;
+      convolverRef.current = convolver;
+      dryGainRef.current = dryGain;
+      wetGainRef.current = wetGain;
+      cinemaBassRef.current = cinemaBass;
 
       audioCtxRef.current = ctx;
       analyserRef.current = analyser;
@@ -683,7 +730,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     clearQueue,
     getAnalyser: () => analyserRef.current,
     eq: eqController,
-    spatial: { on: spatialOn, setOn: setSpatialOnState },
+    spatial: {
+      preset: spatialPreset,
+      setPreset: setSpatialPresetState,
+      cycle: () => {
+        setSpatialPresetState((p) => {
+          const i = SPATIAL_PRESETS.indexOf(p);
+          return SPATIAL_PRESETS[(i + 1) % SPATIAL_PRESETS.length];
+        });
+      },
+    },
   };
 
   return (
