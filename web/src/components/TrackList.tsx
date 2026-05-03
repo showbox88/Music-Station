@@ -105,8 +105,8 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
         </div>
       )}
 
-      <div className="flex-1 overflow-auto">
-        <table className="w-full text-sm">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <table className="w-full text-sm table-fixed">
           <thead className="text-xs uppercase text-zinc-500 sticky top-0" style={{ background: '#141415' }}>
             <tr className="border-b border-black/60">
               {/* Headers must mirror the body cells' visibility, otherwise
