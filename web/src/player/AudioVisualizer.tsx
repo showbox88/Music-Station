@@ -114,6 +114,22 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
       { length: RIBBON_LAYERS },
       () => new Float32Array(bars),
     );
+    // Per-layer x-axis permutation: each layer scrambles which X position
+    // gets which bin from its slice, so the 6 ribbons don't all peak on
+    // the left like a sorted-low-to-high spectrum would.
+    const ribbonPerms: Int16Array[] = Array.from({ length: RIBBON_LAYERS }, (_, l) => {
+      const arr = new Int16Array(bars);
+      for (let i = 0; i < bars; i++) arr[i] = i;
+      let s = (l + 1) * 1664525 + 1013904223;
+      for (let i = bars - 1; i > 0; i--) {
+        s = (s * 1664525 + 1013904223) | 0;
+        const j = Math.abs(s) % (i + 1);
+        const tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+      }
+      return arr;
+    });
 
     function resizeIfNeeded() {
       if (!canvas) return;
@@ -183,31 +199,32 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
         buffer = new Uint8Array(analyser.frequencyBinCount);
       }
       analyser.getByteFrequencyData(buffer);
-      const usable = Math.floor(buffer.length * 0.85);
-      // Boundaries follow a power curve so low layers get fewer bins
-      // (matches how musical "tone bands" are perceived).
-      const layerBounds: number[] = [];
-      for (let l = 0; l <= RIBBON_LAYERS; l++) {
-        const t = l / RIBBON_LAYERS;
-        layerBounds.push(Math.floor(Math.pow(t, 1.6) * usable));
-      }
+      const usable = Math.max(8, Math.floor(buffer.length * 0.85));
+      // Slice centers follow a power curve (perceptual). Slices OVERLAP
+      // — each spans 30% of the usable spectrum — so even low-frequency
+      // layers get plenty of bins to draw from.
+      const sliceWidth = Math.max(6, Math.floor(usable * 0.3));
       for (let l = 0; l < RIBBON_LAYERS; l++) {
-        const start = layerBounds[l];
-        const end = Math.max(start + 1, layerBounds[l + 1]);
-        const sliceLen = end - start;
-        const perBar = Math.max(1, Math.floor(sliceLen / bars));
+        const t = l / Math.max(1, RIBBON_LAYERS - 1);
+        const center = Math.pow(t, 1.6) * usable;
+        const start = Math.max(0, Math.floor(center - sliceWidth / 2));
+        const end = Math.min(usable, start + sliceWidth);
+        const sliceLen = Math.max(1, end - start);
+        const perm = ribbonPerms[l];
         for (let i = 0; i < bars; i++) {
-          let sum = 0;
-          let count = 0;
-          const base = start + i * perBar;
-          for (let j = 0; j < perBar && base + j < end; j++) {
-            sum += buffer[base + j];
-            count++;
-          }
-          const target = count > 0 ? sum / count / 255 : 0;
+          // Permuted t spreads the slice across the full canvas width
+          // in a scrambled order — bin 0 might land near the right,
+          // bin N near the middle, etc., so the 6 layers create a
+          // chaotic interleave instead of all sloping the same way.
+          const tx = perm[i] / Math.max(1, bars - 1);
+          const binIdxF = start + tx * (sliceLen - 1);
+          const lo = Math.min(end - 1, Math.floor(binIdxF));
+          const hi = Math.min(end - 1, lo + 1);
+          const frac = binIdxF - lo;
+          const sampled = (buffer[lo] * (1 - frac) + buffer[hi] * frac) / 255;
           const cur = ribbonHeights[l][i];
-          const rate = target > cur ? 0.55 : 0.12;
-          ribbonHeights[l][i] = cur + (target - cur) * rate;
+          const rate = sampled > cur ? 0.55 : 0.12;
+          ribbonHeights[l][i] = cur + (sampled - cur) * rate;
         }
       }
     }
