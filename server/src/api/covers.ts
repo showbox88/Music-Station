@@ -112,7 +112,7 @@ export function coversRouter({ db, coverDir }: Deps): Router {
       res.json({
         ok: true,
         track_id: id,
-        cover_url: `/api/covers/${encodeURIComponent(filename)}`,
+        cover_url: `/api/covers/${encodeURIComponent(filename)}?v=${Date.now()}`,
         size_bytes: file.size,
       });
     });
@@ -166,7 +166,7 @@ export function coversRouter({ db, coverDir }: Deps): Router {
       res.json({
         ok: true,
         track_id: id,
-        cover_url: `/api/covers/${encodeURIComponent(filename)}`,
+        cover_url: `/api/covers/${encodeURIComponent(filename)}?v=${Date.now()}`,
         size_bytes: buf.length,
         source_url: url,
       });

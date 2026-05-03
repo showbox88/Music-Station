@@ -75,7 +75,7 @@ function trackDto(row: TrackRow, publicUrl: string) {
     last_edited_at: row.last_edited_at,
     url: buildAudioUrl(publicUrl, row.rel_path),
     cover_url: row.cover_filename
-      ? `/api/covers/${encodeURIComponent(row.cover_filename)}`
+      ? `/api/covers/${encodeURIComponent(row.cover_filename)}?v=${encodeURIComponent(row.modified_at)}`
       : null,
   };
 }

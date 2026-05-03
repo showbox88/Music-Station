@@ -41,11 +41,13 @@ function buildAudioUrl(publicUrl: string, relPath: string): string {
   return `${publicUrl.replace(/\/+$/, '')}/audio/${encoded}`;
 }
 
-function buildCoverUrl(coverFilename: string | null): string | null {
+function buildCoverUrl(coverFilename: string | null, version: string | null): string | null {
   if (!coverFilename) return null;
-  // Served by Express static at /api/covers/<filename>; relative path keeps
-  // both LAN and Funnel use cases working without baking PUBLIC_URL in.
-  return `/api/covers/${encodeURIComponent(coverFilename)}`;
+  // Cache-bust by appending a version derived from the row's modified_at.
+  // The static /api/covers/* route can keep long cache headers because
+  // every cover change bumps modified_at → URL changes → cache miss.
+  const v = version ? `?v=${encodeURIComponent(version)}` : '';
+  return `/api/covers/${encodeURIComponent(coverFilename)}${v}`;
 }
 
 function dto(row: TrackRow, publicUrl: string) {
@@ -67,7 +69,7 @@ function dto(row: TrackRow, publicUrl: string) {
     modified_at: row.modified_at,
     last_edited_at: row.last_edited_at,
     url: buildAudioUrl(publicUrl, row.rel_path),
-    cover_url: buildCoverUrl(row.cover_filename),
+    cover_url: buildCoverUrl(row.cover_filename, row.modified_at),
   };
 }
 
