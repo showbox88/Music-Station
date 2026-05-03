@@ -93,7 +93,12 @@ export default function NowPlayingView({ open, onClose }: Props) {
               is hidden. */}
           <div className="md:hidden w-10 h-10 shrink-0" />
           <div className="text-center min-w-0 flex-1 px-3">
-            <div className="text-base font-medium truncate">{t.album || '—'}</div>
+            {/* Album line — only shown when there's a real album. The
+                previous "—" fallback looked like a stray underscore in
+                the top bar when metadata was missing. */}
+            {t.album && (
+              <div className="text-base font-medium truncate">{t.album}</div>
+            )}
             {subtitle && (
               <div className="text-[11px] text-purple-200/70 truncate mt-0.5">{subtitle}</div>
             )}
@@ -125,12 +130,12 @@ export default function NowPlayingView({ open, onClose }: Props) {
             slightly smaller and pushed down so the tonearm doesn't
             collide with the EQ / DOLBY buttons in the top bar; tapping
             the disc closes the view (replaces the back arrow). */}
-        <div className="flex-1 flex items-start md:items-center justify-center min-h-0 pt-6 md:pt-0">
+        <div className="flex-1 flex items-start md:items-center justify-center min-h-0 pt-14 md:pt-0">
           <button
             onClick={onClose}
             title="Back to library"
             className="relative md:cursor-default md:pointer-events-none"
-            style={{ width: 'min(62vw, 320px)', aspectRatio: '1 / 1' }}
+            style={{ width: 'min(56vw, 320px)', aspectRatio: '1 / 1' }}
           >
             <Vinyl coverUrl={t.cover_url} spinning={p.isPlaying} />
             <Tonearm playing={p.isPlaying} />
