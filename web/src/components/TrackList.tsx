@@ -22,9 +22,11 @@ function formatBytes(b: number): string {
 interface Props {
   refreshKey: number;
   onChanged?: () => void;
+  /** When true, only tracks with favorited=true are listed (Favorites view). */
+  favoritedOnly?: boolean;
 }
 
-export default function TrackList({ refreshKey, onChanged }: Props) {
+export default function TrackList({ refreshKey, onChanged, favoritedOnly = false }: Props) {
   const [q, setQ] = useState('');
   const [tracks, setTracks] = useState<Track[]>([]);
   const [total, setTotal] = useState(0);
@@ -46,7 +48,13 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
     setLoading(true);
     setErr(null);
     api
-      .listTracks({ q: debouncedQ || undefined, limit: 500, sort: 'title', dir: 'asc' })
+      .listTracks({
+        q: debouncedQ || undefined,
+        favorited: favoritedOnly || undefined,
+        limit: 500,
+        sort: 'title',
+        dir: 'asc',
+      })
       .then((res) => {
         if (cancelled) return;
         setTracks(res.tracks);
@@ -57,7 +65,7 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, refreshKey]);
+  }, [debouncedQ, refreshKey, favoritedOnly]);
 
   const showing = useMemo(() => tracks.length, [tracks]);
 

@@ -15,6 +15,7 @@ import { usePlayer } from './PlayerContext';
 import AudioVisualizer from './AudioVisualizer';
 import EQPanel from './EQPanel';
 import { RepeatIcon, RepeatOneIcon, ShuffleIcon, VolumeIcon } from '../components/Icons';
+import { api } from '../api';
 
 function resolveCoverSrc(src: string | null): string | null {
   if (!src) return null;
@@ -29,6 +30,9 @@ function resolveCoverSrc(src: string | null): string | null {
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Called after a server-side library change (e.g. favorite toggle)
+   *  so the parent can refresh open lists. */
+  onLibraryChange?: () => void;
 }
 
 function fmt(sec: number): string {
@@ -43,9 +47,16 @@ function fmtNeg(remaining: number): string {
   return `-${fmt(remaining)}`;
 }
 
-export default function NowPlayingView({ open, onClose }: Props) {
+export default function NowPlayingView({ open, onClose, onLibraryChange }: Props) {
   const p = usePlayer();
   const [eqOpen, setEqOpen] = useState(false);
+  // Optimistic favorite state: the queue's track object is shared and
+  // doesn't update on its own; we mirror it locally for instant feedback
+  // and reset whenever the playing track changes.
+  const [favOpt, setFavOpt] = useState<boolean | null>(null);
+  useEffect(() => {
+    setFavOpt(null);
+  }, [p.current?.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -278,6 +289,51 @@ export default function NowPlayingView({ open, onClose }: Props) {
         </div>
       </div>
 
+      {/* Heart toggle in the bottom-right corner. Optimistically flips
+          the local favorite indicator, then PUTs to the server; the
+          row joins/leaves the Favorites sidebar entry on the next list
+          refresh. */}
+      {(() => {
+        const isFav = favOpt ?? t.favorited;
+        return (
+      <button
+        onClick={async () => {
+          const next = !isFav;
+          setFavOpt(next);
+          try {
+            await api.updateTrack(t.id, { favorited: next });
+            (t as any).favorited = next;
+            onLibraryChange?.();
+          } catch (err: any) {
+            setFavOpt(!next);
+            alert(`Favorite failed: ${err?.message ?? err}`);
+          }
+        }}
+        title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+        className="absolute bottom-4 right-4 w-12 h-12 rounded-full bezel flex items-center justify-center"
+        style={{
+          color: isFav ? '#ff2db5' : '#a0a0a8',
+          boxShadow: isFav
+            ? '0 0 6px rgba(255,45,181,0.55), 0 0 14px rgba(255,45,181,0.45), inset 0 1px 0 rgba(255,255,255,0.06), 0 1px 2px rgba(0,0,0,0.6)'
+            : undefined,
+        }}
+      >
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill={(favOpt ?? t.favorited) ? 'currentColor' : 'none'}
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+        </svg>
+      </button>
+        );
+      })()}
+
       {/* Equalizer modal */}
       <EQPanel open={eqOpen} onClose={() => setEqOpen(false)} />
 
@@ -328,84 +384,42 @@ function Wave() {
 }
 
 function Vinyl({ coverUrl, spinning }: { coverUrl: string | null; spinning: boolean }) {
-  // The disc is built from layered backgrounds so no SVG is needed:
-  //   1. Base radial gradient — true vinyl black with a very subtle dome.
-  //   2. repeating-radial-gradient — fine concentric grooves (the
-  //      hallmark of an LP). Two layers, slightly offset, to break the
-  //      moiré and give the grooves a "lit from above" feel.
-  // The highlight crescent is a separate non-rotating layer above so it
-  // looks like a real reflection (light source stays put while the disc
-  // spins).
   return (
-    <div className="absolute inset-0 rounded-full" style={{ filter: 'drop-shadow(0 14px 22px rgba(0,0,0,0.55))' }}>
-      {/* Spinning disc + grooves */}
+    <div
+      className="absolute inset-0 rounded-full shadow-2xl"
+      style={{
+        background: 'radial-gradient(circle at 30% 30%, #2a2a35 0%, #0d0d14 60%, #050507 100%)',
+        animation: 'mw-spin 8s linear infinite',
+        animationPlayState: spinning ? 'running' : 'paused',
+      }}
+    >
+      {/* Concentric grooves */}
+      <div className="absolute inset-2 rounded-full border border-white/5" />
+      <div className="absolute inset-6 rounded-full border border-white/5" />
+      <div className="absolute inset-12 rounded-full border border-white/5" />
+      <div className="absolute inset-20 rounded-full border border-white/5" />
+      {/* Center label area = the album cover */}
       <div
-        className="absolute inset-0 rounded-full"
+        className="absolute rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center"
         style={{
-          background: [
-            // Fine grooves — alternating darker / lighter 1px rings.
-            'repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,0.04) 0 1px, transparent 1px 3px)',
-            // Wider, fainter rings every ~12px give the impression of
-            // sub-grouped grooves catching the light.
-            'repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,0.02) 0 0.5px, transparent 0.5px 12px)',
-            // Base disc — true vinyl black with a very gentle dome.
-            'radial-gradient(circle at 50% 45%, #1a1a1f 0%, #0a0a0c 55%, #000 100%)',
-          ].join(','),
-          animation: 'mw-spin 8s linear infinite',
-          animationPlayState: spinning ? 'running' : 'paused',
-        }}
-      />
-
-      {/* Glossy crescent highlight — does NOT rotate, lives above the disc.
-          A soft radial light source at the upper-left + a darker fade on
-          the lower-right sells the "polished black plastic" look. */}
-      <div
-        className="absolute inset-0 rounded-full pointer-events-none"
-        style={{
-          background: [
-            'radial-gradient(circle at 30% 22%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.06) 18%, transparent 38%)',
-            'radial-gradient(circle at 75% 80%, rgba(0,0,0,0.35) 0%, transparent 45%)',
-          ].join(','),
-        }}
-      />
-
-      {/* Outer rim hairline — sharpens the edge against the page. */}
-      <div
-        className="absolute inset-0 rounded-full pointer-events-none"
-        style={{
-          boxShadow:
-            'inset 0 0 0 1px rgba(255,255,255,0.05), inset 0 0 18px rgba(0,0,0,0.6)',
-        }}
-      />
-
-      {/* Center label — spins with the disc. The album cover goes here. */}
-      <div
-        className="absolute rounded-full overflow-hidden flex items-center justify-center"
-        style={{
-          top: '32%',
-          left: '32%',
-          width: '36%',
-          height: '36%',
-          background: '#1a1a1c',
-          boxShadow:
-            '0 0 0 1px rgba(255,255,255,0.08), 0 1px 2px rgba(0,0,0,0.5)',
-          animation: 'mw-spin 8s linear infinite',
-          animationPlayState: spinning ? 'running' : 'paused',
+          top: '28%',
+          left: '28%',
+          width: '44%',
+          height: '44%',
+          boxShadow: '0 0 0 6px #1a0d35, 0 0 0 7px rgba(255,255,255,0.15)',
         }}
       >
         <CenterCover src={coverUrl} />
       </div>
-
-      {/* Spindle hole — small white pinpoint at the very center. */}
+      {/* Center spindle hole */}
       <div
-        className="absolute rounded-full pointer-events-none"
+        className="absolute rounded-full bg-[#2d1466]"
         style={{
-          top: 'calc(50% - 4px)',
-          left: 'calc(50% - 4px)',
-          width: 8,
-          height: 8,
-          background: 'radial-gradient(circle, #f4f4f5 0%, #a0a0a8 70%, #2a2a30 100%)',
-          boxShadow: 'inset 0 0 2px rgba(0,0,0,0.6)',
+          top: 'calc(50% - 6px)',
+          left: 'calc(50% - 6px)',
+          width: 12,
+          height: 12,
+          boxShadow: 'inset 0 0 4px rgba(0,0,0,0.6)',
         }}
       />
     </div>

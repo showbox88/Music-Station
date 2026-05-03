@@ -8,6 +8,7 @@ export interface TrackEdit {
   year?: number | null;
   track_no?: number | null;
   rating?: number | null;
+  favorited?: boolean;
 }
 
 export interface CoverSearchResult {
@@ -64,6 +65,7 @@ export interface TracksQuery {
   artist?: string;
   album?: string;
   genre?: string;
+  favorited?: boolean;          // when true, only favorited tracks
   limit?: number;
   offset?: number;
   sort?: 'title' | 'artist' | 'album' | 'added_at' | 'duration_sec';

@@ -72,6 +72,11 @@ export function openDatabase(dbPath: string): Database.Database {
     // Filename inside COVER_DIR (e.g. "47.jpg"). NULL = no custom cover.
     db.exec(`ALTER TABLE tracks ADD COLUMN cover_filename TEXT`);
   }
+  if (!has('favorited')) {
+    // 0/1 flag separate from rating: a quick "I love this" toggle that
+    // powers the Favorites view in the sidebar.
+    db.exec(`ALTER TABLE tracks ADD COLUMN favorited INTEGER NOT NULL DEFAULT 0`);
+  }
   db.exec(`
 
     CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);

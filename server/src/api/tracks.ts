@@ -23,6 +23,7 @@ interface TrackRow {
   bitrate: number | null;
   mime: string | null;
   rating: number | null;
+  favorited: number | null;            // 0/1 flag (SQLite stores as int)
   cover_filename: string | null;
   added_at: string;
   modified_at: string;
@@ -65,6 +66,7 @@ function dto(row: TrackRow, publicUrl: string) {
     bitrate: row.bitrate,
     mime: row.mime,
     rating: row.rating ?? 0,
+    favorited: row.favorited === 1,
     added_at: row.added_at,
     modified_at: row.modified_at,
     last_edited_at: row.last_edited_at,
@@ -82,6 +84,7 @@ export function tracksRouter({ db, publicUrl, musicDir, coverDir }: Deps): Route
     const artist = (req.query.artist as string | undefined)?.trim() || null;
     const album = (req.query.album as string | undefined)?.trim() || null;
     const genre = (req.query.genre as string | undefined)?.trim() || null;
+    const favoritedOnly = req.query.favorited === 'true';
     const limit = Math.min(parseInt(req.query.limit as string) || 200, 1000);
     const offset = parseInt(req.query.offset as string) || 0;
     const sort = (req.query.sort as string | undefined) || 'title';
@@ -106,6 +109,9 @@ export function tracksRouter({ db, publicUrl, musicDir, coverDir }: Deps): Route
     if (genre) {
       where.push('genre = @genre');
       params.genre = genre;
+    }
+    if (favoritedOnly) {
+      where.push('favorited = 1');
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
@@ -178,6 +184,7 @@ export function tracksRouter({ db, publicUrl, musicDir, coverDir }: Deps): Route
       'year',
       'track_no',
       'rating',
+      'favorited',
     ];
     const updates: Partial<TrackRow> = {};
     for (const k of allowed) {
@@ -185,7 +192,7 @@ export function tracksRouter({ db, publicUrl, musicDir, coverDir }: Deps): Route
         const v = body[k];
         // null / "" / undefined → store NULL (or 0 for rating); else coerce
         if (v === null || v === undefined || v === '') {
-          (updates as any)[k] = k === 'rating' ? 0 : null;
+          (updates as any)[k] = k === 'rating' || k === 'favorited' ? 0 : null;
         } else if (k === 'year' || k === 'track_no') {
           const n = Number(v);
           if (!Number.isFinite(n) || n < 0 || n > 99999) {
@@ -200,6 +207,8 @@ export function tracksRouter({ db, publicUrl, musicDir, coverDir }: Deps): Route
             return;
           }
           (updates as any)[k] = Math.trunc(n);
+        } else if (k === 'favorited') {
+          (updates as any)[k] = v ? 1 : 0;
         } else {
           (updates as any)[k] = String(v).trim();
         }

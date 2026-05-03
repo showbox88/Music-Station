@@ -89,12 +89,18 @@ function AppContent() {
         )}
         {view.kind === 'all' ? (
           <TrackList refreshKey={refreshKey} onChanged={refresh} />
+        ) : view.kind === 'favorites' ? (
+          <TrackList refreshKey={refreshKey} onChanged={refresh} favoritedOnly />
         ) : (
           <PlaylistView playlistId={view.id} refreshKey={refreshKey} onChanged={refresh} />
         )}
       </div>
       <PlayerBar onExpand={() => setNowPlayingOpen(true)} />
-      <NowPlayingView open={nowPlayingOpen} onClose={() => setNowPlayingOpen(false)} />
+      <NowPlayingView
+        open={nowPlayingOpen}
+        onClose={() => setNowPlayingOpen(false)}
+        onLibraryChange={refresh}
+      />
     </div>
   );
 }

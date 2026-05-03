@@ -7,7 +7,10 @@ import { api } from '../api';
 import type { Playlist } from '../types';
 import { usePlayer } from '../player/PlayerContext';
 
-export type View = { kind: 'all' } | { kind: 'playlist'; id: number };
+export type View =
+  | { kind: 'all' }
+  | { kind: 'favorites' }
+  | { kind: 'playlist'; id: number };
 
 interface Props {
   view: View;
@@ -108,7 +111,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           ✕
         </button>
       </div>
-      <div className="p-3 border-b border-black/60">
+      <div className="p-3 border-b border-black/60 space-y-1">
         <button
           onClick={() => setView({ kind: 'all' })}
           className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
@@ -116,6 +119,14 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           }`}
         >
           ♪ All Tracks
+        </button>
+        <button
+          onClick={() => setView({ kind: 'favorites' })}
+          className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
+            view.kind === 'favorites' ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
+          }`}
+        >
+          ♥ Favorites
         </button>
       </div>
 

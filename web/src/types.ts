@@ -12,6 +12,7 @@ export interface Track {
   bitrate: number | null;
   mime: string | null;
   rating: number;             // 0..5
+  favorited: boolean;         // heart toggle, drives the Favorites view
   added_at: string;
   modified_at: string;
   last_edited_at: string | null;
