@@ -101,16 +101,18 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
         <table className="w-full text-sm">
           <thead className="text-xs uppercase text-zinc-500 sticky top-0" style={{ background: '#141415' }}>
             <tr className="border-b border-black/60">
-              <th className="text-left font-medium py-2 pl-3 md:pl-6 w-10">▶</th>
-              <th className="text-left font-medium py-2 w-12"></th>
-              <th className="text-left font-medium py-2">Title</th>
+              {/* Headers must mirror the body cells' visibility, otherwise
+                  the column widths drift and rows leave empty space. */}
+              <th className="hidden md:table-cell text-left font-medium py-2 pl-6 w-10">▶</th>
+              <th className="text-left font-medium py-2 w-16 md:w-12"></th>
+              <th className="text-left font-medium py-2 w-full">Title</th>
               <th className="hidden md:table-cell text-left font-medium py-2">Artist</th>
               <th className="hidden lg:table-cell text-left font-medium py-2">Album</th>
               <th className="hidden xl:table-cell text-left font-medium py-2">Genre</th>
               <th className="hidden xl:table-cell text-left font-medium py-2 w-20">Year</th>
               <th className="hidden md:table-cell text-left font-medium py-2 w-24">Rating</th>
               <th className="hidden md:table-cell text-right font-medium py-2 w-20">Duration</th>
-              <th className="text-right font-medium py-2 pr-2 md:pr-4 w-24 md:w-32"></th>
+              <th className="text-right font-medium py-2 pr-2 md:pr-4 w-20 md:w-32"></th>
             </tr>
           </thead>
           <tbody>
@@ -192,18 +194,37 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
                     <CoverThumb src={t.cover_url} size={32} />
                   </div>
                 </td>
-                <td className="py-2 pr-3 font-medium min-w-0">
+                <td className="py-2 pr-3 font-medium min-w-0 w-full">
                   {t.last_edited_at && (
                     <span
                       className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 mr-2 align-middle"
                       title={`Edited ${t.last_edited_at}`}
                     />
                   )}
-                  <div className="truncate">{t.title || '—'}</div>
-                  {/* Mobile-only: artist stacked under title since the
-                      Artist column is hidden below md. */}
-                  <div className="md:hidden text-xs text-zinc-500 truncate mt-0.5">
-                    {t.artist || '—'}
+                  <div className="truncate whitespace-nowrap">{t.title || '—'}</div>
+                  {/* Mobile-only second line: artist (truncated, never
+                      wraps) on the left, star rating on the right. */}
+                  <div className="md:hidden flex items-center justify-between gap-2 mt-0.5">
+                    <span className="text-xs text-zinc-500 truncate whitespace-nowrap min-w-0 flex-1">
+                      {t.artist || '—'}
+                    </span>
+                    <span className="shrink-0">
+                      <StarRating
+                        value={t.rating}
+                        onChange={async (v) => {
+                          try {
+                            const updated = await api.updateTrack(t.id, { rating: v });
+                            setTracks((prev) =>
+                              prev.map((x) =>
+                                x.id === t.id ? { ...updated, cover_url: x.cover_url } : x,
+                              ),
+                            );
+                          } catch (e: any) {
+                            alert(`Rating update failed: ${e?.message ?? e}`);
+                          }
+                        }}
+                      />
+                    </span>
                   </div>
                 </td>
                 <td className="hidden md:table-cell py-2 pr-3 text-zinc-400">{t.artist || '—'}</td>
@@ -267,7 +288,7 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
             })}
             {tracks.length === 0 && !loading && (
               <tr>
-                <td colSpan={4} className="text-center py-12 text-zinc-500">
+                <td colSpan={10} className="text-center py-12 text-zinc-500">
                   {debouncedQ ? `No tracks matching "${debouncedQ}"` : 'No tracks indexed yet. Drop MP3s into the music dir and click Rescan.'}
                 </td>
               </tr>
