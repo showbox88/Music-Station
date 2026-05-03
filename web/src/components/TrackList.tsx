@@ -125,7 +125,9 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
                 }`}
                 style={isPlaying ? { background: 'rgba(255, 45, 181, 0.06)' } : undefined}
               >
-                <td className="pl-3 md:pl-6">
+                {/* Desktop play column (hidden on mobile — the cover
+                    overlay below takes its place). */}
+                <td className="hidden md:table-cell pl-3 md:pl-6">
                   <button
                     onClick={() => {
                       const idx = tracks.findIndex((x) => x.id === t.id);
@@ -143,12 +145,36 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
                     {isPlaying && player.isPlaying ? '♪' : '▶'}
                   </button>
                 </td>
-                <td className="py-1 pr-2">
-                  {/* Bigger cover on mobile so the row reads like a music
-                      app; compact on desktop where rows are denser. */}
-                  <div className="md:hidden">
+                <td className="py-1 pl-3 pr-2 md:pl-0">
+                  {/* Mobile: cover with translucent play overlay; tap
+                      anywhere on the cover to start playback. */}
+                  <button
+                    onClick={() => {
+                      const idx = tracks.findIndex((x) => x.id === t.id);
+                      player.playList(tracks, Math.max(0, idx));
+                    }}
+                    title={isPlaying && player.isPlaying ? 'Now playing' : 'Play'}
+                    className="md:hidden relative block rounded overflow-hidden"
+                    style={{ width: 56, height: 56 }}
+                  >
                     <CoverThumb src={t.cover_url} size={56} />
-                  </div>
+                    <span
+                      className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                      style={{ color: 'rgba(255,255,255,0.6)' }}
+                    >
+                      {isPlaying && player.isPlaying ? (
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                          <rect x="6" y="5" width="4" height="14" />
+                          <rect x="14" y="5" width="4" height="14" />
+                        </svg>
+                      ) : (
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      )}
+                    </span>
+                  </button>
+                  {/* Desktop: plain cover next to the dedicated play button column. */}
                   <div className="hidden md:block">
                     <CoverThumb src={t.cover_url} size={32} />
                   </div>
