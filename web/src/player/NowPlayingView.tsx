@@ -16,6 +16,7 @@ import AudioVisualizer from './AudioVisualizer';
 import EQPanel from './EQPanel';
 import { RepeatIcon, RepeatOneIcon, ShuffleIcon, VolumeIcon } from '../components/Icons';
 import { api } from '../api';
+import AddToPlaylistMenu from '../components/AddToPlaylistMenu';
 
 function resolveCoverSrc(src: string | null): string | null {
   if (!src) return null;
@@ -54,6 +55,7 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
   // doesn't update on its own; we mirror it locally for instant feedback
   // and reset whenever the playing track changes.
   const [favOpt, setFavOpt] = useState<boolean | null>(null);
+  const [addingTo, setAddingTo] = useState<{ x: number; y: number } | null>(null);
   useEffect(() => {
     setFavOpt(null);
   }, [p.current?.id]);
@@ -184,6 +186,65 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
             <span>{fmt(p.position)}</span>
             <span>{fmtNeg(remaining)}</span>
           </div>
+          {/* Symmetrical action row aligned under the times: add-to-playlist
+              on the left (under elapsed time), favorite heart on the right
+              (under remaining time). Same 32px bezel circle as the
+              shuffle/repeat buttons. */}
+          <div className="flex justify-between items-center mt-2">
+            <button
+              onClick={(e) => {
+                const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                setAddingTo({ x: r.left, y: r.top - 8 });
+              }}
+              title="Add to playlist"
+              className="w-8 h-8 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-blue-400"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+            {(() => {
+              const isFav = favOpt ?? t.favorited;
+              return (
+                <button
+                  onClick={async () => {
+                    const next = !isFav;
+                    setFavOpt(next);
+                    try {
+                      await api.updateTrack(t.id, { favorited: next });
+                      (t as any).favorited = next;
+                      onLibraryChange?.();
+                    } catch (err: any) {
+                      setFavOpt(!next);
+                      alert(`Favorite failed: ${err?.message ?? err}`);
+                    }
+                  }}
+                  title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+                  className="w-8 h-8 rounded-full bezel flex items-center justify-center"
+                  style={{
+                    color: isFav ? '#ff2db5' : '#a0a0a8',
+                    boxShadow: isFav
+                      ? '0 0 6px rgba(255,45,181,0.55), 0 0 14px rgba(255,45,181,0.45), inset 0 1px 0 rgba(255,255,255,0.06), 0 1px 2px rgba(0,0,0,0.6)'
+                      : undefined,
+                  }}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill={isFav ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                  </svg>
+                </button>
+              );
+            })()}
+          </div>
         </div>
 
         {/* Title + artist */}
@@ -289,50 +350,15 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
         </div>
       </div>
 
-      {/* Heart toggle in the bottom-right corner. Optimistically flips
-          the local favorite indicator, then PUTs to the server; the
-          row joins/leaves the Favorites sidebar entry on the next list
-          refresh. */}
-      {(() => {
-        const isFav = favOpt ?? t.favorited;
-        return (
-      <button
-        onClick={async () => {
-          const next = !isFav;
-          setFavOpt(next);
-          try {
-            await api.updateTrack(t.id, { favorited: next });
-            (t as any).favorited = next;
-            onLibraryChange?.();
-          } catch (err: any) {
-            setFavOpt(!next);
-            alert(`Favorite failed: ${err?.message ?? err}`);
-          }
-        }}
-        title={isFav ? 'Remove from favorites' : 'Add to favorites'}
-        className="absolute bottom-4 right-4 w-12 h-12 rounded-full bezel flex items-center justify-center"
-        style={{
-          color: isFav ? '#ff2db5' : '#a0a0a8',
-          boxShadow: isFav
-            ? '0 0 6px rgba(255,45,181,0.55), 0 0 14px rgba(255,45,181,0.45), inset 0 1px 0 rgba(255,255,255,0.06), 0 1px 2px rgba(0,0,0,0.6)'
-            : undefined,
-        }}
-      >
-        <svg
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill={(favOpt ?? t.favorited) ? 'currentColor' : 'none'}
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-        </svg>
-      </button>
-        );
-      })()}
+      {/* Add-to-playlist popover anchored at the + button. */}
+      {addingTo && (
+        <AddToPlaylistMenu
+          track={t}
+          anchor={addingTo}
+          onClose={() => setAddingTo(null)}
+          onAdded={() => onLibraryChange?.()}
+        />
+      )}
 
       {/* Equalizer modal */}
       <EQPanel open={eqOpen} onClose={() => setEqOpen(false)} />
