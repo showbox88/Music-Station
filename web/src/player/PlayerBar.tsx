@@ -10,6 +10,10 @@
 import { usePlayer } from './PlayerContext';
 import CoverThumb from '../components/CoverThumb';
 
+interface Props {
+  onExpand?: () => void;
+}
+
 function fmt(sec: number): string {
   if (!Number.isFinite(sec) || sec < 0) return '0:00';
   const m = Math.floor(sec / 60);
@@ -17,7 +21,7 @@ function fmt(sec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export default function PlayerBar() {
+export default function PlayerBar({ onExpand }: Props) {
   const p = usePlayer();
   if (p.queue.length === 0 || !p.current) return null;
 
@@ -25,8 +29,12 @@ export default function PlayerBar() {
 
   return (
     <div className="border-t border-zinc-800 bg-zinc-950/95 backdrop-blur px-4 py-2 flex items-center gap-4">
-      {/* Now playing info */}
-      <div className="min-w-0 flex-1 max-w-xs flex items-center gap-3">
+      {/* Now playing info — clickable to open the fullscreen view */}
+      <button
+        onClick={onExpand}
+        title="Open full player"
+        className="min-w-0 flex-1 max-w-xs flex items-center gap-3 text-left hover:bg-zinc-900/60 rounded px-1 py-1"
+      >
         <CoverThumb src={p.current.cover_url} size={44} />
         <div className="min-w-0">
           <div className="text-sm font-medium truncate">{p.current.title || p.current.rel_path}</div>
@@ -35,7 +43,7 @@ export default function PlayerBar() {
             {p.current.album ? ` · ${p.current.album}` : ''}
           </div>
         </div>
-      </div>
+      </button>
 
       {/* Transport */}
       <div className="flex items-center gap-1 shrink-0">
@@ -121,6 +129,15 @@ export default function PlayerBar() {
         {(p.shuffle ? p.cursor : p.queue.findIndex((t) => t.id === p.current?.id)) + 1}
         /{p.queue.length}
       </div>
+
+      {/* Expand to full Now Playing view */}
+      <button
+        onClick={onExpand}
+        title="Open full player"
+        className="shrink-0 text-zinc-400 hover:text-white px-2 text-base"
+      >
+        ⤢
+      </button>
     </div>
   );
 }

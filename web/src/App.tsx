@@ -5,11 +5,13 @@ import Sidebar, { type View } from './components/Sidebar';
 import PlaylistView from './components/PlaylistView';
 import { PlayerProvider } from './player/PlayerContext';
 import PlayerBar from './player/PlayerBar';
+import NowPlayingView from './player/NowPlayingView';
 
 export default function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey((k) => k + 1);
   const [view, setView] = useState<View>({ kind: 'all' });
+  const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
 
   return (
     <PlayerProvider>
@@ -23,7 +25,8 @@ export default function App() {
             <PlaylistView playlistId={view.id} refreshKey={refreshKey} onChanged={refresh} />
           )}
         </div>
-        <PlayerBar />
+        <PlayerBar onExpand={() => setNowPlayingOpen(true)} />
+        <NowPlayingView open={nowPlayingOpen} onClose={() => setNowPlayingOpen(false)} />
       </div>
     </PlayerProvider>
   );
