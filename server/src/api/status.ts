@@ -6,14 +6,16 @@
 import { Router } from 'express';
 import type { Database } from 'better-sqlite3';
 import { scanLibrary } from '../scanner.js';
+import { autoFetchMissingCovers } from './covers.js';
 
 interface Deps {
   db: Database;
   musicDir: string;
+  coverDir: string;
   startedAt: Date;
 }
 
-export function statusRouter({ db, musicDir, startedAt }: Deps): Router {
+export function statusRouter({ db, musicDir, coverDir, startedAt }: Deps): Router {
   const r = Router();
 
   r.get('/', (_req, res) => {
@@ -35,11 +37,17 @@ export function statusRouter({ db, musicDir, startedAt }: Deps): Router {
     });
   });
 
-  // Manual rescan trigger; admin-protected later.
-  r.post('/rescan', async (_req, res) => {
+  // Manual rescan trigger. Also auto-fetches covers for any track missing
+  // one (queries iTunes Search API and saves the top result).
+  // Skip the cover step with ?covers=false for a fast scan-only rescan.
+  r.post('/rescan', async (req, res) => {
     try {
       const result = await scanLibrary(db, musicDir);
-      res.json({ ok: true, ...result });
+      let covers: { tried: number; found: number; failed: number; skipped: number } | null = null;
+      if (req.query.covers !== 'false') {
+        covers = await autoFetchMissingCovers(db, coverDir);
+      }
+      res.json({ ok: true, ...result, covers });
     } catch (err: any) {
       res.status(500).json({ ok: false, error: String(err?.message ?? err) });
     }

@@ -8,10 +8,13 @@ interface HeaderProps {
   onUploaded?: () => void;
 }
 
+type RescanStats = Awaited<ReturnType<typeof api.rescan>>;
+
 export default function Header({ onRescanned, onUploaded }: HeaderProps) {
   const [status, setStatus] = useState<Status | null>(null);
   const [scanning, setScanning] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<RescanStats | null>(null);
 
   const load = () => {
     api.status().then(setStatus).catch((e) => setErr(String(e)));
@@ -22,9 +25,12 @@ export default function Header({ onRescanned, onUploaded }: HeaderProps) {
     setScanning(true);
     setErr(null);
     try {
-      await api.rescan();
+      const result = await api.rescan();
+      setLastResult(result);
       load();
       onRescanned?.();
+      // Auto-clear the result blurb after 8 seconds
+      setTimeout(() => setLastResult(null), 8000);
     } catch (e: any) {
       setErr(String(e?.message ?? e));
     } finally {
@@ -48,6 +54,14 @@ export default function Header({ onRescanned, onUploaded }: HeaderProps) {
       </div>
       <div className="flex items-center gap-2">
         {err && <span className="text-xs text-red-400">{err}</span>}
+        {lastResult && (
+          <span className="text-xs text-zinc-400">
+            +{lastResult.inserted} new ·{' '}
+            {lastResult.covers
+              ? `${lastResult.covers.found}/${lastResult.covers.tried} covers fetched`
+              : 'no cover fetch'}
+          </span>
+        )}
         <UploadZone
           onUploaded={() => {
             load();
@@ -58,8 +72,9 @@ export default function Header({ onRescanned, onUploaded }: HeaderProps) {
           onClick={onRescan}
           disabled={scanning}
           className="text-xs px-3 py-1.5 rounded-full bezel disabled:opacity-50 text-zinc-300 hover:text-white"
+          title="Scan music dir + auto-fetch missing covers from iTunes"
         >
-          {scanning ? 'Scanning…' : 'Rescan'}
+          {scanning ? 'Scanning…' : 'Rescan + Covers'}
         </button>
       </div>
     </header>

@@ -23,6 +23,89 @@ import { extname, join } from 'node:path';
 const MAX_COVER_BYTES = 5 * 1024 * 1024; // 5 MB plenty for cover art
 const ALLOWED_EXT = /^\.(jpe?g|png|webp|gif)$/i;
 
+/**
+ * Background helper: scan tracks with cover_filename IS NULL, run an
+ * iTunes search per track using artist+album (or title), and save the
+ * top result. Skips tracks with no usable query. Polite: 200ms delay
+ * between requests, 8s timeout per fetch.
+ *
+ * Called from the rescan endpoint so users get covers auto-filled
+ * after dropping new MP3s in.
+ */
+export async function autoFetchMissingCovers(
+  db: Database,
+  coverDir: string,
+): Promise<{ tried: number; found: number; failed: number; skipped: number }> {
+  const rows = db
+    .prepare('SELECT id, title, artist, album FROM tracks WHERE cover_filename IS NULL')
+    .all() as Array<{
+      id: number;
+      title: string | null;
+      artist: string | null;
+      album: string | null;
+    }>;
+
+  let found = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  for (const t of rows) {
+    const parts = [t.artist, t.album].filter((s): s is string => !!s && !!s.trim());
+    const query = (parts.join(' ').trim() || (t.title ?? '').trim()).slice(0, 200);
+    if (!query) {
+      skipped++;
+      continue;
+    }
+    try {
+      const searchUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(
+        query,
+      )}&entity=album&limit=1`;
+      const searchResp = await fetch(searchUrl, {
+        signal: AbortSignal.timeout(8000),
+        headers: { 'User-Agent': 'music-station/0.1' },
+      });
+      if (!searchResp.ok) {
+        failed++;
+        continue;
+      }
+      const searchData = (await searchResp.json()) as { results?: any[] };
+      const r = searchData.results?.[0];
+      if (!r?.artworkUrl100) {
+        failed++;
+        continue;
+      }
+      const fullUrl = String(r.artworkUrl100).replace(
+        /\/\d+x\d+bb\.(jpg|png|webp)$/i,
+        '/600x600bb.jpg',
+      );
+
+      const imgResp = await fetch(fullUrl, { signal: AbortSignal.timeout(8000) });
+      if (!imgResp.ok) {
+        failed++;
+        continue;
+      }
+      const buf = Buffer.from(await imgResp.arrayBuffer());
+      if (buf.length > MAX_COVER_BYTES) {
+        failed++;
+        continue;
+      }
+
+      const filename = `${t.id}.jpg`;
+      await writeFile(join(coverDir, filename), buf);
+      db.prepare(
+        `UPDATE tracks SET cover_filename = ?, modified_at = datetime('now') WHERE id = ?`,
+      ).run(filename, t.id);
+      found++;
+    } catch {
+      failed++;
+    }
+    // Be polite to iTunes — slight pacing between requests
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+
+  return { tried: rows.length, found, failed, skipped };
+}
+
 interface Deps {
   db: Database;
   coverDir: string;

@@ -57,7 +57,7 @@ app.use('/api/covers', express.static(COVER_DIR, { maxAge: '1h', fallthrough: tr
 
 // API routes
 app.use('/api/tracks', tracksRouter({ db, publicUrl: PUBLIC_URL, musicDir: MUSIC_DIR, coverDir: COVER_DIR }));
-app.use('/api/status', statusRouter({ db, musicDir: MUSIC_DIR, startedAt }));
+app.use('/api/status', statusRouter({ db, musicDir: MUSIC_DIR, coverDir: COVER_DIR, startedAt }));
 app.use('/api/upload', uploadRouter({ db, musicDir: MUSIC_DIR }));
 app.use('/api/playlists', playlistsRouter({ db, publicUrl: PUBLIC_URL }));
 // coversRouter mounts at /api so its routes can be /api/tracks/:id/cover

@@ -72,7 +72,22 @@ export interface TracksQuery {
 
 export const api = {
   status: () => getJson<Status>('/status'),
-  rescan: () => postJson<{ ok: boolean; scanned_files: number; inserted: number; updated: number; removed: number; failed: number; took_ms: number }>('/status/rescan'),
+  rescan: () =>
+    postJson<{
+      ok: boolean;
+      scanned_files: number;
+      inserted: number;
+      updated: number;
+      removed: number;
+      failed: number;
+      took_ms: number;
+      covers: {
+        tried: number;
+        found: number;
+        failed: number;
+        skipped: number;
+      } | null;
+    }>('/status/rescan'),
   listTracks: (q: TracksQuery = {}) => {
     const params = new URLSearchParams();
     Object.entries(q).forEach(([k, v]) => v !== undefined && v !== '' && params.set(k, String(v)));
