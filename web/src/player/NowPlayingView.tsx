@@ -107,7 +107,7 @@ export default function NowPlayingView({ open, onClose }: Props) {
 
         {/* Real-time frequency-bar visualizer */}
         <div className="shrink-0 mt-2">
-          <AudioVisualizer height={80} bars={56} />
+          <AudioVisualizer height={200} bars={56} />
         </div>
 
         {/* Progress — recessed track + magenta fill */}
