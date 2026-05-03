@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type TrackEdit } from '../api';
 import type { Track } from '../types';
 import StarRating from './StarRating';
@@ -83,6 +83,10 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
 
         <Field label="Cover">
           <CoverPicker track={{ ...track, cover_url: coverUrl }} onChanged={setCoverUrl} />
+        </Field>
+
+        <Field label="Lyrics">
+          <LyricsField trackId={track.id} />
         </Field>
 
         <Field label="Rating">
@@ -178,5 +182,192 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-xs uppercase text-zinc-500 mb-1 block">{label}</span>
       {children}
     </label>
+  );
+}
+
+/**
+ * Lyrics manager for EditTrackModal. Independent from the metadata Save
+ * button — uploads/deletes hit the API immediately so users can iterate
+ * (delete a wrong auto-fetched .lrc, paste the right one, see the result
+ * without saving the rest of the form).
+ */
+function LyricsField({ trackId }: { trackId: number }) {
+  const [status, setStatus] = useState<'loading' | 'absent' | 'present' | 'error'>('loading');
+  const [source, setSource] = useState<string | null>(null);
+  const [hasTs, setHasTs] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [pasting, setPasting] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  // Load status on mount / when track changes
+  useEffect(() => {
+    let cancelled = false;
+    setStatus('loading');
+    api
+      .getLyrics(trackId)
+      .then((r) => {
+        if (cancelled) return;
+        if (r.found && r.synced) {
+          setStatus('present');
+          setSource(r.source ?? null);
+          setHasTs(/\[\d+:\d{1,2}(?:[.:]\d{1,3})?\]/.test(r.synced));
+        } else {
+          setStatus('absent');
+          setSource(null);
+          setHasTs(false);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStatus('error');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [trackId]);
+
+  async function uploadFile(file: File) {
+    if (busy) return;
+    if (file.size > 256 * 1024) {
+      setMsg('文件超过 256KB 上限');
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    try {
+      const text = await file.text();
+      const r = await api.setLyrics(trackId, text);
+      if (r.ok) {
+        setStatus('present');
+        setSource('manual');
+        setHasTs(!!r.has_timestamps);
+        setMsg(`上传成功${r.has_timestamps ? '（带时间戳）' : '（纯文本）'}`);
+      }
+    } catch (err: any) {
+      setMsg(`上传失败：${err?.message ?? err}`);
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  async function savePasted() {
+    if (busy || !pasteText.trim()) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await api.setLyrics(trackId, pasteText);
+      if (r.ok) {
+        setStatus('present');
+        setSource('manual');
+        setHasTs(!!r.has_timestamps);
+        setPasting(false);
+        setPasteText('');
+        setMsg(`保存成功${r.has_timestamps ? '（带时间戳）' : '（纯文本）'}`);
+      }
+    } catch (err: any) {
+      setMsg(`保存失败：${err?.message ?? err}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (busy) return;
+    if (!confirm('确认删除这首歌的歌词文件？')) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api.deleteLyrics(trackId);
+      setStatus('absent');
+      setSource(null);
+      setHasTs(false);
+      setMsg('已删除');
+    } catch (err: any) {
+      setMsg(`删除失败：${err?.message ?? err}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const statusLine =
+    status === 'loading'
+      ? '加载中…'
+      : status === 'present'
+        ? `已下载 · ${source ?? 'unknown'} · ${hasTs ? '带时间戳' : '纯文本'}`
+        : status === 'absent'
+          ? '暂无歌词'
+          : '加载失败';
+
+  return (
+    <div className="space-y-2">
+      <div className="text-xs text-zinc-400">{statusLine}</div>
+
+      <div className="flex flex-wrap gap-2">
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".lrc,.txt,text/plain"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) uploadFile(f);
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={busy}
+          className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white disabled:opacity-50"
+        >
+          上传 .lrc 文件
+        </button>
+        <button
+          type="button"
+          onClick={() => setPasting((v) => !v)}
+          disabled={busy}
+          className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white disabled:opacity-50"
+        >
+          {pasting ? '取消粘贴' : '粘贴文本'}
+        </button>
+        {status === 'present' && (
+          <button
+            type="button"
+            onClick={remove}
+            disabled={busy}
+            className="px-3 py-1.5 rounded-full bezel text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+          >
+            删除
+          </button>
+        )}
+      </div>
+
+      {pasting && (
+        <div className="space-y-2">
+          <textarea
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            rows={6}
+            placeholder="粘贴 LRC 文本，例如：&#10;[00:12.34]第一句&#10;[00:18.20]第二句"
+            className="input font-mono text-xs w-full"
+            style={{ minHeight: 120, resize: 'vertical' }}
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={savePasted}
+              disabled={busy || !pasteText.trim()}
+              className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
+            >
+              {busy ? '保存中…' : '保存歌词'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {msg && <div className="text-xs text-zinc-500">{msg}</div>}
+    </div>
   );
 }

@@ -4,6 +4,7 @@
  * Routes (mounted under /api so paths can be /api/tracks/:id/lyrics):
  *   GET    /api/tracks/:id/lyrics         — read locally cached .lrc (no network)
  *   POST   /api/tracks/:id/lyrics/fetch   — fetch from LRCLIB → Netease, save to disk
+ *   PUT    /api/tracks/:id/lyrics         — manual override; body { text } (.lrc or plain)
  *   DELETE /api/tracks/:id/lyrics         — remove cached .lrc
  *
  * Files live in LYRICS_DIR (default /opt/music/lyrics) named "<track_id>.lrc".
@@ -201,6 +202,37 @@ export function lyricsRouter({ db, lyricsDir }: Deps): Router {
       source: hit.source,
       synced: text,
       has_timestamps: !!hit.synced,
+    });
+  });
+
+  // PUT /api/tracks/:id/lyrics — manual upload/paste; body { text }
+  // Caller is responsible for the content (uploaded .lrc, hand-edited text,
+  // pasted from anywhere). We only enforce a size cap and that it's a string.
+  r.put('/tracks/:id(\\d+)/lyrics', async (req, res) => {
+    const id = Number(req.params.id);
+    const exists = db.prepare('SELECT id FROM tracks WHERE id = ?').get(id);
+    if (!exists) {
+      res.status(404).json({ error: 'track not found' });
+      return;
+    }
+    const text = String(req.body?.text ?? '');
+    if (!text.trim()) {
+      res.status(400).json({ error: 'text must be non-empty' });
+      return;
+    }
+    if (text.length > 256 * 1024) {
+      res.status(413).json({ error: 'lyrics too large (max 256KB)' });
+      return;
+    }
+    await writeFile(lrcPath(lyricsDir, id), text, 'utf8');
+    // Detect timestamps so client can render the right view immediately
+    const hasTs = /\[\d+:\d{1,2}(?:[.:]\d{1,3})?\]/.test(text);
+    res.json({
+      ok: true,
+      found: true,
+      source: 'manual',
+      synced: text,
+      has_timestamps: hasTs,
     });
   });
 

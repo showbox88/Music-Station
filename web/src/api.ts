@@ -13,7 +13,7 @@ export interface TrackEdit {
 
 export interface LyricsResponse {
   found: boolean;
-  source?: 'local' | 'lrclib' | 'netease' | null;
+  source?: 'local' | 'lrclib' | 'netease' | 'manual' | null;
   synced?: string;
   has_timestamps?: boolean;
 }
@@ -159,6 +159,8 @@ export const api = {
     getJson<LyricsResponse>(`/tracks/${trackId}/lyrics`),
   fetchLyrics: (trackId: number) =>
     postJson<LyricsResponse & { ok: boolean }>(`/tracks/${trackId}/lyrics/fetch`),
+  setLyrics: (trackId: number, text: string) =>
+    putJson<LyricsResponse & { ok: boolean }>(`/tracks/${trackId}/lyrics`, { text }),
   deleteLyrics: (trackId: number) =>
     deleteReq<{ ok: boolean }>(`/tracks/${trackId}/lyrics`),
 
