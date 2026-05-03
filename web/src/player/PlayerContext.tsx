@@ -59,34 +59,51 @@ interface EQState {
 }
 
 function defaultEQState(): EQState {
+  // New tracks start with EQ OFF — only takes effect after the user
+  // explicitly engages it from the panel.
   return {
     gains: new Array(EQ_FREQUENCIES.length).fill(0),
     preamp: 0,
-    bypass: false,
+    bypass: true,
   };
 }
 
-function loadEQState(): EQState {
-  if (typeof window === 'undefined') return defaultEQState();
-  try {
-    const raw = window.localStorage.getItem('mw.eq');
-    if (!raw) return defaultEQState();
-    const j = JSON.parse(raw);
-    if (
-      Array.isArray(j.gains) &&
-      j.gains.length === EQ_FREQUENCIES.length &&
-      j.gains.every((g: any) => Number.isFinite(g))
-    ) {
-      return {
-        gains: j.gains.map((g: number) => clampDb(g, EQ_GAIN_MIN, EQ_GAIN_MAX)),
-        preamp: clampDb(Number(j.preamp) || 0, EQ_PREAMP_MIN, EQ_PREAMP_MAX),
-        bypass: Boolean(j.bypass),
-      };
-    }
-  } catch {
-    /* fall through */
+const EQ_TRACKS_STORAGE_KEY = 'mw.eq.tracks';
+
+function sanitizeEQ(j: any): EQState | null {
+  if (!j || typeof j !== 'object') return null;
+  if (
+    !Array.isArray(j.gains) ||
+    j.gains.length !== EQ_FREQUENCIES.length ||
+    !j.gains.every((g: any) => Number.isFinite(g))
+  ) {
+    return null;
   }
-  return defaultEQState();
+  return {
+    gains: j.gains.map((g: number) => clampDb(g, EQ_GAIN_MIN, EQ_GAIN_MAX)),
+    preamp: clampDb(Number(j.preamp) || 0, EQ_PREAMP_MIN, EQ_PREAMP_MAX),
+    bypass: Boolean(j.bypass),
+  };
+}
+
+function loadEQTracks(): Record<number, EQState> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(EQ_TRACKS_STORAGE_KEY);
+    if (!raw) return {};
+    const j = JSON.parse(raw);
+    if (!j || typeof j !== 'object') return {};
+    const out: Record<number, EQState> = {};
+    for (const [k, v] of Object.entries(j)) {
+      const id = Number(k);
+      if (!Number.isFinite(id)) continue;
+      const eq = sanitizeEQ(v);
+      if (eq) out[id] = eq;
+    }
+    return out;
+  } catch {
+    return {};
+  }
 }
 
 function clampDb(v: number, lo: number, hi: number): number {
@@ -168,26 +185,33 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const eqFiltersRef = useRef<BiquadFilterNode[]>([]);
   const preampNodeRef = useRef<GainNode | null>(null);
 
-  // EQ state — initialized from localStorage. Effects below apply changes
-  // to the audio graph in real time once it exists.
-  const initialEQ = loadEQState();
-  const [eqGains, setEqGains] = useState<number[]>(initialEQ.gains);
-  const [eqPreamp, setEqPreampState] = useState<number>(initialEQ.preamp);
-  const [eqBypass, setEqBypassState] = useState<boolean>(initialEQ.bypass);
+  // EQ state is per-track: each track id maps to its own gains/preamp/bypass.
+  // The "active" state below is what the EQ panel controls and what gets
+  // applied to the audio graph; it tracks whichever track is currently
+  // playing. New (unseen) tracks start from defaultEQState() — bypass=true.
+  const eqTracksRef = useRef<Record<number, EQState>>(loadEQTracks());
+  const initialActive = defaultEQState();
+  const [eqGains, setEqGains] = useState<number[]>(initialActive.gains);
+  const [eqPreamp, setEqPreampState] = useState<number>(initialActive.preamp);
+  const [eqBypass, setEqBypassState] = useState<boolean>(initialActive.bypass);
+  // Track which track id the active EQ state currently belongs to, so we
+  // know which key to persist under and avoid clobbering after a track
+  // swap (the swap effect resets state, but state setters fire async).
+  const activeEQTrackIdRef = useRef<number | null>(null);
 
-  // Persist EQ
-  useEffect(() => {
+  function persistEQTracks() {
     try {
       window.localStorage.setItem(
-        'mw.eq',
-        JSON.stringify({ gains: eqGains, preamp: eqPreamp, bypass: eqBypass }),
+        EQ_TRACKS_STORAGE_KEY,
+        JSON.stringify(eqTracksRef.current),
       );
     } catch {
-      /* ignore */
+      /* ignore — quota / private mode */
     }
-  }, [eqGains, eqPreamp, eqBypass]);
+  }
 
-  // Apply EQ state to filter nodes whenever it changes (only if graph exists)
+  // Apply EQ state to filter nodes whenever it changes (only if graph exists),
+  // and persist under the active track's id.
   useEffect(() => {
     const filters = eqFiltersRef.current;
     if (filters.length > 0) {
@@ -197,6 +221,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
     if (preampNodeRef.current) {
       preampNodeRef.current.gain.value = dbToLinear(eqBypass ? 0 : eqPreamp);
+    }
+    const id = activeEQTrackIdRef.current;
+    if (id != null) {
+      eqTracksRef.current[id] = {
+        gains: eqGains,
+        preamp: eqPreamp,
+        bypass: eqBypass,
+      };
+      persistEQTracks();
     }
   }, [eqGains, eqPreamp, eqBypass]);
 
@@ -308,6 +341,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       audio.load();
     }
   }, [current]);
+
+  // Load this track's saved EQ when the playing track changes. Tracks
+  // without a saved entry start from defaultEQState() (EQ off, flat).
+  useEffect(() => {
+    const id = current?.id ?? null;
+    activeEQTrackIdRef.current = id;
+    const saved = id != null ? eqTracksRef.current[id] : null;
+    const next = saved ?? defaultEQState();
+    setEqGains(next.gains);
+    setEqPreampState(next.preamp);
+    setEqBypassState(next.bypass);
+  }, [current?.id]);
 
   // Volume binding
   useEffect(() => {
