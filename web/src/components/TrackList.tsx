@@ -112,7 +112,7 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
               {/* Headers must mirror the body cells' visibility, otherwise
                   the column widths drift and rows leave empty space. */}
               <th className="hidden md:table-cell text-left font-medium py-2 pl-6 w-10">▶</th>
-              <th className="text-left font-medium py-2 w-16 md:w-12"></th>
+              <th className="text-left font-medium py-2 w-20 md:w-12"></th>
               <th className="text-left font-medium py-2 w-full">Title</th>
               <th className="hidden md:table-cell text-left font-medium py-2">Artist</th>
               <th className="hidden lg:table-cell text-left font-medium py-2">Album</th>
