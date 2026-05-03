@@ -276,12 +276,16 @@ function FaderColumn({
             boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.8)',
           }}
         />
-        {/* Magenta fill from 0-line to current value */}
+        {/* Magenta fill from the 0-dB midline to the current thumb
+            position. The slider is rotated -90°, so a higher value
+            shows the thumb HIGHER (closer to top), and the fill should
+            extend from the midline up to it. fillPct here is "how far
+            from min" (0..100); 1−fillPct/100 gives "from top" in CSS. */}
         <div
           className="absolute pointer-events-none"
           style={{
             width: 4,
-            top: value >= 0 ? `${50 - fillPct / 2 + (50 - 50)}%` : '50%',
+            top: value >= 0 ? `${100 - fillPct}%` : '50%',
             height: `${Math.abs(50 - fillPct)}%`,
             background: bypassed
               ? 'transparent'
