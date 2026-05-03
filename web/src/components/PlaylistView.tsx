@@ -159,7 +159,12 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                   </button>
                 </td>
                 <td className="py-1 pr-2">
-                  <CoverThumb src={t.cover_url} size={32} />
+                  <div className="md:hidden">
+                    <CoverThumb src={t.cover_url} size={56} />
+                  </div>
+                  <div className="hidden md:block">
+                    <CoverThumb src={t.cover_url} size={32} />
+                  </div>
                 </td>
                 <td className="py-2 pr-3 font-medium">
                   {t.last_edited_at && (

@@ -144,7 +144,14 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
                   </button>
                 </td>
                 <td className="py-1 pr-2">
-                  <CoverThumb src={t.cover_url} size={32} />
+                  {/* Bigger cover on mobile so the row reads like a music
+                      app; compact on desktop where rows are denser. */}
+                  <div className="md:hidden">
+                    <CoverThumb src={t.cover_url} size={56} />
+                  </div>
+                  <div className="hidden md:block">
+                    <CoverThumb src={t.cover_url} size={32} />
+                  </div>
                 </td>
                 <td className="py-2 pr-3 font-medium min-w-0">
                   {t.last_edited_at && (
