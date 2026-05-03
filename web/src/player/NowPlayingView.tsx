@@ -328,42 +328,84 @@ function Wave() {
 }
 
 function Vinyl({ coverUrl, spinning }: { coverUrl: string | null; spinning: boolean }) {
+  // The disc is built from layered backgrounds so no SVG is needed:
+  //   1. Base radial gradient — true vinyl black with a very subtle dome.
+  //   2. repeating-radial-gradient — fine concentric grooves (the
+  //      hallmark of an LP). Two layers, slightly offset, to break the
+  //      moiré and give the grooves a "lit from above" feel.
+  // The highlight crescent is a separate non-rotating layer above so it
+  // looks like a real reflection (light source stays put while the disc
+  // spins).
   return (
-    <div
-      className="absolute inset-0 rounded-full shadow-2xl"
-      style={{
-        background: 'radial-gradient(circle at 30% 30%, #2a2a35 0%, #0d0d14 60%, #050507 100%)',
-        animation: 'mw-spin 8s linear infinite',
-        animationPlayState: spinning ? 'running' : 'paused',
-      }}
-    >
-      {/* Concentric grooves */}
-      <div className="absolute inset-2 rounded-full border border-white/5" />
-      <div className="absolute inset-6 rounded-full border border-white/5" />
-      <div className="absolute inset-12 rounded-full border border-white/5" />
-      <div className="absolute inset-20 rounded-full border border-white/5" />
-      {/* Center label area = the album cover */}
+    <div className="absolute inset-0 rounded-full" style={{ filter: 'drop-shadow(0 14px 22px rgba(0,0,0,0.55))' }}>
+      {/* Spinning disc + grooves */}
       <div
-        className="absolute rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center"
+        className="absolute inset-0 rounded-full"
         style={{
-          top: '28%',
-          left: '28%',
-          width: '44%',
-          height: '44%',
-          boxShadow: '0 0 0 6px #1a0d35, 0 0 0 7px rgba(255,255,255,0.15)',
+          background: [
+            // Fine grooves — alternating darker / lighter 1px rings.
+            'repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,0.04) 0 1px, transparent 1px 3px)',
+            // Wider, fainter rings every ~12px give the impression of
+            // sub-grouped grooves catching the light.
+            'repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,0.02) 0 0.5px, transparent 0.5px 12px)',
+            // Base disc — true vinyl black with a very gentle dome.
+            'radial-gradient(circle at 50% 45%, #1a1a1f 0%, #0a0a0c 55%, #000 100%)',
+          ].join(','),
+          animation: 'mw-spin 8s linear infinite',
+          animationPlayState: spinning ? 'running' : 'paused',
+        }}
+      />
+
+      {/* Glossy crescent highlight — does NOT rotate, lives above the disc.
+          A soft radial light source at the upper-left + a darker fade on
+          the lower-right sells the "polished black plastic" look. */}
+      <div
+        className="absolute inset-0 rounded-full pointer-events-none"
+        style={{
+          background: [
+            'radial-gradient(circle at 30% 22%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.06) 18%, transparent 38%)',
+            'radial-gradient(circle at 75% 80%, rgba(0,0,0,0.35) 0%, transparent 45%)',
+          ].join(','),
+        }}
+      />
+
+      {/* Outer rim hairline — sharpens the edge against the page. */}
+      <div
+        className="absolute inset-0 rounded-full pointer-events-none"
+        style={{
+          boxShadow:
+            'inset 0 0 0 1px rgba(255,255,255,0.05), inset 0 0 18px rgba(0,0,0,0.6)',
+        }}
+      />
+
+      {/* Center label — spins with the disc. The album cover goes here. */}
+      <div
+        className="absolute rounded-full overflow-hidden flex items-center justify-center"
+        style={{
+          top: '32%',
+          left: '32%',
+          width: '36%',
+          height: '36%',
+          background: '#1a1a1c',
+          boxShadow:
+            '0 0 0 1px rgba(255,255,255,0.08), 0 1px 2px rgba(0,0,0,0.5)',
+          animation: 'mw-spin 8s linear infinite',
+          animationPlayState: spinning ? 'running' : 'paused',
         }}
       >
         <CenterCover src={coverUrl} />
       </div>
-      {/* Center spindle hole */}
+
+      {/* Spindle hole — small white pinpoint at the very center. */}
       <div
-        className="absolute rounded-full bg-[#2d1466]"
+        className="absolute rounded-full pointer-events-none"
         style={{
-          top: 'calc(50% - 6px)',
-          left: 'calc(50% - 6px)',
-          width: 12,
-          height: 12,
-          boxShadow: 'inset 0 0 4px rgba(0,0,0,0.6)',
+          top: 'calc(50% - 4px)',
+          left: 'calc(50% - 4px)',
+          width: 8,
+          height: 8,
+          background: 'radial-gradient(circle, #f4f4f5 0%, #a0a0a8 70%, #2a2a30 100%)',
+          boxShadow: 'inset 0 0 2px rgba(0,0,0,0.6)',
         }}
       />
     </div>
