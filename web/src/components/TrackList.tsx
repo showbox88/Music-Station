@@ -119,7 +119,8 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
               return (
               <tr
                 key={t.id}
-                className={`border-b border-black/40 ${
+                onDoubleClick={() => setEditing(t)}
+                className={`border-b border-black/40 cursor-default select-none ${
                   isPlaying ? '' : 'hover:bg-white/[0.03]'
                 }`}
                 style={isPlaying ? { background: 'rgba(255, 45, 181, 0.06)' } : undefined}

@@ -10,6 +10,7 @@ import type { PlaylistDetail, Track } from '../types';
 import { usePlayer } from '../player/PlayerContext';
 import StarRating from './StarRating';
 import CoverThumb from './CoverThumb';
+import EditTrackModal from './EditTrackModal';
 
 interface Props {
   playlistId: number;
@@ -28,6 +29,7 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
   const [data, setData] = useState<PlaylistDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Track | null>(null);
   const player = usePlayer();
 
   function load() {
@@ -134,7 +136,8 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
               return (
               <tr
                 key={t.id}
-                className={`border-b border-black/40 ${
+                onDoubleClick={() => setEditing(t)}
+                className={`border-b border-black/40 cursor-default select-none ${
                   isPlaying ? '' : 'hover:bg-white/[0.03]'
                 }`}
                 style={isPlaying ? { background: 'rgba(255, 45, 181, 0.06)' } : undefined}
@@ -213,6 +216,22 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
           </tbody>
         </table>
       </div>
+
+      {editing && (
+        <EditTrackModal
+          track={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(updated) => {
+            // Patch local list so the row reflects the edit immediately
+            setData((d) =>
+              d
+                ? { ...d, tracks: d.tracks.map((x) => (x.id === updated.id ? updated : x)) }
+                : d,
+            );
+            onChanged();
+          }}
+        />
+      )}
     </div>
   );
 }
