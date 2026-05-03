@@ -79,6 +79,8 @@ export const api = {
     return getJson<TrackListResponse>(`/tracks?${params.toString()}`);
   },
   updateTrack: (id: number, fields: TrackEdit) => putJson<Track>(`/tracks/${id}`, fields),
+  getTrackByPath: (relPath: string) =>
+    getJson<Track>(`/tracks/by-path?p=${encodeURIComponent(relPath)}`),
   deleteTrack: async (id: number) => {
     const res = await fetch(url(`/tracks/${id}`), { method: 'DELETE' });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);

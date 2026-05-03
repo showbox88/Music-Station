@@ -127,6 +127,24 @@ export function tracksRouter({ db, publicUrl, musicDir, coverDir }: Deps): Route
     });
   });
 
+  // GET /api/tracks/by-path?p=<rel_path>  — deep-link lookup used by the
+  // ?play=... URL param. Exact match on rel_path.
+  r.get('/by-path', (req, res) => {
+    const p = String(req.query.p ?? '').trim();
+    if (!p) {
+      res.status(400).json({ error: 'p is required' });
+      return;
+    }
+    const row = db.prepare('SELECT * FROM tracks WHERE rel_path = ?').get(p) as
+      | TrackRow
+      | undefined;
+    if (!row) {
+      res.status(404).json({ error: 'track not found' });
+      return;
+    }
+    res.json(dto(row, publicUrl));
+  });
+
   // GET /api/tracks/:id
   r.get('/:id(\\d+)', (req, res) => {
     const id = Number(req.params.id);

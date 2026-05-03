@@ -1,33 +1,72 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Header from './components/Header';
 import TrackList from './components/TrackList';
 import Sidebar, { type View } from './components/Sidebar';
 import PlaylistView from './components/PlaylistView';
-import { PlayerProvider } from './player/PlayerContext';
+import { PlayerProvider, usePlayer } from './player/PlayerContext';
 import PlayerBar from './player/PlayerBar';
 import NowPlayingView from './player/NowPlayingView';
+import { api } from './api';
 
 export default function App() {
+  return (
+    <PlayerProvider>
+      <AppContent />
+    </PlayerProvider>
+  );
+}
+
+function AppContent() {
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey((k) => k + 1);
   const [view, setView] = useState<View>({ kind: 'all' });
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
+  const player = usePlayer();
+
+  // Deep-link handler: ?play=<rel_path> in the URL → look up the track,
+  // start playback, and open the NowPlaying view. Then clean the URL so a
+  // refresh doesn't replay it. Used when Chat hands the user a clickable
+  // link that should land in our custom player instead of the browser's
+  // bare audio element.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const playPath = params.get('play');
+    if (!playPath) return;
+
+    api
+      .getTrackByPath(playPath)
+      .then((track) => {
+        player.playOne(track);
+        setNowPlayingOpen(true);
+      })
+      .catch((err) => {
+        // Track not found / lookup failed — silent (logged for debug)
+        console.error('deep-link play failed:', err);
+      })
+      .finally(() => {
+        // Clean the URL whether or not the track was found, so the user
+        // can refresh without re-triggering.
+        const url = new URL(window.location.href);
+        url.searchParams.delete('play');
+        window.history.replaceState({}, '', url.toString());
+      });
+    // Run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <PlayerProvider>
-      <div className="h-full flex flex-col">
-        <Header onRescanned={refresh} onUploaded={refresh} />
-        <div className="flex-1 flex min-h-0">
-          <Sidebar view={view} setView={setView} refreshKey={refreshKey} onChanged={refresh} />
-          {view.kind === 'all' ? (
-            <TrackList refreshKey={refreshKey} onChanged={refresh} />
-          ) : (
-            <PlaylistView playlistId={view.id} refreshKey={refreshKey} onChanged={refresh} />
-          )}
-        </div>
-        <PlayerBar onExpand={() => setNowPlayingOpen(true)} />
-        <NowPlayingView open={nowPlayingOpen} onClose={() => setNowPlayingOpen(false)} />
+    <div className="h-full flex flex-col">
+      <Header onRescanned={refresh} onUploaded={refresh} />
+      <div className="flex-1 flex min-h-0">
+        <Sidebar view={view} setView={setView} refreshKey={refreshKey} onChanged={refresh} />
+        {view.kind === 'all' ? (
+          <TrackList refreshKey={refreshKey} onChanged={refresh} />
+        ) : (
+          <PlaylistView playlistId={view.id} refreshKey={refreshKey} onChanged={refresh} />
+        )}
       </div>
-    </PlayerProvider>
+      <PlayerBar onExpand={() => setNowPlayingOpen(true)} />
+      <NowPlayingView open={nowPlayingOpen} onClose={() => setNowPlayingOpen(false)} />
+    </div>
   );
 }
