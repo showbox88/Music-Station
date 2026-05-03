@@ -23,7 +23,9 @@ type VizStyle =
   | 'caps'
   | 'dots'
   | 'ribbon'
-  | 'flower';
+  | 'flower'
+  | 'stems'
+  | 'grid';
 const STYLES: VizStyle[] = [
   'bars',
   'mirror',
@@ -34,6 +36,8 @@ const STYLES: VizStyle[] = [
   'dots',
   'ribbon',
   'flower',
+  'stems',
+  'grid',
 ];
 const STYLE_LABEL: Record<VizStyle, string> = {
   bars: 'Bars',
@@ -45,6 +49,8 @@ const STYLE_LABEL: Record<VizStyle, string> = {
   dots: 'Dots',
   ribbon: 'Ribbon',
   flower: 'Flower',
+  stems: 'Stems',
+  grid: 'Grid',
 };
 
 /** Hue mapped to bar index, for rainbow-style strips. */
@@ -267,6 +273,12 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
         case 'flower':
           rot += 0.004;
           drawFlower(ctx, W, H, heights, rot);
+          break;
+        case 'stems':
+          drawStems(ctx, W, H, heights);
+          break;
+        case 'grid':
+          drawGrid(ctx, W, H, heights);
           break;
       }
 
@@ -740,4 +752,101 @@ function drawFlower(
   ctx.beginPath();
   ctx.arc(cx, cy, innerR * 0.55, 0, Math.PI * 2);
   ctx.fill();
+}
+
+/* Stems: alternating up/down vertical strokes with rounded caps,
+ * radiating from the canvas centerline. Inspired by the css-tricks
+ * "make an audio waveform with vanilla JS" walkthrough — vertical
+ * line, half-circle, vertical line back to center. Adjacent stems
+ * alternate above/below, giving a stylized waveform look. */
+function drawStems(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  heights: Float32Array,
+) {
+  const bars = heights.length;
+  const midY = H / 2;
+  const maxLen = H * 0.45;
+  const segmentW = W / bars;
+  // Cap radius is half the segment width so caps just touch each other
+  const capR = Math.max(2, segmentW * 0.42);
+
+  ctx.lineWidth = Math.max(1.5, segmentW * 0.18);
+  for (let i = 0; i < bars; i++) {
+    const v = Math.min(1, heights[i] * 1.4);
+    const len = Math.max(capR + 1, v * maxLen);
+    const x = (i + 0.5) * segmentW;
+    const dir = i % 2 === 0 ? -1 : 1; // even → up, odd → down
+    const tipY = midY + dir * len;
+
+    // Color: slow magenta→cyan sweep across the canvas plus an amplitude
+    // brightness boost on the loud stems.
+    const t = i / Math.max(1, bars - 1);
+    const hue = 200 + t * 160;
+    ctx.strokeStyle = `hsla(${hue}, 95%, ${55 + v * 15}%, 0.95)`;
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.shadowColor = `hsla(${hue}, 95%, 50%, 0.8)`;
+    ctx.shadowBlur = 6 + v * 10;
+
+    // Vertical stem
+    ctx.beginPath();
+    ctx.moveTo(x, midY);
+    ctx.lineTo(x, tipY);
+    ctx.stroke();
+
+    // Rounded cap at the tip
+    ctx.beginPath();
+    ctx.arc(x, tipY, capR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+
+  // Faint center axis line for structure
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.fillRect(0, midY, W, 1);
+}
+
+/* Grid: every column is a vertical strip of square cells. A cell lights
+ * up if its row is below the column's current amplitude. Cells fade
+ * with row index so the top of a tall column glows brighter than the
+ * base, like a vintage LED VU-meter array. */
+function drawGrid(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  heights: Float32Array,
+) {
+  const bars = heights.length;
+  const colW = W / bars;
+  const cellGap = 2;
+  // Pick a cell size derived from column width so cells are roughly
+  // square regardless of canvas aspect.
+  const cellH = Math.max(4, Math.round(colW * 0.55));
+  const rowStride = cellH + cellGap;
+  const rows = Math.floor((H * 0.94) / rowStride);
+  const cellW = Math.max(2, Math.floor(colW - cellGap));
+
+  for (let i = 0; i < bars; i++) {
+    const v = heights[i];
+    const lit = Math.round(v * rows);
+    const x = Math.round(i * colW + cellGap / 2);
+
+    for (let r = 0; r < rows; r++) {
+      const y = H - (r + 1) * rowStride;
+      const t = r / Math.max(1, rows - 1);
+      // Color ramp: green low → yellow mid → red top, like a VU meter
+      const hue = 120 - t * 120;
+      if (r < lit) {
+        ctx.fillStyle = `hsl(${hue}, 95%, ${50 + (1 - t) * 12}%)`;
+        ctx.shadowColor = `hsl(${hue}, 95%, 55%)`;
+        ctx.shadowBlur = 4;
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.shadowBlur = 0;
+      }
+      ctx.fillRect(x, y, cellW, cellH);
+    }
+  }
+  ctx.shadowBlur = 0;
 }
