@@ -150,10 +150,23 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
                       anywhere on the cover to start playback. */}
                   <button
                     onClick={() => {
-                      const idx = tracks.findIndex((x) => x.id === t.id);
-                      player.playList(tracks, Math.max(0, idx));
+                      // Tapping the row of the currently-playing track is
+                      // a play/pause toggle; tapping any other row queues
+                      // the list and starts from there.
+                      if (isPlaying) {
+                        player.togglePlay();
+                      } else {
+                        const idx = tracks.findIndex((x) => x.id === t.id);
+                        player.playList(tracks, Math.max(0, idx));
+                      }
                     }}
-                    title={isPlaying && player.isPlaying ? 'Now playing' : 'Play'}
+                    title={
+                      isPlaying
+                        ? player.isPlaying
+                          ? 'Pause'
+                          : 'Resume'
+                        : 'Play'
+                    }
                     className="md:hidden relative block rounded overflow-hidden"
                     style={{ width: 56, height: 56 }}
                   >

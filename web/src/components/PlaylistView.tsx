@@ -160,8 +160,20 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                 </td>
                 <td className="py-1 pl-3 pr-2 md:pl-0">
                   <button
-                    onClick={() => data && player.playList(data.tracks, idx)}
-                    title={isPlaying && player.isPlaying ? 'Now playing' : 'Play'}
+                    onClick={() => {
+                      if (isPlaying) {
+                        player.togglePlay();
+                      } else if (data) {
+                        player.playList(data.tracks, idx);
+                      }
+                    }}
+                    title={
+                      isPlaying
+                        ? player.isPlaying
+                          ? 'Pause'
+                          : 'Resume'
+                        : 'Play'
+                    }
                     className="md:hidden relative block rounded overflow-hidden"
                     style={{ width: 56, height: 56 }}
                   >
