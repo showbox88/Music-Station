@@ -64,6 +64,8 @@ interface PlayerActions {
 interface PlayerContextValue extends PlayerState, PlayerActions {
   /** The track currently playing, or null if idle. */
   current: Track | null;
+  /** AnalyserNode for real-time visualizers. May be null until first play. */
+  getAnalyser: () => AnalyserNode | null;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -85,6 +87,41 @@ function shuffleArray<T>(arr: T[]): T[] {
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Web Audio graph for visualizers. Lazily created on first user-gesture
+  // play (browsers require a gesture before AudioContext can run).
+  // The MediaElementSource can only be created ONCE per <audio>, so we
+  // memoize all three nodes in refs.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+
+  function ensureAudioGraph() {
+    if (audioCtxRef.current) {
+      // Already set up — just resume if it was suspended (some browsers
+      // suspend on tab blur).
+      audioCtxRef.current.resume().catch(() => {});
+      return;
+    }
+    const audio = audioRef.current;
+    if (!audio) return;
+    try {
+      const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext;
+      const ctx = new Ctx();
+      const source = ctx.createMediaElementSource(audio);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.75;
+      source.connect(analyser);
+      analyser.connect(ctx.destination);
+      audioCtxRef.current = ctx;
+      analyserRef.current = analyser;
+      sourceRef.current = source;
+    } catch (err) {
+      // CORS or browser unsupported — visualizer just won't show.
+      console.warn('audio graph init failed:', err);
+    }
+  }
 
   const [queue, setQueue] = useState<Track[]>([]);
   const [cursor, setCursor] = useState(-1);
@@ -128,6 +165,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (audio.src !== current.url) {
         audio.src = current.url;
       }
+      // playList / playOne are user gestures (button clicks) so the
+      // AudioContext can be safely created here too.
+      ensureAudioGraph();
       audio.play().catch(() => {
         // Autoplay blocked — user gesture required first time.
         // We surface isPlaying=false until user clicks play.
@@ -222,6 +262,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) {
+      // First-gesture play is the right moment to spin up the audio graph
+      ensureAudioGraph();
       audio.play().catch(() => {});
     } else {
       audio.pause();
@@ -349,6 +391,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     toggleShuffle,
     cycleRepeat,
     clearQueue,
+    getAnalyser: () => analyserRef.current,
   };
 
   return (

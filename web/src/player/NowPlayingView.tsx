@@ -12,6 +12,7 @@
  */
 import { useEffect, useState } from 'react';
 import { usePlayer } from './PlayerContext';
+import AudioVisualizer from './AudioVisualizer';
 
 function resolveCoverSrc(src: string | null): string | null {
   if (!src) return null;
@@ -102,6 +103,11 @@ export default function NowPlayingView({ open, onClose }: Props) {
             <Vinyl coverUrl={t.cover_url} spinning={p.isPlaying} />
             <Tonearm playing={p.isPlaying} />
           </div>
+        </div>
+
+        {/* Real-time frequency-bar visualizer */}
+        <div className="shrink-0 mt-2">
+          <AudioVisualizer height={80} bars={56} />
         </div>
 
         {/* Progress — recessed track + magenta fill */}
