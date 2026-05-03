@@ -14,12 +14,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePlayer } from './PlayerContext';
 
-type VizStyle = 'bars' | 'mirror' | 'wave';
-const STYLES: VizStyle[] = ['bars', 'mirror', 'wave'];
+type VizStyle = 'bars' | 'mirror' | 'wave' | 'pulse';
+const STYLES: VizStyle[] = ['bars', 'mirror', 'wave', 'pulse'];
 const STYLE_LABEL: Record<VizStyle, string> = {
   bars: 'Bars',
   mirror: 'Mirror',
   wave: 'Wave',
+  pulse: 'Pulse',
 };
 
 interface Props {
@@ -126,6 +127,9 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
           break;
         case 'wave':
           drawWave(ctx, W, H, heights);
+          break;
+        case 'pulse':
+          drawPulse(ctx, W, H, heights);
           break;
       }
 
@@ -280,4 +284,72 @@ function drawWave(
   ctx.strokeStyle = ampColor(Math.min(1, avg * 1.5), 0.9);
   ctx.lineWidth = 2;
   ctx.stroke();
+}
+
+/* Pulse: bars are mirrored around the canvas center. When the music is
+ * quiet, bars are squeezed close to the middle; as overall amplitude
+ * rises, the whole pattern expands outward like a sound wave radiating
+ * from the center. Each individual bar's height also scales with its
+ * own band's amplitude so loud frequencies pop visibly. */
+function drawPulse(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  heights: Float32Array,
+) {
+  const bars = heights.length;
+  const halfBars = bars; // each band rendered once on each side
+  const centerX = W / 2;
+  const centerY = H / 2;
+  const maxBarH = Math.round(H * 0.85);
+  const minBarH = Math.max(2, Math.round(H * 0.02));
+
+  // Average amplitude controls the lateral spread: quiet → 0.4 of width,
+  // loud → 1.0 of width. Smoothed via the height tween already applied.
+  let avg = 0;
+  for (let i = 0; i < bars; i++) avg += heights[i];
+  avg /= bars;
+  const spread = 0.4 + Math.min(1, avg * 1.6) * 0.6;
+  const halfWidth = (W / 2) * spread;
+
+  // Center axis tint
+  const axisGrad = ctx.createLinearGradient(centerX - halfWidth, 0, centerX + halfWidth, 0);
+  axisGrad.addColorStop(0, 'rgba(255,255,255,0)');
+  axisGrad.addColorStop(0.5, ampColor(Math.min(1, avg * 1.4), 0.18));
+  axisGrad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = axisGrad;
+  ctx.fillRect(centerX - halfWidth, centerY - 1, halfWidth * 2, 2);
+
+  // Bar slot width derived from spread so bars stay flush as they expand
+  const slotW = (halfWidth / halfBars) * 0.8;
+  const barW = Math.max(1.5, slotW);
+
+  for (let i = 0; i < halfBars; i++) {
+    const v = heights[i];
+    const h = Math.max(minBarH, Math.round(v * maxBarH));
+    // Bars near center come from the lowest frequency bins, walking
+    // outward through higher frequencies. A small pow curve makes the
+    // expansion feel more organic than a linear ramp.
+    const t = (i + 0.5) / halfBars;
+    const offset = Math.pow(t, 0.85) * halfWidth;
+
+    const yTop = centerY - h / 2;
+    const color = ampColor(v);
+    ctx.fillStyle = color;
+    // Right side
+    ctx.fillRect(Math.round(centerX + offset - barW / 2), yTop, barW, h);
+    // Left side (mirrored)
+    ctx.fillRect(Math.round(centerX - offset - barW / 2), yTop, barW, h);
+  }
+
+  // Subtle bloom dot at the dead center on hard hits — sells the
+  // "compressed core releasing energy" feel.
+  const coreR = Math.max(2, Math.min(W, H) * 0.012) * (0.6 + avg * 1.6);
+  const coreGrad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, coreR * 4);
+  coreGrad.addColorStop(0, ampColor(Math.min(1, avg * 1.6), 0.85));
+  coreGrad.addColorStop(1, ampColor(avg, 0));
+  ctx.fillStyle = coreGrad;
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, coreR * 4, 0, Math.PI * 2);
+  ctx.fill();
 }
