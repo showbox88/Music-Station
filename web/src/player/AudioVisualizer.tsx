@@ -553,32 +553,42 @@ function drawRibbon(
 ) {
   const bars = heights.length;
   const midY = H / 2;
-  const amp = H * 0.42;
+  // Boost the available amplitude so even modest band values deflect
+  // visibly. Frequency data rarely sustains above ~0.5, so we scale up
+  // by ~1.8× and use the full half-canvas range.
+  const amp = H * 0.45;
+  const gain = 1.9;
   const layers = 6;
 
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.6;
   for (let layer = 0; layer < layers; layer++) {
-    const phase = (layer / layers) * 0.6 - 0.3; // vertical offset multiplier
+    const phase = (layer / layers) * 0.7 - 0.35;
     const hue = (280 + layer * 35) % 360;
-    ctx.strokeStyle = `hsla(${hue}, 95%, 65%, ${0.35 + (layer / layers) * 0.45})`;
-    ctx.shadowColor = `hsla(${hue}, 95%, 60%, 0.7)`;
-    ctx.shadowBlur = 6;
+    ctx.strokeStyle = `hsla(${hue}, 95%, 65%, ${0.4 + (layer / layers) * 0.45})`;
+    ctx.shadowColor = `hsla(${hue}, 95%, 60%, 0.75)`;
+    ctx.shadowBlur = 7;
     ctx.beginPath();
     for (let i = 0; i < bars; i++) {
       const x = (i / (bars - 1)) * W;
-      // Each layer uses the same heights but with a sign+offset twist so
-      // the ribbons interleave instead of overlapping perfectly.
-      const v = heights[i];
-      const y = midY - (v - 0.3) * amp + Math.sin(i * 0.4 + layer) * amp * 0.18 + phase * amp * 0.4;
+      const v = Math.min(1, heights[i] * gain);
+      // Map v∈[0,1] to a deflection in [-amp, +amp] alternating per bar
+      // so the ribbon snakes around midline instead of just bowing up.
+      const sign = (i + layer) % 2 === 0 ? 1 : -1;
+      const y =
+        midY -
+        sign * v * amp +
+        Math.sin(i * 0.5 + layer * 0.9) * amp * 0.25 +
+        phase * amp * 0.45;
       if (i === 0) ctx.moveTo(x, y);
       else {
         const prevX = ((i - 1) / (bars - 1)) * W;
-        const prevV = heights[i - 1];
+        const prevV = Math.min(1, heights[i - 1] * gain);
+        const prevSign = (i - 1 + layer) % 2 === 0 ? 1 : -1;
         const prevY =
           midY -
-          (prevV - 0.3) * amp +
-          Math.sin((i - 1) * 0.4 + layer) * amp * 0.18 +
-          phase * amp * 0.4;
+          prevSign * prevV * amp +
+          Math.sin((i - 1) * 0.5 + layer * 0.9) * amp * 0.25 +
+          phase * amp * 0.45;
         const cx = (prevX + x) / 2;
         const cy = (prevY + y) / 2;
         ctx.quadraticCurveTo(prevX, prevY, cx, cy);
@@ -603,25 +613,29 @@ function drawFlower(
   const bars = heights.length;
   const cx = W / 2;
   const cy = H / 2;
-  const innerR = Math.min(W, H) * 0.08;
-  const maxR = Math.min(W, H) * 0.46;
+  const innerR = Math.min(W, H) * 0.06;
+  const maxR = Math.min(W, H) * 0.5;
 
   let avg = 0;
   for (let i = 0; i < bars; i++) avg += heights[i];
   avg /= bars;
 
-  // Multiple rotated layers for the spirograph weave.
+  // Multiple rotated layers for the spirograph weave. We boost the
+  // per-band amplitude with a sqrt curve + a 1.8× gain so even modest
+  // bands push petals past the inner ring; without this the petals
+  // barely poked out of the core.
   const layers = 3;
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1.4;
   for (let layer = 0; layer < layers; layer++) {
     const layerRot = rot * (1 + layer * 0.4);
     const hue = (60 + layer * 60) % 360;
-    ctx.strokeStyle = `hsla(${hue}, 95%, 60%, ${0.45 + (layer === 0 ? 0.3 : 0)})`;
-    ctx.shadowColor = `hsla(${hue}, 95%, 55%, 0.7)`;
-    ctx.shadowBlur = 4 + avg * 8;
+    ctx.strokeStyle = `hsla(${hue}, 95%, 60%, ${0.5 + (layer === 0 ? 0.3 : 0)})`;
+    ctx.shadowColor = `hsla(${hue}, 95%, 55%, 0.8)`;
+    ctx.shadowBlur = 6 + avg * 12;
     ctx.beginPath();
     for (let i = 0; i < bars; i++) {
-      const v = heights[i];
+      // Sqrt amplifies low values more than high ones, then we cap at 1.
+      const v = Math.min(1, Math.sqrt(heights[i]) * 1.8);
       const a = (i / bars) * Math.PI * 2 + layerRot;
       const r = innerR + v * (maxR - innerR);
       const x1 = cx + Math.cos(a) * innerR;
