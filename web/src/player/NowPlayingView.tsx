@@ -268,13 +268,17 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
           onClick={() => {
             if (vizMode === 'lyrics') setVizMode('wave');
             else if (lyrics.status === 'present') setVizMode('lyrics');
+            else if (lyrics.status === 'absent' && !fetchingLyrics)
+              handleFetchLyrics();
           }}
           title={
             vizMode === 'lyrics'
               ? '点击返回音波'
               : lyrics.status === 'present'
                 ? '点击切换为滚动歌词'
-                : '先下载这首歌的歌词才能切换'
+                : fetchingLyrics
+                  ? '下载中…'
+                  : '点击下载这首歌的歌词'
           }
           style={{ height: 200 }}
         >
@@ -283,19 +287,17 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
           ) : lyrics.status === 'present' ? (
             <LyricsPanel parsed={lyrics.parsed} mode="inline" />
           ) : null}
-          {/* Tiny corner indicator — wave bars when in lyrics mode, lyric
-              dots when in wave mode. Only visible on hover to avoid
-              competing with the visualizer / lyrics for attention. */}
+          {/* Tiny corner hint — only visible on hover. */}
           <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-70 transition-opacity pointer-events-none">
-            {vizMode === 'wave' ? (
-              <span className="text-[10px] text-zinc-300 bg-black/40 px-1.5 py-0.5 rounded">
-                {lyrics.status === 'present' ? '点击 → 歌词' : '需先下载歌词'}
-              </span>
-            ) : (
-              <span className="text-[10px] text-zinc-300 bg-black/40 px-1.5 py-0.5 rounded">
-                点击 → 音波
-              </span>
-            )}
+            <span className="text-[10px] text-zinc-300 bg-black/40 px-1.5 py-0.5 rounded">
+              {vizMode === 'lyrics'
+                ? '点击 → 音波'
+                : lyrics.status === 'present'
+                  ? '点击 → 歌词'
+                  : fetchingLyrics
+                    ? '下载中…'
+                    : '点击下载歌词'}
+            </span>
           </div>
         </div>
 
@@ -386,44 +388,8 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
           </div>
         </div>
 
-        {/* Embedded lyrics strip — 3-line compact view with the current line
-            highlighted. Click anywhere on the strip to expand to fullscreen.
-            When no lyrics cached, shows a "下载歌词" prompt. */}
-        <div
-          className="mt-4 mb-1 shrink-0 cursor-pointer"
-          onClick={() => {
-            if (lyrics.status === 'present') setLyricsFull(true);
-          }}
-          title={lyrics.status === 'present' ? '点击查看完整歌词' : undefined}
-        >
-          {lyrics.status === 'present' ? (
-            <LyricsPanel parsed={lyrics.parsed} mode="compact" />
-          ) : lyrics.status === 'loading' ? (
-            <div className="text-center text-zinc-500 text-xs h-14 flex items-center justify-center">
-              加载歌词…
-            </div>
-          ) : lyrics.status === 'absent' || lyrics.status === 'idle' ? (
-            <div className="text-center h-14 flex items-center justify-center">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleFetchLyrics();
-                }}
-                disabled={fetchingLyrics}
-                className="text-xs text-zinc-400 hover:text-white px-3 py-1.5 rounded-full bezel disabled:opacity-50"
-              >
-                {fetchingLyrics ? '下载歌词中…' : '下载歌词'}
-              </button>
-            </div>
-          ) : (
-            <div className="text-center text-zinc-500 text-xs h-14 flex items-center justify-center">
-              加载失败
-            </div>
-          )}
-        </div>
-
         {/* Title + artist */}
-        <div className="text-center mt-2 mb-4 shrink-0">
+        <div className="text-center mt-5 mb-4 shrink-0">
           <div className="text-2xl font-medium glow-text truncate">
             {t.title || t.rel_path}
           </div>

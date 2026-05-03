@@ -1,17 +1,19 @@
 /**
- * LyricsPanel — renders synced (.lrc) or plain lyrics in three display modes.
- *
- *   mode='compact'   3 fixed-height lines: previous / current (highlighted) /
- *                    next. No scroll bar. Used embedded inside NowPlayingView.
+ * LyricsPanel — renders synced (.lrc) or plain lyrics in two display modes.
  *
  *   mode='inline'    Scrollable list sized for a small in-page container
  *                    (e.g. replacing the 200px visualizer area). Smaller
  *                    pad/font than 'full'. Clicks bubble up so the parent
  *                    can use the area as a toggle target.
  *
- *   mode='full'      Full scrollable list. Auto-scrolls the current line to
- *                    the vertical center. Click a line to seek the audio
- *                    element. Used inside the fullscreen overlay.
+ *   mode='full'      Full scrollable list filling its parent. Auto-scrolls
+ *                    the current line to the vertical center of the
+ *                    container (NOT the page).
+ *
+ * Both modes apply a "convex-lens" curve: the active line is large + bold
+ * + glowing, neighbours are progressively smaller and dimmer along a
+ * cosine arc. Scrollbars are hidden in both modes (the active-line
+ * auto-scroll is the only intended way to navigate).
  *
  * Falls back gracefully when:
  *   - lyrics absent             → caller decides what to render (we render nothing)
@@ -53,7 +55,6 @@ export function parseLrc(raw: string): ParsedLyrics {
     }
     if (stamps.length === 0) continue;
     const text = line.slice(lastEnd).trim();
-    // Skip empty header lines like a stray [00:00.00] with no content
     if (!text) continue;
     for (const ms of stamps) out.push({ ms, text });
   }
@@ -76,9 +77,42 @@ function findActiveIndex(lines: LyricsLine[], currentMs: number): number {
   return lo;
 }
 
+/**
+ * Convex-lens style sizing: active line pops big and bold; neighbouring
+ * lines shrink along a cosine arc so the cluster around the cursor looks
+ * like it sits under a magnifier. Past distance=4 lines fade to a small
+ * resting size and very low opacity.
+ *
+ * Returned font sizes are in px (so they can drive layout reflow + the
+ * scrollTo math below).
+ */
+function lensStyle(
+  distance: number,
+  variant: 'inline' | 'full',
+): { fontSize: number; opacity: number; weight: 400 | 500 | 700 } {
+  if (distance === 0) {
+    return {
+      fontSize: variant === 'inline' ? 22 : 32,
+      opacity: 1,
+      weight: 700,
+    };
+  }
+  // Cosine arc — distance 1 → curve 0.951, 2 → 0.809, 3 → 0.588,
+  // 4 → 0.309, 5+ → 0. This gives the "bulge" feel.
+  const t = Math.min(distance, 5) / 5;
+  const curve = Math.cos((t * Math.PI) / 2);
+  const minSize = variant === 'inline' ? 11 : 14;
+  const maxSize = variant === 'inline' ? 17 : 22;
+  return {
+    fontSize: minSize + curve * (maxSize - minSize),
+    opacity: 0.18 + curve * 0.7,
+    weight: distance === 1 ? 500 : 400,
+  };
+}
+
 interface Props {
   parsed: ParsedLyrics;
-  mode: 'compact' | 'inline' | 'full';
+  mode: 'inline' | 'full';
   /** Lead time in ms — highlight a line a hair before its timestamp so it
    *  feels in-sync rather than chasing. Empirically ~150ms feels right. */
   lead?: number;
@@ -92,9 +126,6 @@ export default function LyricsPanel({ parsed, mode, lead = 150 }: Props) {
     [parsed.lines, currentMs],
   );
 
-  if (mode === 'compact') {
-    return <CompactView lines={parsed.lines} activeIdx={activeIdx} hasTs={parsed.hasTimestamps} />;
-  }
   return (
     <ScrollView
       parsed={parsed}
@@ -102,51 +133,6 @@ export default function LyricsPanel({ parsed, mode, lead = 150 }: Props) {
       onSeek={(ms) => seek(ms / 1000)}
       variant={mode}
     />
-  );
-}
-
-function CompactView({
-  lines,
-  activeIdx,
-  hasTs,
-}: {
-  lines: LyricsLine[];
-  activeIdx: number;
-  hasTs: boolean;
-}) {
-  // Plain-text (no timestamps) → just show first 3 non-empty lines, dim,
-  // because we can't sync. The "open fullscreen" affordance stays in the
-  // parent header so users can read the full text.
-  if (!hasTs) {
-    return (
-      <div className="text-center text-zinc-500 text-xs leading-relaxed truncate">
-        歌词已下载（无时间戳）— 点 🎤 打开全屏查看
-      </div>
-    );
-  }
-  if (lines.length === 0) {
-    return null;
-  }
-  const prev = activeIdx > 0 ? lines[activeIdx - 1].text : '';
-  const cur = activeIdx >= 0 ? lines[activeIdx].text : lines[0].text;
-  const next = activeIdx + 1 < lines.length ? lines[activeIdx + 1].text : '';
-  // Pre-roll: before the first timestamp, show "·" as current and the first line as next
-  const showPreRoll = activeIdx < 0;
-  return (
-    <div className="text-center select-none" style={{ minHeight: '3.5rem' }}>
-      <div className="text-[11px] text-zinc-600 truncate leading-tight h-4">
-        {showPreRoll ? '' : prev}
-      </div>
-      <div
-        className="text-sm font-medium truncate leading-tight glow-text transition-opacity duration-200"
-        style={{ color: 'var(--accent)' }}
-      >
-        {showPreRoll ? '· · ·' : cur || '♪'}
-      </div>
-      <div className="text-[11px] text-zinc-500 truncate leading-tight h-4">
-        {showPreRoll ? lines[0].text : next}
-      </div>
-    </div>
   );
 }
 
@@ -166,8 +152,8 @@ function ScrollView({
   const isInline = variant === 'inline';
 
   // Auto-scroll the active line into vertical center of THIS container.
-  // We use scrollTop rather than el.scrollIntoView because the latter would
-  // also scroll the page when the container itself is partly off-screen.
+  // Scoped to the container (not page) so a partly-off-screen container
+  // doesn't yank the rest of the layout.
   useEffect(() => {
     if (activeIdx < 0) return;
     const container = containerRef.current;
@@ -182,12 +168,13 @@ function ScrollView({
     return (
       <div
         ref={containerRef}
-        className={`h-full overflow-y-auto whitespace-pre-wrap text-center ${
+        className={`mw-no-scrollbar h-full overflow-y-auto whitespace-pre-wrap text-center ${
           isInline
             ? 'px-4 py-4 text-zinc-300 text-sm leading-relaxed'
             : 'px-6 py-10 text-zinc-300 text-base leading-relaxed'
         }`}
       >
+        <ScrollbarHider />
         {parsed.raw}
       </div>
     );
@@ -196,7 +183,7 @@ function ScrollView({
   return (
     <div
       ref={containerRef}
-      className={`h-full overflow-y-auto text-center ${isInline ? 'px-3' : 'px-6'}`}
+      className={`mw-no-scrollbar h-full overflow-y-auto text-center ${isInline ? 'px-3' : 'px-6'}`}
       style={{
         // Pad top/bottom so the first and last lines can sit at the
         // center. Full-screen uses viewport units; inline uses a smaller
@@ -206,10 +193,11 @@ function ScrollView({
         scrollBehavior: 'smooth',
       }}
     >
+      <ScrollbarHider />
       {parsed.lines.map((line, i) => {
-        const isActive = i === activeIdx;
         const distance = Math.abs(i - activeIdx);
-        const opacity = isActive ? 1 : Math.max(0.25, 1 - distance * 0.22);
+        const { fontSize, opacity, weight } = lensStyle(distance, variant);
+        const isActive = i === activeIdx;
         return (
           <div
             key={`${i}-${line.ms}`}
@@ -217,23 +205,19 @@ function ScrollView({
               lineRefs.current[i] = el;
             }}
             onClick={(e) => {
-              // In inline mode the parent uses click to toggle the panel;
-              // stop propagation only on actual line clicks so seek wins.
               e.stopPropagation();
               onSeek(line.ms);
             }}
-            className={`cursor-pointer transition-all duration-200 ${
-              isInline
-                ? isActive
-                  ? 'text-base font-medium py-1 glow-text'
-                  : 'text-sm text-zinc-300 py-0.5'
-                : isActive
-                  ? 'text-xl font-medium py-2 glow-text'
-                  : 'text-base text-zinc-300 py-2'
+            className={`cursor-pointer transition-all duration-300 ${
+              isActive ? 'glow-text' : ''
             }`}
             style={{
+              fontSize,
+              fontWeight: weight,
               opacity,
-              color: isActive ? 'var(--accent)' : undefined,
+              lineHeight: 1.45,
+              padding: '4px 0',
+              color: isActive ? 'var(--accent)' : '#d4d4d8',
             }}
             title="跳到这一句"
           >
@@ -242,5 +226,17 @@ function ScrollView({
         );
       })}
     </div>
+  );
+}
+
+/** Inject scrollbar-hiding CSS for our overflow container. Idempotent —
+ *  React de-dupes identical <style> tags in the head, and even if it
+ *  didn't, repeated identical rules cost nothing. */
+function ScrollbarHider() {
+  return (
+    <style>{`
+      .mw-no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+      .mw-no-scrollbar::-webkit-scrollbar { display: none; width: 0; height: 0; }
+    `}</style>
   );
 }
