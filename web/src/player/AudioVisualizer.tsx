@@ -228,8 +228,10 @@ function drawWave(
   heights: Float32Array,
 ) {
   const bars = heights.length;
-  const baseY = Math.round(H * 0.85);
-  const peakH = baseY - Math.round(H * 0.08);
+  // Baseline near the bottom; peak can reach almost to the top so the
+  // curve uses ~85% of the canvas height instead of the previous 8%.
+  const baseY = Math.round(H * 0.92);
+  const peakH = Math.round(H * 0.06);
 
   // Build smooth curve via quadratic interpolation between bin centers
   ctx.beginPath();
