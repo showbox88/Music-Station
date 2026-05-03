@@ -14,14 +14,44 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePlayer } from './PlayerContext';
 
-type VizStyle = 'bars' | 'mirror' | 'wave' | 'pulse';
-const STYLES: VizStyle[] = ['bars', 'mirror', 'wave', 'pulse'];
+type VizStyle =
+  | 'bars'
+  | 'mirror'
+  | 'wave'
+  | 'pulse'
+  | 'rainbow'
+  | 'caps'
+  | 'dots'
+  | 'ribbon'
+  | 'flower';
+const STYLES: VizStyle[] = [
+  'bars',
+  'mirror',
+  'wave',
+  'pulse',
+  'rainbow',
+  'caps',
+  'dots',
+  'ribbon',
+  'flower',
+];
 const STYLE_LABEL: Record<VizStyle, string> = {
   bars: 'Bars',
   mirror: 'Mirror',
   wave: 'Wave',
   pulse: 'Pulse',
+  rainbow: 'Rainbow',
+  caps: 'Caps',
+  dots: 'Dots',
+  ribbon: 'Ribbon',
+  flower: 'Flower',
 };
+
+/** Hue mapped to bar index, for rainbow-style strips. */
+function rainbowColor(t: number, alpha = 1): string {
+  const hue = (t * 300 + 280) % 360; // sweep magenta → red → yellow → green → cyan → blue
+  return `hsla(${hue}, 95%, 60%, ${alpha})`;
+}
 
 interface Props {
   bars?: number;
@@ -70,6 +100,12 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
     let raf = 0;
     let buffer: Uint8Array | null = null;
     const heights = new Float32Array(bars);
+    // Floating peak caps for the "caps" style. Decay slowly so the cap
+    // hovers above the current bar height before falling.
+    const peaks = new Float32Array(bars);
+    const peakHoldFrames = new Int16Array(bars);
+    // Rotation for the flower style — slowly winds for a "spinning" feel.
+    let rot = 0;
 
     function resizeIfNeeded() {
       if (!canvas) return;
@@ -106,6 +142,16 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
         const c = heights[i];
         const rate = t > c ? 0.55 : 0.12;
         heights[i] = c + (t - c) * rate;
+        // Peak cap: jump to current height when it exceeds the cap, then
+        // hold for ~12 frames before falling at a constant rate.
+        if (heights[i] >= peaks[i]) {
+          peaks[i] = heights[i];
+          peakHoldFrames[i] = 12;
+        } else if (peakHoldFrames[i] > 0) {
+          peakHoldFrames[i]--;
+        } else {
+          peaks[i] = Math.max(heights[i], peaks[i] - 0.012);
+        }
       }
     }
 
@@ -130,6 +176,22 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
           break;
         case 'pulse':
           drawPulse(ctx, W, H, heights);
+          break;
+        case 'rainbow':
+          drawRainbow(ctx, W, H, heights);
+          break;
+        case 'caps':
+          drawCaps(ctx, W, H, heights, peaks);
+          break;
+        case 'dots':
+          drawDots(ctx, W, H, heights);
+          break;
+        case 'ribbon':
+          drawRibbon(ctx, W, H, heights);
+          break;
+        case 'flower':
+          rot += 0.004;
+          drawFlower(ctx, W, H, heights, rot);
           break;
       }
 
@@ -351,5 +413,241 @@ function drawPulse(
   ctx.fillStyle = coreGrad;
   ctx.beginPath();
   ctx.arc(centerX, centerY, coreR * 4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/* Rainbow: bars colored by their position across the spectrum, with a
+ * neon-style outer glow. Hue does NOT depend on amplitude here (unlike
+ * the default ampColor) — it depends on bar index, so the strip always
+ * shows a full rainbow regardless of how loud the music is. */
+function drawRainbow(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  heights: Float32Array,
+) {
+  const bars = heights.length;
+  const baseY = H;
+  const maxBarH = Math.round(H * 0.92);
+  const gap = Math.max(2, Math.floor(W / bars / 5));
+  const barW = (W - gap * (bars - 1)) / bars;
+  const minBarH = Math.max(2, Math.round(H * 0.02));
+
+  for (let i = 0; i < bars; i++) {
+    const v = heights[i];
+    const h = Math.max(minBarH, Math.round(v * maxBarH));
+    const x = Math.round(i * (barW + gap));
+    const t = i / Math.max(1, bars - 1);
+
+    // Vertical gradient gives the neon "glowing core" look.
+    const grad = ctx.createLinearGradient(0, baseY - h, 0, baseY);
+    grad.addColorStop(0, rainbowColor(t, 1));
+    grad.addColorStop(1, rainbowColor(t, 0.6));
+    ctx.fillStyle = grad;
+    ctx.shadowColor = rainbowColor(t, 0.7);
+    ctx.shadowBlur = 8 + v * 12;
+    ctx.fillRect(x, baseY - h, Math.ceil(barW), h);
+  }
+  ctx.shadowBlur = 0;
+}
+
+/* Caps: classic vintage-EQ bars with a small floating peak cap that
+ * holds briefly above the current bar, then falls. Block segments make
+ * the bar look pixelated like a hardware level meter. */
+function drawCaps(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  heights: Float32Array,
+  peaks: Float32Array,
+) {
+  const bars = heights.length;
+  const maxBarH = Math.round(H * 0.92);
+  const gap = Math.max(2, Math.floor(W / bars / 5));
+  const barW = (W - gap * (bars - 1)) / bars;
+  // Stack of fixed-height "blocks" — fewer = chunkier
+  const blockH = Math.max(3, Math.round(H * 0.04));
+  const blockGap = 2;
+  const totalBlocks = Math.floor(maxBarH / (blockH + blockGap));
+
+  for (let i = 0; i < bars; i++) {
+    const v = heights[i];
+    const lit = Math.round(v * totalBlocks);
+    const x = Math.round(i * (barW + gap));
+    const w = Math.ceil(barW);
+
+    for (let b = 0; b < totalBlocks; b++) {
+      const blockY = H - (b + 1) * (blockH + blockGap);
+      if (b < lit) {
+        const t = b / Math.max(1, totalBlocks - 1);
+        // Bottom blocks cyan, top blocks shifting to magenta as it climbs
+        const hue = 200 - t * 130;
+        ctx.fillStyle = `hsl(${hue}, 90%, ${50 + t * 15}%)`;
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+      }
+      ctx.fillRect(x, blockY, w, blockH);
+    }
+
+    // Floating peak cap
+    const peak = peaks[i];
+    if (peak > 0.01) {
+      const capBlock = Math.min(totalBlocks - 1, Math.round(peak * totalBlocks));
+      const capY = H - (capBlock + 1) * (blockH + blockGap);
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 6;
+      ctx.fillRect(x, capY, w, Math.max(2, Math.round(blockH * 0.5)));
+      ctx.shadowBlur = 0;
+    }
+  }
+}
+
+/* Dots: each bar is a column of glowing dots — like the orange dot-matrix
+ * tile in the reference. Lit dots fade slightly with height for depth. */
+function drawDots(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  heights: Float32Array,
+) {
+  const bars = heights.length;
+  const colW = W / bars;
+  const dotR = Math.max(1.5, Math.min(colW * 0.32, H * 0.025));
+  const rowGap = dotR * 2.4;
+  const rows = Math.floor((H * 0.92) / rowGap);
+
+  for (let i = 0; i < bars; i++) {
+    const v = heights[i];
+    const lit = Math.round(v * rows);
+    const cx = Math.round((i + 0.5) * colW);
+    for (let r = 0; r < rows; r++) {
+      const cy = H - (r + 0.7) * rowGap;
+      const t = r / Math.max(1, rows - 1);
+      if (r < lit) {
+        // Warm gradient: yellow at base → orange → red at top
+        const hue = 50 - t * 50;
+        ctx.fillStyle = `hsl(${hue}, 95%, ${55 + (1 - t) * 15}%)`;
+        ctx.shadowColor = `hsl(${hue}, 95%, 55%)`;
+        ctx.shadowBlur = 6;
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.shadowBlur = 0;
+      }
+      ctx.beginPath();
+      ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.shadowBlur = 0;
+}
+
+/* Ribbon: the wave drawn 6 times stacked with vertical phase offsets and
+ * shifted hues, producing the multi-line "ribbon" feel from the
+ * reference image's top-left tile. */
+function drawRibbon(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  heights: Float32Array,
+) {
+  const bars = heights.length;
+  const midY = H / 2;
+  const amp = H * 0.42;
+  const layers = 6;
+
+  ctx.lineWidth = 1.5;
+  for (let layer = 0; layer < layers; layer++) {
+    const phase = (layer / layers) * 0.6 - 0.3; // vertical offset multiplier
+    const hue = (280 + layer * 35) % 360;
+    ctx.strokeStyle = `hsla(${hue}, 95%, 65%, ${0.35 + (layer / layers) * 0.45})`;
+    ctx.shadowColor = `hsla(${hue}, 95%, 60%, 0.7)`;
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    for (let i = 0; i < bars; i++) {
+      const x = (i / (bars - 1)) * W;
+      // Each layer uses the same heights but with a sign+offset twist so
+      // the ribbons interleave instead of overlapping perfectly.
+      const v = heights[i];
+      const y = midY - (v - 0.3) * amp + Math.sin(i * 0.4 + layer) * amp * 0.18 + phase * amp * 0.4;
+      if (i === 0) ctx.moveTo(x, y);
+      else {
+        const prevX = ((i - 1) / (bars - 1)) * W;
+        const prevV = heights[i - 1];
+        const prevY =
+          midY -
+          (prevV - 0.3) * amp +
+          Math.sin((i - 1) * 0.4 + layer) * amp * 0.18 +
+          phase * amp * 0.4;
+        const cx = (prevX + x) / 2;
+        const cy = (prevY + y) / 2;
+        ctx.quadraticCurveTo(prevX, prevY, cx, cy);
+      }
+    }
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+}
+
+/* Flower: each bar becomes a petal radiating from the canvas center.
+ * Petals are drawn as thin lines from an inner ring outward, length
+ * scaling with band amplitude. A slow rotation gives the spirograph
+ * feel of the reference's central tile. */
+function drawFlower(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  heights: Float32Array,
+  rot: number,
+) {
+  const bars = heights.length;
+  const cx = W / 2;
+  const cy = H / 2;
+  const innerR = Math.min(W, H) * 0.08;
+  const maxR = Math.min(W, H) * 0.46;
+
+  let avg = 0;
+  for (let i = 0; i < bars; i++) avg += heights[i];
+  avg /= bars;
+
+  // Multiple rotated layers for the spirograph weave.
+  const layers = 3;
+  ctx.lineWidth = 1;
+  for (let layer = 0; layer < layers; layer++) {
+    const layerRot = rot * (1 + layer * 0.4);
+    const hue = (60 + layer * 60) % 360;
+    ctx.strokeStyle = `hsla(${hue}, 95%, 60%, ${0.45 + (layer === 0 ? 0.3 : 0)})`;
+    ctx.shadowColor = `hsla(${hue}, 95%, 55%, 0.7)`;
+    ctx.shadowBlur = 4 + avg * 8;
+    ctx.beginPath();
+    for (let i = 0; i < bars; i++) {
+      const v = heights[i];
+      const a = (i / bars) * Math.PI * 2 + layerRot;
+      const r = innerR + v * (maxR - innerR);
+      const x1 = cx + Math.cos(a) * innerR;
+      const y1 = cy + Math.sin(a) * innerR;
+      const x2 = cx + Math.cos(a) * r;
+      const y2 = cy + Math.sin(a) * r;
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+    }
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+
+  // Bright inner core
+  const coreR = innerR * (0.6 + avg * 0.6);
+  const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR * 2);
+  coreGrad.addColorStop(0, `hsla(50, 100%, 65%, ${0.7 + avg * 0.3})`);
+  coreGrad.addColorStop(1, 'hsla(50, 100%, 50%, 0)');
+  ctx.fillStyle = coreGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, coreR * 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Dark inner hole, like the reference
+  ctx.fillStyle = 'rgba(0,0,0,0.85)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, innerR * 0.55, 0, Math.PI * 2);
   ctx.fill();
 }
