@@ -21,7 +21,17 @@ function AppContent() {
   const refresh = () => setRefreshKey((k) => k + 1);
   const [view, setView] = useState<View>({ kind: 'all' });
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
+  // Mobile drawer state — controlled by App so both Header (hamburger
+  // button) and Sidebar (drawer self) can share it. On desktop the
+  // sidebar stays static and these props are ignored.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const player = usePlayer();
+
+  // Wrap setView so picking something in the mobile drawer auto-closes it.
+  function handleSetView(v: View) {
+    setView(v);
+    setSidebarOpen(false);
+  }
 
   // Deep-link handler: ?play=<rel_path> in the URL → look up the track,
   // start playback, and open the NowPlaying view. Then clean the URL so a
@@ -56,9 +66,27 @@ function AppContent() {
 
   return (
     <div className="h-full flex flex-col">
-      <Header onRescanned={refresh} onUploaded={refresh} />
-      <div className="flex-1 flex min-h-0">
-        <Sidebar view={view} setView={setView} refreshKey={refreshKey} onChanged={refresh} />
+      <Header
+        onRescanned={refresh}
+        onUploaded={refresh}
+        onOpenSidebar={() => setSidebarOpen(true)}
+      />
+      <div className="flex-1 flex min-h-0 relative">
+        <Sidebar
+          view={view}
+          setView={handleSetView}
+          refreshKey={refreshKey}
+          onChanged={refresh}
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
+        {/* Mobile backdrop — renders only when drawer is open */}
+        {sidebarOpen && (
+          <div
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden fixed inset-0 z-30 bg-black/50 backdrop-blur-sm"
+          />
+        )}
         {view.kind === 'all' ? (
           <TrackList refreshKey={refreshKey} onChanged={refresh} />
         ) : (

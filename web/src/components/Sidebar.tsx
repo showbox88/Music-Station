@@ -14,9 +14,12 @@ interface Props {
   setView: (v: View) => void;
   refreshKey: number;          // bump to force reload
   onChanged: () => void;       // notify parent when something changed
+  /** Mobile drawer open state. Ignored on >=md (sidebar is always visible). */
+  open?: boolean;
+  onClose?: () => void;
 }
 
-export default function Sidebar({ view, setView, refreshKey, onChanged }: Props) {
+export default function Sidebar({ view, setView, refreshKey, onChanged, open = false, onClose }: Props) {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -83,12 +86,28 @@ export default function Sidebar({ view, setView, refreshKey, onChanged }: Props)
 
   return (
     <aside
-      className="w-56 shrink-0 border-r border-black/80 flex flex-col"
+      className={`
+        w-64 shrink-0 border-r border-black/80 flex flex-col
+        fixed inset-y-0 left-0 z-40 transform transition-transform duration-200
+        ${open ? 'translate-x-0' : '-translate-x-full'}
+        md:static md:translate-x-0 md:w-56
+      `}
       style={{
         background: 'linear-gradient(180deg, #1a1a1c 0%, #141415 100%)',
         boxShadow: 'inset -1px 0 0 rgba(255,255,255,0.04)',
       }}
     >
+      {/* Mobile-only header strip with close button */}
+      <div className="md:hidden flex items-center justify-between px-3 py-2 border-b border-black/60">
+        <span className="text-xs uppercase tracking-wide text-zinc-500">Library</span>
+        <button
+          onClick={onClose}
+          className="w-8 h-8 rounded-full bezel text-zinc-300 hover:text-white flex items-center justify-center"
+          title="Close menu"
+        >
+          ✕
+        </button>
+      </div>
       <div className="p-3 border-b border-black/60">
         <button
           onClick={() => setView({ kind: 'all' })}

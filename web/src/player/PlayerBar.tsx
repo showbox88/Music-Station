@@ -28,7 +28,7 @@ export default function PlayerBar({ onExpand }: Props) {
 
   return (
     <div
-      className="border-t border-black/80 px-4 py-3 flex items-center gap-4"
+      className="border-t border-black/80 px-3 md:px-4 py-2 md:py-3 flex items-center gap-2 md:gap-4"
       style={{
         background: 'linear-gradient(180deg, #1f1f21 0%, #141415 100%)',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 -4px 12px rgba(0,0,0,0.5)',
@@ -38,7 +38,7 @@ export default function PlayerBar({ onExpand }: Props) {
       <button
         onClick={onExpand}
         title="Open full player"
-        className="min-w-0 flex-1 max-w-xs flex items-center gap-3 text-left rounded-lg px-2 py-1 hover:bg-white/5"
+        className="min-w-0 flex-1 md:flex-none md:max-w-xs flex items-center gap-3 text-left rounded-lg px-1 md:px-2 py-1 hover:bg-white/5"
       >
         <CoverThumb src={p.current.cover_url} size={44} />
         <div className="min-w-0">
@@ -50,8 +50,10 @@ export default function PlayerBar({ onExpand }: Props) {
         </div>
       </button>
 
-      {/* Transport pill — prev / play / next chassis */}
-      <div className="recess-pill flex items-center gap-1 px-2 py-1 shrink-0">
+      {/* Transport pill — prev / play / next chassis. On mobile we only
+          render a single play button (no surrounding pill) since space
+          is tight; users open NowPlaying for prev/next + scrubbing. */}
+      <div className="hidden md:flex recess-pill items-center gap-1 px-2 py-1 shrink-0">
         <TransportBtn onClick={p.prev} title="Previous">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <path d="M6 6h2v12H6zM9.5 12l8.5 6V6z" />
@@ -80,8 +82,26 @@ export default function PlayerBar({ onExpand }: Props) {
         </TransportBtn>
       </div>
 
-      {/* Progress — recessed track with magenta fill */}
-      <div className="flex-1 flex items-center gap-2 min-w-0">
+      {/* Mobile-only standalone play button (no transport pill). */}
+      <button
+        onClick={p.togglePlay}
+        title={p.isPlaying ? 'Pause' : 'Play'}
+        className="md:hidden w-10 h-10 rounded-full play-btn flex items-center justify-center shrink-0"
+      >
+        {p.isPlaying ? (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="5" width="4" height="14" />
+            <rect x="14" y="5" width="4" height="14" />
+          </svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        )}
+      </button>
+
+      {/* Progress — recessed track with magenta fill (desktop only) */}
+      <div className="hidden md:flex flex-1 items-center gap-2 min-w-0">
         <span className="text-xs text-zinc-500 tabular-nums w-10 text-right">{fmt(p.position)}</span>
         <input
           type="range"
@@ -106,8 +126,8 @@ export default function PlayerBar({ onExpand }: Props) {
         <span className="text-xs text-zinc-500 tabular-nums w-10">{fmt(p.duration)}</span>
       </div>
 
-      {/* Mode toggles */}
-      <div className="flex items-center gap-2 shrink-0">
+      {/* Mode toggles (desktop only) */}
+      <div className="hidden md:flex items-center gap-2 shrink-0">
         <ModeBtn active={p.shuffle} onClick={p.toggleShuffle} title="Shuffle">
           <ShuffleIcon />
         </ModeBtn>
@@ -116,8 +136,8 @@ export default function PlayerBar({ onExpand }: Props) {
         </ModeBtn>
       </div>
 
-      {/* Volume — recessed track */}
-      <div className="flex items-center gap-2 shrink-0 w-32">
+      {/* Volume — recessed track (desktop only; mobile uses device volume) */}
+      <div className="hidden md:flex items-center gap-2 shrink-0 w-32">
         <span className="text-xs text-zinc-500 tabular-nums w-6 text-right">
           {Math.round(p.volume * 100)}
         </span>
@@ -143,13 +163,14 @@ export default function PlayerBar({ onExpand }: Props) {
         />
       </div>
 
-      {/* Queue indicator */}
-      <div className="text-xs text-zinc-500 shrink-0 tabular-nums">
+      {/* Queue indicator (desktop only) */}
+      <div className="hidden md:block text-xs text-zinc-500 shrink-0 tabular-nums">
         {(p.shuffle ? p.cursor : p.queue.findIndex((t) => t.id === p.current?.id)) + 1}
         /{p.queue.length}
       </div>
 
-      {/* Expand */}
+      {/* Expand — keep on both, but on mobile this is the main way to
+          access prev/next/seek/volume. */}
       <button
         onClick={onExpand}
         title="Open full player"
