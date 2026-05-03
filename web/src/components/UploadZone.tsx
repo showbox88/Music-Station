@@ -96,14 +96,42 @@ export default function UploadZone({ onUploaded }: Props) {
           if (inputRef.current) inputRef.current.value = '';
         }}
       />
-      <button
-        onClick={() => inputRef.current?.click()}
-        disabled={uploading}
-        className="text-xs px-3 py-1.5 rounded-full bezel glow-text glow-ring disabled:opacity-50"
-      >
-        {uploading ? `${Math.round((progress.loaded / Math.max(1, progress.total)) * 100)}%` : '+ Upload'}
-      </button>
+      {uploading ? (
+        <UploadProgressPill loaded={progress.loaded} total={progress.total} />
+      ) : (
+        <button
+          onClick={() => inputRef.current?.click()}
+          className="text-xs px-3 py-1.5 rounded-full bezel glow-text glow-ring"
+        >
+          + Upload
+        </button>
+      )}
       {err && <span className="text-xs text-red-400 ml-2 max-w-xs truncate">{err}</span>}
+
+      {/* Full-page upload-in-progress overlay (separate from the drop
+          hover overlay below). Stays up while bytes stream so the user
+          sees real progress on a large drop. */}
+      {uploading && (
+        <div
+          className="fixed inset-0 z-40 backdrop-blur-sm flex items-center justify-center pointer-events-none"
+          style={{ background: 'rgba(0,0,0,0.55)' }}
+        >
+          <div
+            className="rounded-xl px-8 py-6 bezel min-w-[280px] max-w-[420px]"
+            style={{
+              boxShadow:
+                '0 0 0 1px var(--accent), 0 0 24px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.06)',
+            }}
+          >
+            <div className="text-sm font-medium glow-text mb-2">Uploading…</div>
+            <UploadProgressBar loaded={progress.loaded} total={progress.total} />
+            <div className="flex justify-between text-[11px] text-zinc-400 mt-2 tabular-nums">
+              <span>{fmtBytes(progress.loaded)} / {fmtBytes(progress.total)}</span>
+              <span>{pct(progress.loaded, progress.total)}%</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Full-page drop overlay */}
       {dragging && (
@@ -130,5 +158,72 @@ export default function UploadZone({ onUploaded }: Props) {
         </div>
       )}
     </>
+  );
+}
+
+function pct(loaded: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.min(100, Math.round((loaded / total) * 100));
+}
+
+function fmtBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '0 B';
+  const u = ['B', 'KB', 'MB', 'GB'];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < u.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v >= 100 ? v.toFixed(0) : v.toFixed(1)} ${u[i]}`;
+}
+
+/** Compact in-line progress pill that replaces the Upload button while
+ *  bytes are streaming. The magenta fill animates with the byte ratio. */
+function UploadProgressPill({ loaded, total }: { loaded: number; total: number }) {
+  const p = pct(loaded, total);
+  return (
+    <div
+      className="text-xs px-3 py-1.5 rounded-full bezel relative overflow-hidden min-w-[5.5rem] text-center"
+      title={`${fmtBytes(loaded)} / ${fmtBytes(total)}`}
+    >
+      <div
+        className="absolute inset-y-0 left-0 pointer-events-none"
+        style={{
+          width: `${p}%`,
+          background:
+            'linear-gradient(90deg, var(--accent) 0%, var(--accent-soft) 100%)',
+          opacity: 0.55,
+          transition: 'width 0.18s linear',
+        }}
+      />
+      <span className="relative tabular-nums">{p}%</span>
+    </div>
+  );
+}
+
+/** Wide progress bar used inside the full-screen overlay. */
+function UploadProgressBar({ loaded, total }: { loaded: number; total: number }) {
+  const p = pct(loaded, total);
+  return (
+    <div
+      className="rounded-full overflow-hidden"
+      style={{
+        height: 8,
+        background: 'linear-gradient(180deg, #0a0a0b, #1a1a1c)',
+        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.8)',
+      }}
+    >
+      <div
+        style={{
+          width: `${p}%`,
+          height: '100%',
+          background:
+            'linear-gradient(90deg, var(--accent) 0%, var(--accent-soft) 100%)',
+          boxShadow: '0 0 8px var(--accent-glow)',
+          transition: 'width 0.18s linear',
+        }}
+      />
+    </div>
   );
 }
