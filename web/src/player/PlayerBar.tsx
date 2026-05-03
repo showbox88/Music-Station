@@ -35,9 +35,11 @@ export default function PlayerBar({ onExpand }: Props) {
       }}
     >
       {/* Mobile layout: 80px cover on the left; right column stacks
-          title/artist on top of a row containing the transport pill +
-          shuffle + repeat + queue counter. Tapping cover or title
-          opens the fullscreen player. */}
+          title/artist (with queue counter at the end of the title line)
+          on top of a row containing the larger transport pill (prev/
+          play/next) and the smaller shuffle/repeat pair pushed to the
+          right edge. Tapping cover or title opens the fullscreen
+          player. */}
       <div className="md:hidden flex items-stretch gap-3 flex-1 min-w-0">
         <button
           onClick={onExpand}
@@ -47,59 +49,76 @@ export default function PlayerBar({ onExpand }: Props) {
         >
           <CoverThumb src={p.current.cover_url} size={80} />
         </button>
-        <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+        <div className="flex-1 min-w-0 flex flex-col gap-2 py-0.5">
           <button
             onClick={onExpand}
             title="Open full player"
-            className="min-w-0 text-left rounded-lg px-1 py-0.5 hover:bg-white/5"
+            className="min-w-0 text-left rounded-lg px-1 py-0.5 hover:bg-white/5 flex items-start gap-2"
           >
-            <div className="text-sm font-medium truncate whitespace-nowrap">
-              {p.current.title || p.current.rel_path}
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium truncate whitespace-nowrap">
+                {p.current.title || p.current.rel_path}
+              </div>
+              <div className="text-xs text-zinc-500 truncate whitespace-nowrap">
+                {p.current.artist || '—'}
+                {p.current.album ? ` · ${p.current.album}` : ''}
+              </div>
             </div>
-            <div className="text-xs text-zinc-500 truncate whitespace-nowrap">
-              {p.current.artist || '—'}
-              {p.current.album ? ` · ${p.current.album}` : ''}
-            </div>
+            {/* Queue counter sits on the title line so the bottom row is
+                free for bigger transport buttons. */}
+            <span className="text-[11px] text-zinc-500 tabular-nums shrink-0 pt-0.5">
+              {(p.shuffle ? p.cursor : p.queue.findIndex((t) => t.id === p.current?.id)) + 1}
+              /{p.queue.length}
+            </span>
           </button>
-          <div className="flex items-center gap-1.5 px-1">
-            <div className="recess-pill flex items-center gap-1 px-1.5 py-0.5 shrink-0">
-              <TransportBtn onClick={p.prev} title="Previous">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+          <div className="flex items-center gap-2 px-1">
+            {/* Main transport pill — bigger than mode buttons. prev/next
+                = 40px, play = 48px. Generous gap-2 between the three. */}
+            <div className="recess-pill flex items-center gap-2 px-2 py-1 shrink-0">
+              <button
+                onClick={p.prev}
+                title="Previous"
+                className="w-10 h-10 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-white"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M6 6h2v12H6zM9.5 12l8.5 6V6z" />
                 </svg>
-              </TransportBtn>
+              </button>
               <button
                 onClick={p.togglePlay}
                 title={p.isPlaying ? 'Pause' : 'Play'}
-                className="w-9 h-9 rounded-full play-btn flex items-center justify-center"
+                className="w-12 h-12 rounded-full play-btn flex items-center justify-center"
               >
                 {p.isPlaying ? (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                     <rect x="6" y="5" width="4" height="14" />
                     <rect x="14" y="5" width="4" height="14" />
                   </svg>
                 ) : (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M8 5v14l11-7z" />
                   </svg>
                 )}
               </button>
-              <TransportBtn onClick={p.next} title="Next">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <button
+                onClick={p.next}
+                title="Next"
+                className="w-10 h-10 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-white"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z" />
                 </svg>
-              </TransportBtn>
+              </button>
             </div>
-            <ModeBtn active={p.shuffle} onClick={p.toggleShuffle} title="Shuffle">
-              <ShuffleIcon />
-            </ModeBtn>
-            <ModeBtn active={p.repeat !== 'off'} onClick={p.cycleRepeat} title={`Repeat: ${p.repeat}`}>
-              {p.repeat === 'one' ? <RepeatOneIcon /> : <RepeatIcon />}
-            </ModeBtn>
-            <span className="text-[10px] text-zinc-500 tabular-nums ml-auto pl-1 shrink-0">
-              {(p.shuffle ? p.cursor : p.queue.findIndex((t) => t.id === p.current?.id)) + 1}
-              /{p.queue.length}
-            </span>
+            {/* Modes hugged to the right edge of the row. */}
+            <div className="flex items-center gap-2 ml-auto shrink-0">
+              <ModeBtn active={p.shuffle} onClick={p.toggleShuffle} title="Shuffle">
+                <ShuffleIcon />
+              </ModeBtn>
+              <ModeBtn active={p.repeat !== 'off'} onClick={p.cycleRepeat} title={`Repeat: ${p.repeat}`}>
+                {p.repeat === 'one' ? <RepeatOneIcon /> : <RepeatIcon />}
+              </ModeBtn>
+            </div>
           </div>
         </div>
       </div>
