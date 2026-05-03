@@ -29,6 +29,75 @@ import type { Track } from '../types';
 
 export type RepeatMode = 'off' | 'one' | 'all';
 
+/* -------------------- 10-band ISO equalizer -------------------- */
+export const EQ_FREQUENCIES = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+export const EQ_GAIN_MIN = -12;
+export const EQ_GAIN_MAX = 12;
+export const EQ_PREAMP_MIN = -24;
+export const EQ_PREAMP_MAX = 6;
+
+export interface EQController {
+  /** Center frequencies of each band, in Hz. */
+  frequencies: number[];
+  /** Per-band gain in dB. Length matches `frequencies`. */
+  gains: number[];
+  /** Pre-amp gain in dB (negative reduces output to prevent clipping). */
+  preamp: number;
+  /** When true, all filters are flattened (no audible effect). */
+  bypass: boolean;
+  setGain: (bandIndex: number, db: number) => void;
+  setGains: (db: number[]) => void;
+  setPreamp: (db: number) => void;
+  setBypass: (b: boolean) => void;
+  reset: () => void;
+}
+
+interface EQState {
+  gains: number[];
+  preamp: number;
+  bypass: boolean;
+}
+
+function defaultEQState(): EQState {
+  return {
+    gains: new Array(EQ_FREQUENCIES.length).fill(0),
+    preamp: 0,
+    bypass: false,
+  };
+}
+
+function loadEQState(): EQState {
+  if (typeof window === 'undefined') return defaultEQState();
+  try {
+    const raw = window.localStorage.getItem('mw.eq');
+    if (!raw) return defaultEQState();
+    const j = JSON.parse(raw);
+    if (
+      Array.isArray(j.gains) &&
+      j.gains.length === EQ_FREQUENCIES.length &&
+      j.gains.every((g: any) => Number.isFinite(g))
+    ) {
+      return {
+        gains: j.gains.map((g: number) => clampDb(g, EQ_GAIN_MIN, EQ_GAIN_MAX)),
+        preamp: clampDb(Number(j.preamp) || 0, EQ_PREAMP_MIN, EQ_PREAMP_MAX),
+        bypass: Boolean(j.bypass),
+      };
+    }
+  } catch {
+    /* fall through */
+  }
+  return defaultEQState();
+}
+
+function clampDb(v: number, lo: number, hi: number): number {
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(lo, Math.min(hi, v));
+}
+
+function dbToLinear(db: number): number {
+  return Math.pow(10, db / 20);
+}
+
 interface PlayerState {
   queue: Track[];
   /** Index into shuffledOrder if shuffle is on, else direct index into queue */
@@ -66,6 +135,8 @@ interface PlayerContextValue extends PlayerState, PlayerActions {
   current: Track | null;
   /** AnalyserNode for real-time visualizers. May be null until first play. */
   getAnalyser: () => AnalyserNode | null;
+  /** 10-band parametric equalizer. */
+  eq: EQController;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -88,18 +159,49 @@ function shuffleArray<T>(arr: T[]): T[] {
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Web Audio graph for visualizers. Lazily created on first user-gesture
-  // play (browsers require a gesture before AudioContext can run).
-  // The MediaElementSource can only be created ONCE per <audio>, so we
-  // memoize all three nodes in refs.
+  // Web Audio graph: source → preamp → [10 BiquadFilters] → analyser → destination
+  // Lazily created on first user-gesture play (autoplay policy).
+  // MediaElementSource can only be created ONCE per <audio>, so we memoize.
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const eqFiltersRef = useRef<BiquadFilterNode[]>([]);
+  const preampNodeRef = useRef<GainNode | null>(null);
+
+  // EQ state — initialized from localStorage. Effects below apply changes
+  // to the audio graph in real time once it exists.
+  const initialEQ = loadEQState();
+  const [eqGains, setEqGains] = useState<number[]>(initialEQ.gains);
+  const [eqPreamp, setEqPreampState] = useState<number>(initialEQ.preamp);
+  const [eqBypass, setEqBypassState] = useState<boolean>(initialEQ.bypass);
+
+  // Persist EQ
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        'mw.eq',
+        JSON.stringify({ gains: eqGains, preamp: eqPreamp, bypass: eqBypass }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [eqGains, eqPreamp, eqBypass]);
+
+  // Apply EQ state to filter nodes whenever it changes (only if graph exists)
+  useEffect(() => {
+    const filters = eqFiltersRef.current;
+    if (filters.length > 0) {
+      for (let i = 0; i < filters.length; i++) {
+        filters[i].gain.value = eqBypass ? 0 : eqGains[i] ?? 0;
+      }
+    }
+    if (preampNodeRef.current) {
+      preampNodeRef.current.gain.value = dbToLinear(eqBypass ? 0 : eqPreamp);
+    }
+  }, [eqGains, eqPreamp, eqBypass]);
 
   function ensureAudioGraph() {
     if (audioCtxRef.current) {
-      // Already set up — just resume if it was suspended (some browsers
-      // suspend on tab blur).
       audioCtxRef.current.resume().catch(() => {});
       return;
     }
@@ -112,13 +214,40 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       analyser.smoothingTimeConstant = 0.75;
-      source.connect(analyser);
+
+      // Pre-amp (dB → linear gain)
+      const preamp = ctx.createGain();
+      preamp.gain.value = dbToLinear(eqBypass ? 0 : eqPreamp);
+
+      // 10-band filter chain. Lowest = lowshelf, highest = highshelf, rest = peaking.
+      const filters: BiquadFilterNode[] = [];
+      for (let i = 0; i < EQ_FREQUENCIES.length; i++) {
+        const f = ctx.createBiquadFilter();
+        if (i === 0) f.type = 'lowshelf';
+        else if (i === EQ_FREQUENCIES.length - 1) f.type = 'highshelf';
+        else f.type = 'peaking';
+        f.frequency.value = EQ_FREQUENCIES[i];
+        f.Q.value = 1.4; // moderate Q for natural sound
+        f.gain.value = eqBypass ? 0 : eqGains[i] ?? 0;
+        filters.push(f);
+      }
+
+      // Wire: source → preamp → filter1 → ... → filterN → analyser → destination
+      source.connect(preamp);
+      let prev: AudioNode = preamp;
+      for (const f of filters) {
+        prev.connect(f);
+        prev = f;
+      }
+      prev.connect(analyser);
       analyser.connect(ctx.destination);
+
       audioCtxRef.current = ctx;
       analyserRef.current = analyser;
       sourceRef.current = source;
+      eqFiltersRef.current = filters;
+      preampNodeRef.current = preamp;
     } catch (err) {
-      // CORS or browser unsupported — visualizer just won't show.
       console.warn('audio graph init failed:', err);
     }
   }
@@ -368,6 +497,27 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     };
   }, [next]);
 
+  const eqController: EQController = {
+    frequencies: EQ_FREQUENCIES,
+    gains: eqGains,
+    preamp: eqPreamp,
+    bypass: eqBypass,
+    setGain: (i, db) => {
+      const v = clampDb(db, EQ_GAIN_MIN, EQ_GAIN_MAX);
+      setEqGains((prev) => prev.map((g, j) => (j === i ? v : g)));
+    },
+    setGains: (db) => {
+      if (!Array.isArray(db) || db.length !== EQ_FREQUENCIES.length) return;
+      setEqGains(db.map((d) => clampDb(d, EQ_GAIN_MIN, EQ_GAIN_MAX)));
+    },
+    setPreamp: (db) => setEqPreampState(clampDb(db, EQ_PREAMP_MIN, EQ_PREAMP_MAX)),
+    setBypass: setEqBypassState,
+    reset: () => {
+      setEqGains(new Array(EQ_FREQUENCIES.length).fill(0));
+      setEqPreampState(0);
+    },
+  };
+
   const value: PlayerContextValue = {
     queue,
     cursor,
@@ -392,6 +542,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     cycleRepeat,
     clearQueue,
     getAnalyser: () => analyserRef.current,
+    eq: eqController,
   };
 
   return (

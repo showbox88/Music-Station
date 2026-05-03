@@ -13,6 +13,7 @@
 import { useEffect, useState } from 'react';
 import { usePlayer } from './PlayerContext';
 import AudioVisualizer from './AudioVisualizer';
+import EQPanel from './EQPanel';
 import { RepeatIcon, RepeatOneIcon, ShuffleIcon, VolumeIcon } from '../components/Icons';
 
 function resolveCoverSrc(src: string | null): string | null {
@@ -44,6 +45,7 @@ function fmtNeg(remaining: number): string {
 
 export default function NowPlayingView({ open, onClose }: Props) {
   const p = usePlayer();
+  const [eqOpen, setEqOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -91,7 +93,17 @@ export default function NowPlayingView({ open, onClose }: Props) {
               <div className="text-[11px] text-purple-200/70 truncate mt-0.5">{subtitle}</div>
             )}
           </div>
-          <div className="w-10" />
+          <button
+            onClick={() => setEqOpen(true)}
+            title="Equalizer"
+            className={`w-10 h-10 rounded-full bezel flex items-center justify-center text-[10px] font-semibold tracking-wider ${
+              !p.eq.bypass && p.eq.gains.some((g) => Math.abs(g) > 0.05)
+                ? 'glow-text glow-ring'
+                : 'text-zinc-300 hover:text-white'
+            }`}
+          >
+            EQ
+          </button>
         </div>
 
         {/* Vinyl + tonearm together (sized container so tonearm is positioned
@@ -250,6 +262,9 @@ export default function NowPlayingView({ open, onClose }: Props) {
       >
         ⤡
       </button>
+
+      {/* Equalizer modal */}
+      <EQPanel open={eqOpen} onClose={() => setEqOpen(false)} />
 
       {/* Embedded styles for vinyl spin */}
       <style>{`
