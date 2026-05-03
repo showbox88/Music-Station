@@ -65,7 +65,13 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
       <form
         onSubmit={onSave}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl p-6 space-y-4"
+        className="w-full max-w-lg rounded-xl shadow-2xl p-6 space-y-4"
+        style={{
+          background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
+          border: '1px solid #050506',
+          boxShadow:
+            '0 20px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 30px rgba(255,45,181,0.08)',
+        }}
       >
         <div>
           <h2 className="text-lg font-semibold">Edit track</h2>
@@ -149,14 +155,14 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 rounded text-sm bg-zinc-800 hover:bg-zinc-700"
+            className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="px-4 py-1.5 rounded text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50"
+            className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>

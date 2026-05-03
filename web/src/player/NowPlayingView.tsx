@@ -59,8 +59,15 @@ export default function NowPlayingView({ open, onClose }: Props) {
   const subtitle = [t.artist, t.year].filter(Boolean).join(' · ');
 
   return (
-    <div className="fixed inset-0 z-40 text-white overflow-hidden bg-gradient-to-b from-[#1a0d35] via-[#2d1466] to-[#421b80]">
-      {/* Top wave decoration spans full width */}
+    <div
+      className="fixed inset-0 z-40 text-white overflow-hidden"
+      style={{
+        background:
+          'radial-gradient(ellipse at 50% 0%, #2a1620 0%, #0d0d0e 60%), #0d0d0e',
+        backgroundColor: '#0d0d0e',
+      }}
+    >
+      {/* Top wave decoration */}
       <div className="absolute top-12 left-0 right-0 pointer-events-none">
         <Wave />
       </div>
@@ -97,7 +104,7 @@ export default function NowPlayingView({ open, onClose }: Props) {
           </div>
         </div>
 
-        {/* Progress */}
+        {/* Progress — recessed track + magenta fill */}
         <div className="mt-2 shrink-0">
           <input
             type="range"
@@ -106,19 +113,20 @@ export default function NowPlayingView({ open, onClose }: Props) {
             step={0.5}
             value={p.position}
             onChange={(e) => p.seek(Number(e.target.value))}
-            className="w-full accent-pink-300"
+            className="w-full"
             style={{
               background: `linear-gradient(to right,
-                #f9a8d4 0%,
-                #f9a8d4 ${(p.position / Math.max(1, p.duration)) * 100}%,
-                rgba(255,255,255,0.2) ${(p.position / Math.max(1, p.duration)) * 100}%,
-                rgba(255,255,255,0.2) 100%)`,
+                var(--accent) 0%,
+                var(--accent-soft) ${(p.position / Math.max(1, p.duration)) * 100}%,
+                #0a0a0b ${(p.position / Math.max(1, p.duration)) * 100}%,
+                #1a1a1c 100%)`,
               WebkitAppearance: 'none',
-              height: 3,
+              height: 4,
               borderRadius: 9999,
+              boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.8), 0 0 8px var(--accent-glow)',
             }}
           />
-          <div className="flex justify-between text-[11px] text-purple-200/80 tabular-nums mt-1">
+          <div className="flex justify-between text-[11px] text-zinc-500 tabular-nums mt-1">
             <span>{fmt(p.position)}</span>
             <span>{fmtNeg(remaining)}</span>
           </div>
@@ -126,62 +134,66 @@ export default function NowPlayingView({ open, onClose }: Props) {
 
         {/* Title + artist */}
         <div className="text-center mt-5 mb-4 shrink-0">
-          <div className="text-2xl font-medium text-[#7fb3ff] truncate">
+          <div className="text-2xl font-medium glow-text truncate">
             {t.title || t.rel_path}
           </div>
-          <div className="text-base text-[#7fb3ff]/80 mt-1 truncate">{t.artist || ''}</div>
+          <div className="text-sm text-zinc-400 mt-1 truncate">{t.artist || ''}</div>
         </div>
 
-        {/* Transport */}
-        <div className="flex items-center justify-between gap-2 pb-8 shrink-0">
+        {/* Transport — pill chassis with glowing center */}
+        <div className="flex items-center justify-center gap-3 pb-8 shrink-0">
           <button
             onClick={p.cycleRepeat}
             title={`Repeat: ${p.repeat}`}
-            className={`w-10 h-10 flex items-center justify-center rounded-full text-xl ${
-              p.repeat !== 'off' ? 'text-pink-300' : 'text-white/70 hover:text-white'
+            className={`w-10 h-10 rounded-full bezel flex items-center justify-center text-base ${
+              p.repeat !== 'off' ? 'glow-text glow-ring' : 'text-zinc-400 hover:text-white'
             }`}
           >
             {p.repeat === 'one' ? '🔂' : '🔁'}
           </button>
-          <button
-            onClick={p.prev}
-            title="Previous"
-            className="w-12 h-12 flex items-center justify-center rounded-full border border-white/40 hover:bg-white/10"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M6 6h2v12H6zM9.5 12l8.5 6V6z" />
-            </svg>
-          </button>
-          <button
-            onClick={p.togglePlay}
-            title={p.isPlaying ? 'Pause' : 'Play'}
-            className="w-16 h-16 flex items-center justify-center rounded-full border-2 border-white hover:bg-white/10"
-          >
-            {p.isPlaying ? (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                <rect x="6" y="5" width="4" height="14" />
-                <rect x="14" y="5" width="4" height="14" />
+
+          <div className="recess-pill flex items-center gap-1.5 px-2 py-1.5">
+            <button
+              onClick={p.prev}
+              title="Previous"
+              className="w-10 h-10 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-white"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6 6h2v12H6zM9.5 12l8.5 6V6z" />
               </svg>
-            ) : (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M8 5v14l11-7z" />
+            </button>
+            <button
+              onClick={p.togglePlay}
+              title={p.isPlaying ? 'Pause' : 'Play'}
+              className="w-14 h-14 rounded-full bezel glow-ring flex items-center justify-center glow-text"
+            >
+              {p.isPlaying ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="5" width="4" height="14" />
+                  <rect x="14" y="5" width="4" height="14" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              )}
+            </button>
+            <button
+              onClick={p.next}
+              title="Next"
+              className="w-10 h-10 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-white"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z" />
               </svg>
-            )}
-          </button>
-          <button
-            onClick={p.next}
-            title="Next"
-            className="w-12 h-12 flex items-center justify-center rounded-full border border-white/40 hover:bg-white/10"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z" />
-            </svg>
-          </button>
+            </button>
+          </div>
+
           <button
             onClick={p.toggleShuffle}
             title="Shuffle"
-            className={`w-10 h-10 flex items-center justify-center rounded-full text-xl ${
-              p.shuffle ? 'text-pink-300' : 'text-white/70 hover:text-white'
+            className={`w-10 h-10 rounded-full bezel flex items-center justify-center text-base ${
+              p.shuffle ? 'glow-text glow-ring' : 'text-zinc-400 hover:text-white'
             }`}
           >
             🔀
@@ -189,11 +201,11 @@ export default function NowPlayingView({ open, onClose }: Props) {
         </div>
       </div>
 
-      {/* Bottom-right collapse — anchored to the page, not the column */}
+      {/* Bottom-right collapse */}
       <button
         onClick={onClose}
         title="Collapse"
-        className="absolute bottom-3 right-3 w-9 h-9 rounded bg-white/10 hover:bg-white/20 flex items-center justify-center text-base"
+        className="absolute bottom-3 right-3 w-9 h-9 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-white"
       >
         ⤡
       </button>
@@ -210,23 +222,23 @@ function Wave() {
   return (
     <svg
       viewBox="0 0 600 80"
-      className="w-full h-16 opacity-70"
+      className="w-full h-16 opacity-80"
       preserveAspectRatio="none"
     >
       <defs>
         <linearGradient id="mw-grad-1" x1="0" x2="1">
-          <stop offset="0" stopColor="#ff64b1" stopOpacity="0.9" />
-          <stop offset="1" stopColor="#7d4cff" stopOpacity="0.4" />
+          <stop offset="0" stopColor="#ff2db5" stopOpacity="0.9" />
+          <stop offset="1" stopColor="#ff66cc" stopOpacity="0.3" />
         </linearGradient>
         <linearGradient id="mw-grad-2" x1="0" x2="1">
-          <stop offset="0" stopColor="#56a8ff" stopOpacity="0.6" />
-          <stop offset="1" stopColor="#ff64b1" stopOpacity="0.4" />
+          <stop offset="0" stopColor="#ff66cc" stopOpacity="0.6" />
+          <stop offset="1" stopColor="#ff2db5" stopOpacity="0.3" />
         </linearGradient>
       </defs>
       <path
         d="M0 50 Q 75 10, 150 40 T 300 40 T 450 40 T 600 30 V80 H0 Z"
         fill="url(#mw-grad-1)"
-        opacity="0.35"
+        opacity="0.18"
       />
       <path
         d="M0 50 Q 75 20, 150 50 T 300 45 T 450 55 T 600 40"

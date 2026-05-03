@@ -99,7 +99,7 @@ export default function UploadZone({ onUploaded }: Props) {
       <button
         onClick={() => inputRef.current?.click()}
         disabled={uploading}
-        className="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50"
+        className="text-xs px-3 py-1.5 rounded-full bezel glow-text glow-ring disabled:opacity-50"
       >
         {uploading ? `${Math.round((progress.loaded / Math.max(1, progress.total)) * 100)}%` : '+ Upload'}
       </button>
@@ -110,10 +110,18 @@ export default function UploadZone({ onUploaded }: Props) {
         <div
           onDrop={onDrop}
           onDragOver={(e) => e.preventDefault()}
-          className="fixed inset-0 z-40 bg-blue-600/30 backdrop-blur-sm flex items-center justify-center pointer-events-auto"
+          className="fixed inset-0 z-40 backdrop-blur-sm flex items-center justify-center pointer-events-auto"
+          style={{ background: 'rgba(255, 45, 181, 0.15)' }}
         >
-          <div className="bg-zinc-900 border-2 border-dashed border-blue-400 rounded-xl px-12 py-8 text-center">
-            <div className="text-4xl mb-3">⬇</div>
+          <div
+            className="rounded-xl px-12 py-8 text-center bezel"
+            style={{
+              borderStyle: 'dashed',
+              boxShadow:
+                '0 0 0 1px var(--accent), 0 0 20px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.06)',
+            }}
+          >
+            <div className="text-4xl mb-3 glow-text">⬇</div>
             <div className="text-lg font-medium">Drop audio files to upload</div>
             <div className="text-xs text-zinc-400 mt-1">
               mp3 · m4a · flac · ogg · opus · wav · aac

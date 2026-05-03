@@ -82,15 +82,21 @@ export default function Sidebar({ view, setView, refreshKey, onChanged }: Props)
   }
 
   return (
-    <aside className="w-56 shrink-0 border-r border-zinc-800 bg-zinc-900/40 flex flex-col">
-      <div className="p-3 border-b border-zinc-800">
+    <aside
+      className="w-56 shrink-0 border-r border-black/80 flex flex-col"
+      style={{
+        background: 'linear-gradient(180deg, #1a1a1c 0%, #141415 100%)',
+        boxShadow: 'inset -1px 0 0 rgba(255,255,255,0.04)',
+      }}
+    >
+      <div className="p-3 border-b border-black/60">
         <button
           onClick={() => setView({ kind: 'all' })}
-          className={`w-full text-left px-3 py-1.5 rounded text-sm ${
-            view.kind === 'all' ? 'bg-zinc-700' : 'hover:bg-zinc-800'
+          className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
+            view.kind === 'all' ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
           }`}
         >
-          🎵 All Tracks
+          ♪ All Tracks
         </button>
       </div>
 
@@ -99,7 +105,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged }: Props)
           <span>Playlists</span>
           <button
             onClick={() => setCreating((c) => !c)}
-            className="text-xs px-1.5 py-0.5 rounded hover:bg-zinc-800"
+            className="w-6 h-6 rounded-full bezel text-zinc-300 hover:text-white flex items-center justify-center"
             title="New playlist"
           >
             +
@@ -120,37 +126,37 @@ export default function Sidebar({ view, setView, refreshKey, onChanged }: Props)
           </form>
         )}
 
-        {playlists.map((p) => {
-          const selected = view.kind === 'playlist' && view.id === p.id;
+        {playlists.map((pl) => {
+          const selected = view.kind === 'playlist' && view.id === pl.id;
           return (
             <div
-              key={p.id}
-              className={`group flex items-center px-2 py-1.5 rounded text-sm cursor-pointer ${
-                selected ? 'bg-zinc-700' : 'hover:bg-zinc-800'
+              key={pl.id}
+              className={`group flex items-center px-2 py-1.5 rounded-lg text-sm cursor-pointer ${
+                selected ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
               }`}
-              onClick={() => setView({ kind: 'playlist', id: p.id })}
+              onClick={() => setView({ kind: 'playlist', id: pl.id })}
             >
-              <span className="mr-2">▤</span>
-              <span className="flex-1 truncate">{p.name}</span>
-              <span className="text-xs text-zinc-500 ml-2 tabular-nums">{p.track_count}</span>
+              <span className="mr-2 opacity-70">▤</span>
+              <span className="flex-1 truncate">{pl.name}</span>
+              <span className="text-xs text-zinc-500 ml-2 tabular-nums">{pl.track_count}</span>
               <span className="ml-2 opacity-0 group-hover:opacity-100 flex gap-1">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onPlayPlaylist(p);
+                    onPlayPlaylist(pl);
                   }}
-                  className="text-xs px-1 text-blue-400 hover:text-blue-300 disabled:opacity-30"
+                  className="text-xs px-1 glow-text disabled:opacity-30"
                   title="Play playlist"
-                  disabled={p.track_count === 0}
+                  disabled={pl.track_count === 0}
                 >
                   ▶
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onRename(p);
+                    onRename(pl);
                   }}
-                  className="text-xs px-1 hover:text-zinc-100"
+                  className="text-xs px-1 text-zinc-400 hover:text-white"
                   title="Rename"
                 >
                   ✎
@@ -158,9 +164,9 @@ export default function Sidebar({ view, setView, refreshKey, onChanged }: Props)
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onDelete(p);
+                    onDelete(pl);
                   }}
-                  className="text-xs px-1 hover:text-red-400"
+                  className="text-xs px-1 text-zinc-400 hover:text-red-400"
                   title="Delete"
                 >
                   ✕

@@ -77,13 +77,14 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="px-6 py-3 border-b border-zinc-800 flex items-center gap-3 bg-zinc-900/50">
+      <div className="px-6 py-3 border-b border-black/60 flex items-center gap-3"
+        style={{ background: 'linear-gradient(180deg, #1c1c1e 0%, #18181a 100%)' }}>
         <input
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search title / artist / album / path…"
-          className="flex-1 max-w-md px-3 py-1.5 rounded bg-zinc-800 border border-zinc-700 focus:border-zinc-500 outline-none text-sm"
+          className="input flex-1 max-w-md"
         />
         <span className="text-xs text-zinc-500">
           {loading ? 'Loading…' : `${showing} / ${total}`}
@@ -98,8 +99,8 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
 
       <div className="flex-1 overflow-auto">
         <table className="w-full text-sm">
-          <thead className="text-xs uppercase text-zinc-500 sticky top-0 bg-zinc-950">
-            <tr className="border-b border-zinc-800">
+          <thead className="text-xs uppercase text-zinc-500 sticky top-0" style={{ background: '#141415' }}>
+            <tr className="border-b border-black/60">
               <th className="text-left font-medium py-2 pl-6 w-10">▶</th>
               <th className="text-left font-medium py-2 w-12"></th>
               <th className="text-left font-medium py-2">Title</th>
@@ -113,28 +114,32 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
             </tr>
           </thead>
           <tbody>
-            {tracks.map((t) => (
+            {tracks.map((t) => {
+              const isPlaying = player.current?.id === t.id;
+              return (
               <tr
                 key={t.id}
-                className="border-b border-zinc-900 hover:bg-zinc-900/50"
+                className={`border-b border-black/40 ${
+                  isPlaying ? '' : 'hover:bg-white/[0.03]'
+                }`}
+                style={isPlaying ? { background: 'rgba(255, 45, 181, 0.06)' } : undefined}
               >
                 <td className="pl-6">
                   <button
                     onClick={() => {
-                      // Play the current visible list, starting from this track
                       const idx = tracks.findIndex((x) => x.id === t.id);
                       player.playList(tracks, Math.max(0, idx));
                     }}
                     title={
-                      player.current?.id === t.id && player.isPlaying
+                      isPlaying && player.isPlaying
                         ? 'Now playing'
                         : 'Play (queues this view)'
                     }
-                    className={`inline-block w-6 h-6 leading-6 text-center rounded hover:bg-zinc-700 ${
-                      player.current?.id === t.id ? 'text-blue-400' : 'text-zinc-400 hover:text-zinc-100'
+                    className={`inline-flex items-center justify-center w-7 h-7 rounded-full bezel ${
+                      isPlaying ? 'glow-text glow-ring' : 'text-zinc-400 hover:text-white'
                     }`}
                   >
-                    {player.current?.id === t.id && player.isPlaying ? '♪' : '▶'}
+                    {isPlaying && player.isPlaying ? '♪' : '▶'}
                   </button>
                 </td>
                 <td className="py-1 pr-2">
@@ -198,7 +203,8 @@ export default function TrackList({ refreshKey, onChanged }: Props) {
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {tracks.length === 0 && !loading && (
               <tr>
                 <td colSpan={10} className="text-center py-12 text-zinc-500">

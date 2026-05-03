@@ -33,9 +33,15 @@ export default function Header({ onRescanned, onUploaded }: HeaderProps) {
   }
 
   return (
-    <header className="border-b border-zinc-800 bg-zinc-900 px-6 py-3 flex items-center justify-between">
+    <header
+      className="border-b border-black/80 px-6 py-3 flex items-center justify-between"
+      style={{
+        background: 'linear-gradient(180deg, #232325 0%, #1a1a1c 100%)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 6px rgba(0,0,0,0.4)',
+      }}
+    >
       <div className="flex items-baseline gap-3">
-        <h1 className="text-lg font-semibold tracking-tight">🎵 Music Station</h1>
+        <h1 className="text-lg font-semibold tracking-tight glow-text">♪ Music Station</h1>
         <span className="text-xs text-zinc-500">
           {status ? `${status.tracks} tracks · ${status.playlists} playlists` : 'loading…'}
         </span>
@@ -51,7 +57,7 @@ export default function Header({ onRescanned, onUploaded }: HeaderProps) {
         <button
           onClick={onRescan}
           disabled={scanning}
-          className="text-xs px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50"
+          className="text-xs px-3 py-1.5 rounded-full bezel disabled:opacity-50 text-zinc-300 hover:text-white"
         >
           {scanning ? 'Scanning…' : 'Rescan'}
         </button>

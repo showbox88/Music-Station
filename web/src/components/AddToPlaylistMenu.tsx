@@ -83,10 +83,16 @@ export default function AddToPlaylistMenu({ track, onClose, onAdded, anchor }: P
   return (
     <div
       ref={ref}
-      style={style}
-      className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl w-56 max-h-80 overflow-auto"
+      style={{
+        ...style,
+        background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
+        border: '1px solid #050506',
+        boxShadow:
+          '0 12px 32px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 16px rgba(255,45,181,0.06)',
+      }}
+      className="rounded-lg w-56 max-h-80 overflow-auto"
     >
-      <div className="px-3 py-2 text-xs uppercase text-zinc-500 border-b border-zinc-800 truncate">
+      <div className="px-3 py-2 text-xs uppercase text-zinc-500 border-b border-black/60 truncate">
         Add to playlist
       </div>
       <div className="p-1">
@@ -95,7 +101,7 @@ export default function AddToPlaylistMenu({ track, onClose, onAdded, anchor }: P
             key={p.id}
             onClick={() => add(p)}
             disabled={busyId === p.id}
-            className="w-full text-left px-3 py-1.5 rounded text-sm hover:bg-zinc-800 flex items-center justify-between disabled:opacity-50"
+            className="w-full text-left px-3 py-1.5 rounded text-sm hover:bg-white/5 flex items-center justify-between disabled:opacity-50"
           >
             <span className="truncate flex-1">{p.name}</span>
             <span className="text-xs text-zinc-500 ml-2">{p.track_count}</span>
@@ -105,7 +111,7 @@ export default function AddToPlaylistMenu({ track, onClose, onAdded, anchor }: P
           <div className="text-xs text-zinc-600 px-3 py-2">No playlists yet.</div>
         )}
       </div>
-      <div className="border-t border-zinc-800 p-1">
+      <div className="border-t border-black/60 p-1">
         {creating ? (
           <form onSubmit={createAndAdd} className="px-2 py-1">
             <input
@@ -121,7 +127,7 @@ export default function AddToPlaylistMenu({ track, onClose, onAdded, anchor }: P
         ) : (
           <button
             onClick={() => setCreating(true)}
-            className="w-full text-left px-3 py-1.5 rounded text-sm hover:bg-zinc-800 text-blue-400"
+            className="w-full text-left px-3 py-1.5 rounded text-sm hover:bg-white/5 glow-text"
           >
             + New playlist
           </button>

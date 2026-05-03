@@ -70,7 +70,8 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="px-6 py-3 border-b border-zinc-800 bg-zinc-900/50 flex items-center justify-between">
+      <div className="px-6 py-3 border-b border-black/60 flex items-center justify-between"
+        style={{ background: 'linear-gradient(180deg, #1c1c1e 0%, #18181a 100%)' }}>
         {data ? (
           <>
             <div>
@@ -84,19 +85,18 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
               <button
                 onClick={() => data.tracks.length && player.playList(data.tracks, 0)}
                 disabled={data.tracks.length === 0}
-                className="px-3 py-1.5 rounded text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50"
+                className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
               >
                 ▶ Play
               </button>
               <button
                 onClick={() => {
                   if (data.tracks.length === 0) return;
-                  // Toggle shuffle on, then play
                   if (!player.shuffle) player.toggleShuffle();
                   player.playList(data.tracks, 0);
                 }}
                 disabled={data.tracks.length === 0}
-                className="px-3 py-1.5 rounded text-sm bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50"
+                className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white disabled:opacity-50"
               >
                 🔀 Shuffle
               </button>
@@ -115,8 +115,8 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
 
       <div className="flex-1 overflow-auto">
         <table className="w-full text-sm">
-          <thead className="text-xs uppercase text-zinc-500 sticky top-0 bg-zinc-950">
-            <tr className="border-b border-zinc-800">
+          <thead className="text-xs uppercase text-zinc-500 sticky top-0" style={{ background: '#141415' }}>
+            <tr className="border-b border-black/60">
               <th className="text-left font-medium py-2 pl-6 w-12">#</th>
               <th className="text-left font-medium py-2 w-10">▶</th>
               <th className="text-left font-medium py-2 w-12"></th>
@@ -129,22 +129,30 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
             </tr>
           </thead>
           <tbody>
-            {data?.tracks.map((t, idx) => (
-              <tr key={t.id} className="border-b border-zinc-900 hover:bg-zinc-900/50">
+            {data?.tracks.map((t, idx) => {
+              const isPlaying = player.current?.id === t.id;
+              return (
+              <tr
+                key={t.id}
+                className={`border-b border-black/40 ${
+                  isPlaying ? '' : 'hover:bg-white/[0.03]'
+                }`}
+                style={isPlaying ? { background: 'rgba(255, 45, 181, 0.06)' } : undefined}
+              >
                 <td className="pl-6 text-zinc-500 tabular-nums">{idx + 1}</td>
                 <td>
                   <button
                     onClick={() => data && player.playList(data.tracks, idx)}
                     title={
-                      player.current?.id === t.id && player.isPlaying
+                      isPlaying && player.isPlaying
                         ? 'Now playing'
                         : 'Play (queues this playlist)'
                     }
-                    className={`inline-block w-6 h-6 leading-6 text-center rounded hover:bg-zinc-700 ${
-                      player.current?.id === t.id ? 'text-blue-400' : 'text-zinc-400 hover:text-zinc-100'
+                    className={`inline-flex items-center justify-center w-7 h-7 rounded-full bezel ${
+                      isPlaying ? 'glow-text glow-ring' : 'text-zinc-400 hover:text-white'
                     }`}
                   >
-                    {player.current?.id === t.id && player.isPlaying ? '♪' : '▶'}
+                    {isPlaying && player.isPlaying ? '♪' : '▶'}
                   </button>
                 </td>
                 <td className="py-1 pr-2">
@@ -193,7 +201,8 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {data && data.tracks.length === 0 && (
               <tr>
                 <td colSpan={9} className="text-center py-12 text-zinc-500">

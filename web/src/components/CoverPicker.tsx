@@ -102,7 +102,7 @@ export default function CoverPicker({ track, onChanged }: Props) {
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={busy}
-              className="text-xs px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50"
+              className="text-xs px-3 py-1 rounded-full bezel text-zinc-300 hover:text-white disabled:opacity-50"
             >
               Upload…
             </button>
@@ -110,7 +110,7 @@ export default function CoverPicker({ track, onChanged }: Props) {
               type="button"
               onClick={() => setSearching((s) => !s)}
               disabled={busy}
-              className="text-xs px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50"
+              className="text-xs px-3 py-1 rounded-full bezel text-zinc-300 hover:text-white disabled:opacity-50"
             >
               {searching ? 'Hide search' : 'Search online'}
             </button>
@@ -119,7 +119,7 @@ export default function CoverPicker({ track, onChanged }: Props) {
                 type="button"
                 onClick={handleRemove}
                 disabled={busy}
-                className="text-xs px-2 py-1 rounded text-red-400 hover:bg-zinc-800 disabled:opacity-50"
+                className="text-xs px-3 py-1 rounded-full bezel text-red-400 hover:text-red-300 disabled:opacity-50"
               >
                 Remove
               </button>
@@ -165,7 +165,7 @@ export default function CoverPicker({ track, onChanged }: Props) {
               type="button"
               onClick={handleSearch}
               disabled={busy || !query.trim()}
-              className="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50"
+              className="text-xs px-3 py-1 rounded-full bezel glow-text glow-ring disabled:opacity-50"
             >
               {busy ? '…' : 'Search'}
             </button>

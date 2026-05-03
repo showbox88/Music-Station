@@ -32,7 +32,7 @@ export default function StarRating({ value, onChange, size = 'sm' }: Props) {
                 }
           }
           className={`px-px ${
-            n <= display ? 'text-amber-400' : 'text-zinc-700 hover:text-zinc-500'
+            n <= display ? 'glow-text' : 'text-zinc-700 hover:text-zinc-500'
           }`}
         >
           ★
