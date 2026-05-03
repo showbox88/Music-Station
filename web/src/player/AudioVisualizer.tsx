@@ -106,6 +106,14 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
     const peakHoldFrames = new Int16Array(bars);
     // Rotation for the flower style — slowly winds for a "spinning" feel.
     let rot = 0;
+    // For Ribbon: each layer samples a different frequency slice (bass,
+    // low-mid, mid, etc.) so the 6 ribbons actually represent different
+    // tones rather than one signal phase-shifted six times.
+    const RIBBON_LAYERS = 6;
+    const ribbonHeights: Float32Array[] = Array.from(
+      { length: RIBBON_LAYERS },
+      () => new Float32Array(bars),
+    );
 
     function resizeIfNeeded() {
       if (!canvas) return;
@@ -155,6 +163,55 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
       }
     }
 
+    /** Sample the FFT into RIBBON_LAYERS independent slices. Each layer
+     *  covers a contiguous (but slightly overlapping) chunk of the
+     *  spectrum, so layer 0 = sub-bass, layer N = high treble. Width is
+     *  expanded sub-linearly so high-frequency layers (which span more
+     *  Hz per bin) don't dominate. Tweens are applied per-layer. */
+    function sampleAndTweenRibbon() {
+      const analyser = getAnalyser();
+      if (!analyser || !isPlaying) {
+        // Decay all layers toward zero when paused
+        for (let l = 0; l < RIBBON_LAYERS; l++) {
+          for (let i = 0; i < bars; i++) {
+            ribbonHeights[l][i] = ribbonHeights[l][i] * 0.9;
+          }
+        }
+        return;
+      }
+      if (!buffer || buffer.length !== analyser.frequencyBinCount) {
+        buffer = new Uint8Array(analyser.frequencyBinCount);
+      }
+      analyser.getByteFrequencyData(buffer);
+      const usable = Math.floor(buffer.length * 0.85);
+      // Boundaries follow a power curve so low layers get fewer bins
+      // (matches how musical "tone bands" are perceived).
+      const layerBounds: number[] = [];
+      for (let l = 0; l <= RIBBON_LAYERS; l++) {
+        const t = l / RIBBON_LAYERS;
+        layerBounds.push(Math.floor(Math.pow(t, 1.6) * usable));
+      }
+      for (let l = 0; l < RIBBON_LAYERS; l++) {
+        const start = layerBounds[l];
+        const end = Math.max(start + 1, layerBounds[l + 1]);
+        const sliceLen = end - start;
+        const perBar = Math.max(1, Math.floor(sliceLen / bars));
+        for (let i = 0; i < bars; i++) {
+          let sum = 0;
+          let count = 0;
+          const base = start + i * perBar;
+          for (let j = 0; j < perBar && base + j < end; j++) {
+            sum += buffer[base + j];
+            count++;
+          }
+          const target = count > 0 ? sum / count / 255 : 0;
+          const cur = ribbonHeights[l][i];
+          const rate = target > cur ? 0.55 : 0.12;
+          ribbonHeights[l][i] = cur + (target - cur) * rate;
+        }
+      }
+    }
+
     function draw() {
       if (!canvas || !ctx) return;
       resizeIfNeeded();
@@ -162,6 +219,7 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
       const H = canvas.height;
 
       tween(sample());
+      if (style === 'ribbon') sampleAndTweenRibbon();
       ctx.clearRect(0, 0, W, H);
 
       switch (style) {
@@ -187,7 +245,7 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
           drawDots(ctx, W, H, heights);
           break;
         case 'ribbon':
-          drawRibbon(ctx, W, H, heights);
+          drawRibbon(ctx, W, H, ribbonHeights);
           break;
         case 'flower':
           rot += 0.004;
@@ -549,46 +607,47 @@ function drawRibbon(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
-  heights: Float32Array,
+  layerHeights: Float32Array[],
 ) {
-  const bars = heights.length;
+  const layers = layerHeights.length;
+  const bars = layerHeights[0]?.length ?? 0;
+  if (bars === 0) return;
   const midY = H / 2;
-  // Boost the available amplitude so even modest band values deflect
-  // visibly. Frequency data rarely sustains above ~0.5, so we scale up
-  // by ~1.8× and use the full half-canvas range.
-  const amp = H * 0.45;
-  const gain = 1.9;
-  const layers = 6;
+  const amp = H * 0.42;
+
+  // Each layer represents a different frequency band — bass at the top
+  // (or bottom, by sign) with chunky low-frequency motion, treble with
+  // fast fine motion. We give each its own baseline offset and gain.
+  const LAYER_DEF = [
+    { label: 'sub-bass',  baseline: -0.30, gain: 1.7, hue: 290 }, // magenta
+    { label: 'bass',      baseline: -0.18, gain: 1.7, hue: 320 }, // pink/red
+    { label: 'low-mid',   baseline: -0.06, gain: 1.9, hue:   0 }, // red/orange
+    { label: 'mid',       baseline:  0.06, gain: 2.1, hue:  45 }, // orange/yellow
+    { label: 'upper-mid', baseline:  0.18, gain: 2.4, hue: 130 }, // green
+    { label: 'treble',    baseline:  0.30, gain: 2.8, hue: 200 }, // cyan/blue
+  ];
 
   ctx.lineWidth = 1.6;
   for (let layer = 0; layer < layers; layer++) {
-    const phase = (layer / layers) * 0.7 - 0.35;
-    const hue = (280 + layer * 35) % 360;
-    ctx.strokeStyle = `hsla(${hue}, 95%, 65%, ${0.4 + (layer / layers) * 0.45})`;
-    ctx.shadowColor = `hsla(${hue}, 95%, 60%, 0.75)`;
-    ctx.shadowBlur = 7;
+    const def = LAYER_DEF[layer % LAYER_DEF.length];
+    const heights = layerHeights[layer];
+    ctx.strokeStyle = `hsla(${def.hue}, 95%, 62%, 0.85)`;
+    ctx.shadowColor = `hsla(${def.hue}, 95%, 55%, 0.8)`;
+    ctx.shadowBlur = 8;
     ctx.beginPath();
     for (let i = 0; i < bars; i++) {
       const x = (i / (bars - 1)) * W;
-      const v = Math.min(1, heights[i] * gain);
-      // Map v∈[0,1] to a deflection in [-amp, +amp] alternating per bar
-      // so the ribbon snakes around midline instead of just bowing up.
-      const sign = (i + layer) % 2 === 0 ? 1 : -1;
-      const y =
-        midY -
-        sign * v * amp +
-        Math.sin(i * 0.5 + layer * 0.9) * amp * 0.25 +
-        phase * amp * 0.45;
+      const v = Math.min(1, heights[i] * def.gain);
+      // Alternate sign per bar so the band snakes through its baseline
+      // instead of just bowing one way.
+      const sign = i % 2 === 0 ? 1 : -1;
+      const y = midY + def.baseline * amp - sign * v * amp * 0.55;
       if (i === 0) ctx.moveTo(x, y);
       else {
         const prevX = ((i - 1) / (bars - 1)) * W;
-        const prevV = Math.min(1, heights[i - 1] * gain);
-        const prevSign = (i - 1 + layer) % 2 === 0 ? 1 : -1;
-        const prevY =
-          midY -
-          prevSign * prevV * amp +
-          Math.sin((i - 1) * 0.5 + layer * 0.9) * amp * 0.25 +
-          phase * amp * 0.45;
+        const prevV = Math.min(1, heights[i - 1] * def.gain);
+        const prevSign = (i - 1) % 2 === 0 ? 1 : -1;
+        const prevY = midY + def.baseline * amp - prevSign * prevV * amp * 0.55;
         const cx = (prevX + x) / 2;
         const cy = (prevY + y) / 2;
         ctx.quadraticCurveTo(prevX, prevY, cx, cy);
