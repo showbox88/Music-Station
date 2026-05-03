@@ -211,12 +211,17 @@ export default function EQPanel({ open, onClose }: Props) {
                 if (p) eq.setGains(p.gains);
               }}
               className="input"
+              style={{ colorScheme: 'dark' }}
             >
               <option value="" disabled hidden>
                 — Custom —
               </option>
               {PRESETS.map((p) => (
-                <option key={p.name} value={p.name}>
+                <option
+                  key={p.name}
+                  value={p.name}
+                  style={{ background: '#18181a', color: '#e5e5e5' }}
+                >
                   {p.name}
                 </option>
               ))}
@@ -295,7 +300,8 @@ function FaderColumn({
             background: 'rgba(255,255,255,0.18)',
           }}
         />
-        {/* Range input rotated to vertical */}
+        {/* Range input rotated to vertical — absolutely positioned so the
+            non-rotated layout box (180px wide) does not push the column wider. */}
         <input
           type="range"
           min={EQ_GAIN_MIN}
@@ -306,8 +312,10 @@ function FaderColumn({
           onDoubleClick={() => onChange(0)}
           title={`${hz} Hz: ${fmtGain(value)} dB (double-click to reset)`}
           style={{
-            // Vertical orientation via rotation; bottom = low value
-            transform: 'rotate(-90deg)',
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%) rotate(-90deg)',
             transformOrigin: 'center center',
             width: FADER_HEIGHT,
             height: 24,
