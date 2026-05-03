@@ -417,6 +417,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       wetGainRef.current = wetGain;
       cinemaBassRef.current = cinemaBass;
 
+      // Apply the current spatial preset to the freshly-built graph.
+      // The [spatialPreset] effect only fires when the preset CHANGES, so
+      // a preset persisted from a previous session (or set by the user
+      // before they hit play) would otherwise sit in state without ever
+      // touching the audio graph.
+      if (spatialPreset !== 'off') {
+        const cfg = SPATIAL_PRESET_CONFIG[spatialPreset];
+        let ir = irCacheRef.current.get(spatialPreset);
+        if (!ir) {
+          ir = synthIR(ctx, cfg.durationSec, cfg.predelaySec, cfg.decayPow);
+          irCacheRef.current.set(spatialPreset, ir);
+        }
+        convolver.buffer = ir;
+        wetGain.gain.value = cfg.wet;
+        dryGain.gain.value = 0.85;
+        cinemaBass.gain.value = cfg.bassDb;
+      }
+
       audioCtxRef.current = ctx;
       analyserRef.current = analyser;
       sourceRef.current = source;
