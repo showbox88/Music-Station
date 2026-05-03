@@ -52,6 +52,15 @@ export interface EQController {
   reset: () => void;
 }
 
+/* -------------------- Cinema / Dolby-style enhancer --------------------
+ * Adds: low shelf bass boost, high shelf treble boost, and a Haas-style
+ * stereo widener (L↔R cross-feed delay). Not licensed Dolby — it's a
+ * simulated enhance you can A/B against the dry signal. */
+export interface SpatialController {
+  on: boolean;
+  setOn: (on: boolean) => void;
+}
+
 interface EQState {
   gains: number[];
   preamp: number;
@@ -154,6 +163,8 @@ interface PlayerContextValue extends PlayerState, PlayerActions {
   getAnalyser: () => AnalyserNode | null;
   /** 10-band parametric equalizer. */
   eq: EQController;
+  /** Cinema/Dolby-style enhance toggle. */
+  spatial: SpatialController;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -184,6 +195,26 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const eqFiltersRef = useRef<BiquadFilterNode[]>([]);
   const preampNodeRef = useRef<GainNode | null>(null);
+  // Cinema-style enhancement nodes. Bass/treble shelves drive a fixed
+  // boost when on; the splitter/merger pair plus delay+gain implement a
+  // Haas-style cross-feed for perceived stereo widening.
+  const spatialBassRef = useRef<BiquadFilterNode | null>(null);
+  const spatialTrebleRef = useRef<BiquadFilterNode | null>(null);
+  const spatialCrossLRef = useRef<GainNode | null>(null);
+  const spatialCrossRRef = useRef<GainNode | null>(null);
+
+  // Spatial toggle, persisted in localStorage.
+  const [spatialOn, setSpatialOnState] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem('mw.spatial') === '1';
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('mw.spatial', spatialOn ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [spatialOn]);
 
   // EQ state is per-track: each track id maps to its own gains/preamp/bypass.
   // The "active" state below is what the EQ panel controls and what gets
@@ -209,6 +240,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       /* ignore — quota / private mode */
     }
   }
+
+  // Apply spatial-enhance toggle to its nodes whenever it changes.
+  useEffect(() => {
+    const bass = spatialBassRef.current;
+    const treble = spatialTrebleRef.current;
+    const cl = spatialCrossLRef.current;
+    const cr = spatialCrossRRef.current;
+    const t = audioCtxRef.current?.currentTime ?? 0;
+    // Smooth ramp avoids audible clicks when toggling mid-playback.
+    if (bass) bass.gain.linearRampToValueAtTime(spatialOn ? 5 : 0, t + 0.05);
+    if (treble) treble.gain.linearRampToValueAtTime(spatialOn ? 3.5 : 0, t + 0.05);
+    if (cl) cl.gain.linearRampToValueAtTime(spatialOn ? 0.32 : 0, t + 0.05);
+    if (cr) cr.gain.linearRampToValueAtTime(spatialOn ? 0.32 : 0, t + 0.05);
+  }, [spatialOn]);
 
   // Apply EQ state to filter nodes whenever it changes (only if graph exists),
   // and persist under the active track's id.
@@ -265,15 +310,65 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         filters.push(f);
       }
 
-      // Wire: source → preamp → filter1 → ... → filterN → analyser → destination
+      // Spatial / cinema enhance stage: bass + treble shelves and a
+      // Haas-style stereo widener (cross-feed delay between L/R channels).
+      // Gains start at the values the toggle effect below will set.
+      const spatialBass = ctx.createBiquadFilter();
+      spatialBass.type = 'lowshelf';
+      spatialBass.frequency.value = 110;
+      spatialBass.gain.value = spatialOn ? 5 : 0;
+
+      const spatialTreble = ctx.createBiquadFilter();
+      spatialTreble.type = 'highshelf';
+      spatialTreble.frequency.value = 8000;
+      spatialTreble.gain.value = spatialOn ? 3.5 : 0;
+
+      const splitter = ctx.createChannelSplitter(2);
+      const merger = ctx.createChannelMerger(2);
+      const directL = ctx.createGain();
+      const directR = ctx.createGain();
+      directL.gain.value = 1;
+      directR.gain.value = 1;
+      const delayL = ctx.createDelay(0.1);
+      delayL.delayTime.value = 0.012;
+      const delayR = ctx.createDelay(0.1);
+      delayR.delayTime.value = 0.018;
+      const crossL = ctx.createGain();
+      const crossR = ctx.createGain();
+      // Cross-feed amount when ON; zero kills the widener entirely.
+      crossL.gain.value = spatialOn ? 0.32 : 0;
+      crossR.gain.value = spatialOn ? 0.32 : 0;
+
+      // Wire: source → preamp → eq filters → spatialBass → spatialTreble
+      //       → splitter ⇒ direct + delayed cross-feed ⇒ merger → analyser
       source.connect(preamp);
       let prev: AudioNode = preamp;
       for (const f of filters) {
         prev.connect(f);
         prev = f;
       }
-      prev.connect(analyser);
+      prev.connect(spatialBass);
+      spatialBass.connect(spatialTreble);
+      spatialTreble.connect(splitter);
+      // Direct paths (untouched L/R)
+      splitter.connect(directL, 0);
+      directL.connect(merger, 0, 0);
+      splitter.connect(directR, 1);
+      directR.connect(merger, 0, 1);
+      // Cross-feed: R-delayed into L output, L-delayed into R output.
+      splitter.connect(delayL, 1);
+      delayL.connect(crossL);
+      crossL.connect(merger, 0, 0);
+      splitter.connect(delayR, 0);
+      delayR.connect(crossR);
+      crossR.connect(merger, 0, 1);
+      merger.connect(analyser);
       analyser.connect(ctx.destination);
+
+      spatialBassRef.current = spatialBass;
+      spatialTrebleRef.current = spatialTreble;
+      spatialCrossLRef.current = crossL;
+      spatialCrossRRef.current = crossR;
 
       audioCtxRef.current = ctx;
       analyserRef.current = analyser;
@@ -588,6 +683,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     clearQueue,
     getAnalyser: () => analyserRef.current,
     eq: eqController,
+    spatial: { on: spatialOn, setOn: setSpatialOnState },
   };
 
   return (

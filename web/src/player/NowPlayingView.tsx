@@ -94,6 +94,19 @@ export default function NowPlayingView({ open, onClose }: Props) {
             )}
           </div>
           <button
+            onClick={() => p.spatial.setOn(!p.spatial.on)}
+            title={
+              p.spatial.on
+                ? 'Cinema enhance ON — bass + treble lift + stereo widener'
+                : 'Cinema enhance OFF (Dolby-style simulated effect)'
+            }
+            className={`w-10 h-10 rounded-full bezel flex items-center justify-center text-[9px] font-semibold tracking-wider mr-1 ${
+              p.spatial.on ? 'glow-text glow-ring' : 'text-zinc-300 hover:text-white'
+            }`}
+          >
+            DOLBY
+          </button>
+          <button
             onClick={() => setEqOpen(true)}
             title="Equalizer"
             className={`w-10 h-10 rounded-full bezel flex items-center justify-center text-[10px] font-semibold tracking-wider ${
