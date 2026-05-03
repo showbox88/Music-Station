@@ -3,6 +3,7 @@ import Header from './components/Header';
 import TrackList from './components/TrackList';
 import Sidebar, { type View } from './components/Sidebar';
 import PlaylistView from './components/PlaylistView';
+import LyricsEditor from './components/LyricsEditor';
 import { PlayerProvider, usePlayer } from './player/PlayerContext';
 import PlayerBar from './player/PlayerBar';
 import NowPlayingView from './player/NowPlayingView';
@@ -91,6 +92,8 @@ function AppContent() {
           <TrackList refreshKey={refreshKey} onChanged={refresh} />
         ) : view.kind === 'favorites' ? (
           <TrackList refreshKey={refreshKey} onChanged={refresh} favoritedOnly />
+        ) : view.kind === 'lyrics-editor' ? (
+          <LyricsEditor />
         ) : (
           <PlaylistView playlistId={view.id} refreshKey={refreshKey} onChanged={refresh} />
         )}

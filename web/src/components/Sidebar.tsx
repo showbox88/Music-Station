@@ -10,6 +10,7 @@ import { usePlayer } from '../player/PlayerContext';
 export type View =
   | { kind: 'all' }
   | { kind: 'favorites' }
+  | { kind: 'lyrics-editor' }
   | { kind: 'playlist'; id: number };
 
 interface Props {
@@ -127,6 +128,15 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           }`}
         >
           ♥ Favorites
+        </button>
+        <button
+          onClick={() => setView({ kind: 'lyrics-editor' })}
+          className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
+            view.kind === 'lyrics-editor' ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
+          }`}
+          title="边听边按空格打时间戳，制作 LRC 同步歌词"
+        >
+          🎤 Lyrics Editor
         </button>
       </div>
 
