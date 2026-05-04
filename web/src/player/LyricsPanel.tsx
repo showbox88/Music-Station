@@ -160,16 +160,19 @@ function ScrollView({
 
   // Auto-scroll the active line into vertical center of THIS container.
   // Scoped to the container (not page) so a partly-off-screen container
-  // doesn't yank the rest of the layout.
+  // doesn't yank the rest of the layout. In inline mode the visual
+  // center looks slightly high (the LRC chip + viz wrapper margins lift
+  // the optical center), so nudge the active line 5px lower.
   useEffect(() => {
     if (activeIdx < 0) return;
     const container = containerRef.current;
     const el = lineRefs.current[activeIdx];
     if (!container || !el) return;
+    const nudge = isInline ? 5 : 0;
     const target =
-      el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2;
+      el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2 - nudge;
     container.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
-  }, [activeIdx]);
+  }, [activeIdx, isInline]);
 
   // Vertical fade mask — top/bottom of the scroll area dissolves into the
   // page background so lines emerge from the dark and recede into it
