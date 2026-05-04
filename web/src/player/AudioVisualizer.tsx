@@ -11,8 +11,9 @@
  *
  * The user's chosen style is persisted to localStorage 'mw.viz.style'.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { usePlayer } from './PlayerContext';
+import { usePrefs } from '../PrefsContext';
 
 type VizStyle =
   | 'bars'
@@ -64,12 +65,6 @@ interface Props {
   height?: number;
 }
 
-function loadStyle(): VizStyle {
-  if (typeof window === 'undefined') return 'bars';
-  const v = window.localStorage.getItem('mw.viz.style');
-  return STYLES.includes(v as VizStyle) ? (v as VizStyle) : 'bars';
-}
-
 /** Amplitude → HSL string. v in 0..1.
  *  Hue rotates 320° → 60° going clockwise through red/orange. */
 function ampColor(v: number, alpha = 1): string {
@@ -81,20 +76,15 @@ function ampColor(v: number, alpha = 1): string {
 
 export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
   const { getAnalyser, isPlaying } = usePlayer();
+  const { prefs, setPref } = usePrefs();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [style, setStyleState] = useState<VizStyle>(loadStyle);
+  const style: VizStyle = STYLES.includes(prefs.viz_style as VizStyle)
+    ? (prefs.viz_style as VizStyle)
+    : 'bars';
 
-  const setStyle = (s: VizStyle) => {
-    setStyleState(s);
-    try {
-      window.localStorage.setItem('mw.viz.style', s);
-    } catch {
-      /* ignore */
-    }
-  };
   const cycleStyle = () => {
     const i = STYLES.indexOf(style);
-    setStyle(STYLES[(i + 1) % STYLES.length]);
+    setPref('viz_style', STYLES[(i + 1) % STYLES.length]);
   };
 
   useEffect(() => {

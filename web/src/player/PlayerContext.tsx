@@ -26,6 +26,7 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import type { Track } from '../types';
+import { usePrefs } from '../PrefsContext';
 
 export type RepeatMode = 'off' | 'one' | 'all';
 
@@ -69,6 +70,16 @@ export interface SpatialController {
   cycle: () => void;
 }
 
+export interface GlobalEQController {
+  /** When true, all tracks use the same global EQ curve, ignoring
+   *  per-track entries. */
+  enabled: boolean;
+  setEnabled: (b: boolean) => void;
+  /** Snapshot the currently-displayed EQ state as the global curve,
+   *  enable global mode, and apply immediately. */
+  promoteCurrent: () => void;
+}
+
 interface EQState {
   gains: number[];
   preamp: number;
@@ -85,8 +96,6 @@ function defaultEQState(): EQState {
   };
 }
 
-const EQ_TRACKS_STORAGE_KEY = 'mw.eq.tracks';
-
 function sanitizeEQ(j: any): EQState | null {
   if (!j || typeof j !== 'object') return null;
   if (
@@ -101,26 +110,6 @@ function sanitizeEQ(j: any): EQState | null {
     preamp: clampDb(Number(j.preamp) || 0, EQ_PREAMP_MIN, EQ_PREAMP_MAX),
     bypass: Boolean(j.bypass),
   };
-}
-
-function loadEQTracks(): Record<number, EQState> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = window.localStorage.getItem(EQ_TRACKS_STORAGE_KEY);
-    if (!raw) return {};
-    const j = JSON.parse(raw);
-    if (!j || typeof j !== 'object') return {};
-    const out: Record<number, EQState> = {};
-    for (const [k, v] of Object.entries(j)) {
-      const id = Number(k);
-      if (!Number.isFinite(id)) continue;
-      const eq = sanitizeEQ(v);
-      if (eq) out[id] = eq;
-    }
-    return out;
-  } catch {
-    return {};
-  }
 }
 
 function clampDb(v: number, lo: number, hi: number): number {
@@ -220,6 +209,8 @@ interface PlayerContextValue extends PlayerState, PlayerActions {
   eq: EQController;
   /** Cinema/Dolby-style enhance toggle. */
   spatial: SpatialController;
+  /** "Use one EQ curve for all tracks" mode. */
+  globalEq: GlobalEQController;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -259,43 +250,38 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const cinemaBassRef = useRef<BiquadFilterNode | null>(null);
   const irCacheRef = useRef<Map<SpatialPreset, AudioBuffer>>(new Map());
 
-  const [spatialPreset, setSpatialPresetState] = useState<SpatialPreset>(() => {
-    if (typeof window === 'undefined') return 'off';
-    const v = window.localStorage.getItem('mw.spatial.preset');
-    return SPATIAL_PRESETS.includes(v as SpatialPreset) ? (v as SpatialPreset) : 'off';
-  });
-  useEffect(() => {
-    try {
-      window.localStorage.setItem('mw.spatial.preset', spatialPreset);
-    } catch {
-      /* ignore */
-    }
-  }, [spatialPreset]);
+  // Prefs (server-synced): spatial_preset, global_eq_enabled, global_eq,
+  // and the per-track EQ map all live in PrefsContext now.
+  const { prefs, setPref, trackEqMap, setTrackEq } = usePrefs();
 
-  // EQ state is per-track: each track id maps to its own gains/preamp/bypass.
-  // The "active" state below is what the EQ panel controls and what gets
-  // applied to the audio graph; it tracks whichever track is currently
-  // playing. New (unseen) tracks start from defaultEQState() — bypass=true.
-  const eqTracksRef = useRef<Record<number, EQState>>(loadEQTracks());
-  const initialActive = defaultEQState();
-  const [eqGains, setEqGains] = useState<number[]>(initialActive.gains);
-  const [eqPreamp, setEqPreampState] = useState<number>(initialActive.preamp);
-  const [eqBypass, setEqBypassState] = useState<boolean>(initialActive.bypass);
-  // Track which track id the active EQ state currently belongs to, so we
-  // know which key to persist under and avoid clobbering after a track
-  // swap (the swap effect resets state, but state setters fire async).
+  const spatialPreset: SpatialPreset =
+    SPATIAL_PRESETS.includes(prefs.spatial_preset as SpatialPreset)
+      ? (prefs.spatial_preset as SpatialPreset)
+      : 'off';
+  const setSpatialPreset = useCallback(
+    (p: SpatialPreset) => setPref('spatial_preset', p),
+    [setPref],
+  );
+
+  const globalEqEnabled = !!prefs.global_eq_enabled;
+  const globalEqState = useMemo<EQState>(() => {
+    return sanitizeEQ(prefs.global_eq) ?? defaultEQState();
+  }, [prefs.global_eq]);
+
+  // Active EQ state — what the panel binds to and what's applied to the
+  // audio graph. Source-of-truth depends on mode:
+  //   global mode:  prefs.global_eq
+  //   per-track:    trackEqMap[currentTrackId] || flat
+  // Local state lets the panel re-render snappily; we sync changes back to
+  // PrefsContext (debounced) which sends them to the server.
+  const [eqGains, setEqGains] = useState<number[]>(defaultEQState().gains);
+  const [eqPreamp, setEqPreampState] = useState<number>(defaultEQState().preamp);
+  const [eqBypass, setEqBypassState] = useState<boolean>(defaultEQState().bypass);
   const activeEQTrackIdRef = useRef<number | null>(null);
-
-  function persistEQTracks() {
-    try {
-      window.localStorage.setItem(
-        EQ_TRACKS_STORAGE_KEY,
-        JSON.stringify(eqTracksRef.current),
-      );
-    } catch {
-      /* ignore — quota / private mode */
-    }
-  }
+  // True while we're programmatically syncing eq state from prefs/track-map
+  // into local state — prevents the apply-effect from looping back and
+  // re-saving what we just loaded.
+  const eqSyncingRef = useRef(false);
 
   // Apply current spatial preset whenever it changes (or once the graph
   // exists). Generates and caches the IR on first use of each preset.
@@ -330,7 +316,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [spatialPreset]);
 
   // Apply EQ state to filter nodes whenever it changes (only if graph exists),
-  // and persist under the active track's id.
+  // and persist via PrefsContext under the right destination:
+  //   - global mode → prefs.global_eq (replaces the global curve)
+  //   - per-track   → user_track_eq for the active track id
   useEffect(() => {
     const filters = eqFiltersRef.current;
     if (filters.length > 0) {
@@ -341,16 +329,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (preampNodeRef.current) {
       preampNodeRef.current.gain.value = dbToLinear(eqBypass ? 0 : eqPreamp);
     }
-    const id = activeEQTrackIdRef.current;
-    if (id != null) {
-      eqTracksRef.current[id] = {
-        gains: eqGains,
-        preamp: eqPreamp,
-        bypass: eqBypass,
-      };
-      persistEQTracks();
+    if (eqSyncingRef.current) return;  // we just loaded these — don't echo back
+    const snapshot: EQState = { gains: eqGains, preamp: eqPreamp, bypass: eqBypass };
+    if (globalEqEnabled) {
+      setPref('global_eq', snapshot);
+    } else {
+      const id = activeEQTrackIdRef.current;
+      if (id != null) setTrackEq(id, snapshot);
     }
-  }, [eqGains, eqPreamp, eqBypass]);
+  }, [eqGains, eqPreamp, eqBypass, globalEqEnabled, setPref, setTrackEq]);
 
   function ensureAudioGraph() {
     if (audioCtxRef.current) {
@@ -502,17 +489,29 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [current]);
 
-  // Load this track's saved EQ when the playing track changes. Tracks
-  // without a saved entry start from defaultEQState() (EQ off, flat).
+  // Load EQ when the playing track changes OR when we toggle global mode.
+  //   - global mode: always show the prefs.global_eq curve
+  //   - per-track:   load trackEqMap[id] || flat
+  // We set the eqSyncing flag so the apply-effect doesn't bounce these
+  // loaded values right back to the server.
   useEffect(() => {
     const id = current?.id ?? null;
     activeEQTrackIdRef.current = id;
-    const saved = id != null ? eqTracksRef.current[id] : null;
-    const next = saved ?? defaultEQState();
+    let next: EQState;
+    if (globalEqEnabled) {
+      next = globalEqState;
+    } else {
+      next = (id != null && trackEqMap[id]) || defaultEQState();
+    }
+    eqSyncingRef.current = true;
     setEqGains(next.gains);
     setEqPreampState(next.preamp);
     setEqBypassState(next.bypass);
-  }, [current?.id]);
+    // Release the sync flag after React flushes — use a microtask.
+    Promise.resolve().then(() => {
+      eqSyncingRef.current = false;
+    });
+  }, [current?.id, globalEqEnabled, globalEqState, trackEqMap]);
 
   // Volume binding
   useEffect(() => {
@@ -750,12 +749,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     eq: eqController,
     spatial: {
       preset: spatialPreset,
-      setPreset: setSpatialPresetState,
+      setPreset: setSpatialPreset,
       cycle: () => {
-        setSpatialPresetState((p) => {
-          const i = SPATIAL_PRESETS.indexOf(p);
-          return SPATIAL_PRESETS[(i + 1) % SPATIAL_PRESETS.length];
-        });
+        const i = SPATIAL_PRESETS.indexOf(spatialPreset);
+        setSpatialPreset(SPATIAL_PRESETS[(i + 1) % SPATIAL_PRESETS.length]);
+      },
+    },
+    globalEq: {
+      enabled: globalEqEnabled,
+      setEnabled: (b: boolean) => setPref('global_eq_enabled', b),
+      promoteCurrent: () => {
+        // Snapshot current EQ panel state, save as global, switch on global mode.
+        const snapshot: EQState = { gains: eqGains, preamp: eqPreamp, bypass: eqBypass };
+        setPref('global_eq', snapshot);
+        setPref('global_eq_enabled', true);
       },
     },
   };

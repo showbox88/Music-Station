@@ -62,7 +62,7 @@ function detectActivePreset(gains: number[]): string | null {
 }
 
 export default function EQPanel({ open, onClose }: Props) {
-  const { eq } = usePlayer();
+  const { eq, globalEq } = usePlayer();
 
   useEffect(() => {
     if (!open) return;
@@ -93,12 +93,32 @@ export default function EQPanel({ open, onClose }: Props) {
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="text-lg font-semibold tracking-wide glow-text">Equalizer</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">10-band · ±12 dB · ISO frequencies</p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              10-band · ±12 dB ·{' '}
+              {globalEq.enabled ? (
+                <span className="text-emerald-400">全局模式（所有歌曲共用此曲线）</span>
+              ) : (
+                <span>每首歌独立保存</span>
+              )}
+            </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => globalEq.setEnabled(!globalEq.enabled)}
+              className={`text-xs px-3 py-1 rounded-full bezel ${
+                globalEq.enabled ? 'glow-text glow-ring' : 'text-zinc-300'
+              }`}
+              title={
+                globalEq.enabled
+                  ? '全局模式开 — 所有歌共用此曲线，关掉则回到每首歌独立'
+                  : '点击开启全局模式：所有歌都用同一条曲线，忽略每首独立的 EQ'
+              }
+            >
+              {globalEq.enabled ? '全局' : '独立'}
+            </button>
             <button
               onClick={() => eq.setBypass(!eq.bypass)}
               className={`text-xs px-3 py-1 rounded-full bezel ${
@@ -124,6 +144,16 @@ export default function EQPanel({ open, onClose }: Props) {
             </button>
           </div>
         </div>
+
+        {!globalEq.enabled && (
+          <button
+            onClick={globalEq.promoteCurrent}
+            className="mb-4 text-[11px] px-3 py-1 rounded-full bezel text-zinc-400 hover:text-white"
+            title="把当前曲线保存为全局曲线并切换到全局模式"
+          >
+            ↑ 把当前曲线设为全局
+          </button>
+        )}
 
         {/* dB scale + faders row */}
         <div className="flex items-stretch gap-1 mb-4" style={{ opacity: eq.bypass ? 0.4 : 1 }}>

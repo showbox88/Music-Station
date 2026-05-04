@@ -12,6 +12,7 @@ import { PlayerProvider, usePlayer } from './player/PlayerContext';
 import PlayerBar from './player/PlayerBar';
 import NowPlayingView from './player/NowPlayingView';
 import { AuthProvider, useAuth } from './AuthContext';
+import { PrefsProvider } from './PrefsContext';
 import { api } from './api';
 
 export default function App() {
@@ -43,10 +44,12 @@ function AuthGate() {
   }
   if (!user) return <Login />;
   return (
-    <PlayerProvider>
-      <AppContent />
-      {!!user.must_change_password && <ChangePasswordModal forced />}
-    </PlayerProvider>
+    <PrefsProvider>
+      <PlayerProvider>
+        <AppContent />
+        {!!user.must_change_password && <ChangePasswordModal forced />}
+      </PlayerProvider>
+    </PrefsProvider>
   );
 }
 

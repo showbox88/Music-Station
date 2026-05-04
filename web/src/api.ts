@@ -220,6 +220,19 @@ export const api = {
     getJson<{ owners: FavoritesOwner[] }>('/favorites/visible-owners'),
   getUserFavorites: (userId: number) =>
     getJson<FavoritesView>(`/favorites/of/${userId}`),
+
+  // ----- per-user prefs + per-track EQ -----
+  getPrefs: () => getJson<Record<string, unknown>>('/me/prefs'),
+  savePrefs: (patch: Record<string, unknown>) =>
+    putJson<Record<string, unknown>>('/me/prefs', patch),
+  getTrackEq: () =>
+    getJson<Record<number, { gains: number[]; preamp: number; bypass: boolean }>>(
+      '/me/track-eq',
+    ),
+  saveTrackEq: (trackId: number, state: { gains: number[]; preamp: number; bypass: boolean }) =>
+    putJson<{ ok: boolean }>(`/me/track-eq/${trackId}`, state),
+  deleteTrackEq: (trackId: number) =>
+    deleteReq<{ ok: boolean }>(`/me/track-eq/${trackId}`),
   getTrackByPath: (relPath: string) =>
     getJson<Track>(`/tracks/by-path?p=${encodeURIComponent(relPath)}`),
   deleteTrack: async (id: number) => {
