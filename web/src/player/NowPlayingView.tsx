@@ -300,7 +300,7 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
                     ? '下载中…'
                     : '下载并显示歌词'
             }
-            className={`absolute top-2 left-2 z-10 w-10 h-10 rounded-full bezel flex items-center justify-center text-[10px] font-semibold tracking-wider disabled:opacity-50 ${
+            className={`absolute top-2 left-2 z-10 text-[10px] px-2 py-1 rounded-full bezel disabled:opacity-50 ${
               vizMode === 'lyrics'
                 ? 'glow-text glow-ring'
                 : 'text-zinc-300 hover:text-white'
