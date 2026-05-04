@@ -149,6 +149,11 @@ function PickStage({ onPick }: { onPick: (t: Track, prefill: string) => void }) 
   const [q, setQ] = useState('');
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
+  // When the picked track already has lyrics on the server, hold the
+  // decision in this dialog state instead of using window.confirm. The
+  // browser confirm is two-button (OK/Cancel) and conflates "cancel
+  // selection" with "start blank" — users misclick and get no escape.
+  const [dialog, setDialog] = useState<{ track: Track; existing: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -170,24 +175,16 @@ function PickStage({ onPick }: { onPick: (t: Track, prefill: string) => void }) 
   }, [q]);
 
   async function handlePick(t: Track) {
-    // If the server already has lyrics, offer to pre-fill the textarea
-    // (with timestamps stripped) so the user only re-taps timing.
-    let prefill = '';
     try {
       const r = await api.getLyrics(t.id);
       if (r.found && r.synced) {
-        if (
-          confirm(
-            '这首歌已有歌词。要把现有文本载入编辑器（去除时间戳，仅保留文字）吗？\n\n点"取消"则从空白开始。',
-          )
-        ) {
-          prefill = stripTimestamps(r.synced);
-        }
+        setDialog({ track: t, existing: r.synced });
+        return;
       }
     } catch {
-      /* ignore — fall through with empty prefill */
+      /* network error → treat as no existing lyrics */
     }
-    onPick(t, prefill);
+    onPick(t, '');
   }
 
   return (
@@ -231,6 +228,98 @@ function PickStage({ onPick }: { onPick: (t: Track, prefill: string) => void }) 
             ))}
           </ul>
         )}
+      </div>
+
+      {/* Three-option modal: shown when the picked track already has
+          server-side lyrics. Cancel returns to the list — the missing
+          escape hatch from the old confirm() prompt. */}
+      {dialog && (
+        <ExistingLyricsDialog
+          track={dialog.track}
+          onLoad={() => {
+            const t = dialog.track;
+            const existing = dialog.existing;
+            setDialog(null);
+            onPick(t, stripTimestamps(existing));
+          }}
+          onBlank={() => {
+            const t = dialog.track;
+            setDialog(null);
+            onPick(t, '');
+          }}
+          onCancel={() => setDialog(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ExistingLyricsDialog({
+  track,
+  onLoad,
+  onBlank,
+  onCancel,
+}: {
+  track: Track;
+  onLoad: () => void;
+  onBlank: () => void;
+  onCancel: () => void;
+}) {
+  // Esc cancels — same affordance as the X button.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+      onClick={onCancel}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-xl shadow-2xl p-6 space-y-4"
+        style={{
+          background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
+          border: '1px solid #050506',
+          boxShadow:
+            '0 20px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 30px rgba(255,45,181,0.08)',
+        }}
+      >
+        <div>
+          <h2 className="text-base font-semibold">这首歌已有歌词</h2>
+          <p className="text-xs text-zinc-500 mt-1 truncate">
+            {track.title || track.rel_path}
+          </p>
+        </div>
+        <p className="text-sm text-zinc-300 leading-relaxed">
+          要载入现有歌词文本（去掉时间戳，仅保留文字）后重新打节拍，还是从空白开始？
+        </p>
+        <div className="flex flex-col gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onLoad}
+            className="px-4 py-2 rounded-full bezel glow-text glow-ring text-sm text-left"
+          >
+            载入现有歌词（去时间戳）
+          </button>
+          <button
+            type="button"
+            onClick={onBlank}
+            className="px-4 py-2 rounded-full bezel text-sm text-zinc-200 hover:text-white text-left"
+          >
+            从空白开始
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 rounded-full bezel text-sm text-zinc-400 hover:text-white text-left"
+          >
+            取消，重新选歌
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -313,6 +402,13 @@ function TagStage({
   const [position, setPosition] = useState(0); // sec
   const [duration, setDuration] = useState(track.duration_sec || 0);
   const [saving, setSaving] = useState(false);
+  // Editor's audio is its own element (independent of the global player)
+  // so the user can listen here without interrupting their main queue.
+  // Volume defaults to 0.9 — typical comfortable listening level.
+  const [volume, setVolume] = useState(0.9);
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
   // Index of the line awaiting a tap. We auto-advance to the next untagged
   // line after each Space press so the user can keep both hands free of
   // the mouse and just hit Space repeatedly.
@@ -537,6 +633,34 @@ function TagStage({
           <span className="text-xs text-zinc-500 ml-auto">
             已标记 {taggedCount} / {lines.length} 行
           </span>
+          {/* Volume — local to this editor's audio element. Same recessed
+              slider visual as PlayerBar / NowPlayingView. */}
+          <div className="flex items-center gap-2 shrink-0 w-32">
+            <span className="text-xs text-zinc-500 tabular-nums w-6 text-right">
+              {Math.round(volume * 100)}
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={volume}
+              onChange={(e) => setVolume(Number(e.target.value))}
+              className="flex-1"
+              title="音量"
+              style={{
+                background: `linear-gradient(to right,
+                  var(--accent) 0%,
+                  var(--accent-soft) ${volume * 100}%,
+                  #0a0a0b ${volume * 100}%,
+                  #1a1a1c 100%)`,
+                WebkitAppearance: 'none',
+                height: 4,
+                borderRadius: 9999,
+                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.8)',
+              }}
+            />
+          </div>
         </div>
         <input
           type="range"
