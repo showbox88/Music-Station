@@ -11,10 +11,37 @@ export interface TrackEdit {
   favorited?: boolean;
 }
 
+export type LyricSource = 'local' | 'lrclib' | 'netease' | 'qq' | 'manual';
+
 export interface LyricsResponse {
   found: boolean;
-  source?: 'local' | 'lrclib' | 'netease' | 'manual' | null;
+  source?: LyricSource | null;
   synced?: string;
+  has_timestamps?: boolean;
+}
+
+export interface LyricCandidate {
+  source: 'lrclib' | 'netease' | 'qq';
+  ext_id: string;
+  title: string;
+  artist: string;
+  album: string | null;
+  duration_sec: number | null;
+  has_synced: boolean;
+}
+
+export interface LyricSearchResponse {
+  count: number;
+  candidates: LyricCandidate[];
+}
+
+export interface LyricPreviewResponse {
+  ok: boolean;
+  found: boolean;
+  source?: 'lrclib' | 'netease' | 'qq';
+  ext_id?: string;
+  synced?: string | null;
+  plain?: string | null;
   has_timestamps?: boolean;
 }
 
@@ -159,6 +186,17 @@ export const api = {
     getJson<LyricsResponse>(`/tracks/${trackId}/lyrics`),
   fetchLyrics: (trackId: number) =>
     postJson<LyricsResponse & { ok: boolean }>(`/tracks/${trackId}/lyrics/fetch`),
+  searchLyrics: (trackId: number) =>
+    getJson<LyricSearchResponse>(`/tracks/${trackId}/lyrics/search`),
+  previewLyric: (source: string, extId: string) =>
+    getJson<LyricPreviewResponse>(
+      `/lyrics/preview?source=${encodeURIComponent(source)}&ext_id=${encodeURIComponent(extId)}`,
+    ),
+  selectLyric: (trackId: number, source: string, extId: string) =>
+    postJson<LyricsResponse & { ok: boolean }>(
+      `/tracks/${trackId}/lyrics/select`,
+      { source, ext_id: extId },
+    ),
   setLyrics: (trackId: number, text: string) =>
     putJson<LyricsResponse & { ok: boolean }>(`/tracks/${trackId}/lyrics`, { text }),
   deleteLyrics: (trackId: number) =>

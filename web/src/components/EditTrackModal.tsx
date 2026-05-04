@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, type TrackEdit } from '../api';
+import { api, type LyricCandidate, type TrackEdit } from '../api';
 import type { Track } from '../types';
 import StarRating from './StarRating';
 import CoverPicker from './CoverPicker';
@@ -86,7 +86,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
         </Field>
 
         <Field label="Lyrics">
-          <LyricsField trackId={track.id} />
+          <LyricsField track={track} />
         </Field>
 
         <Field label="Rating">
@@ -190,8 +190,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
  * button — uploads/deletes hit the API immediately so users can iterate
  * (delete a wrong auto-fetched .lrc, paste the right one, see the result
  * without saving the rest of the form).
+ *
+ * Three ways to get lyrics:
+ *   1. Auto fetch: server picks best candidate across all sources
+ *   2. Search & select: list candidates from all sources, user picks
+ *   3. Manual upload / paste
  */
-function LyricsField({ trackId }: { trackId: number }) {
+function LyricsField({ track }: { track: Track }) {
+  const trackId = track.id;
   const [status, setStatus] = useState<'loading' | 'absent' | 'present' | 'error'>('loading');
   const [source, setSource] = useState<string | null>(null);
   const [hasTs, setHasTs] = useState(false);
@@ -200,6 +206,16 @@ function LyricsField({ trackId }: { trackId: number }) {
   const [pasteText, setPasteText] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  // Search panel state
+  const [searching, setSearching] = useState(false);  // panel open?
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [candidates, setCandidates] = useState<LyricCandidate[]>([]);
+  const [previewing, setPreviewing] = useState<{
+    cand: LyricCandidate;
+    text: string | null;
+    loading: boolean;
+  } | null>(null);
 
   // Load status on mount / when track changes
   useEffect(() => {
@@ -292,6 +308,87 @@ function LyricsField({ trackId }: { trackId: number }) {
     }
   }
 
+  async function autoFetch() {
+    if (busy) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await api.fetchLyrics(trackId);
+      if (r.ok && r.found) {
+        setStatus('present');
+        setSource(r.source ?? null);
+        setHasTs(!!r.has_timestamps);
+        setMsg(`已获取（${r.source}${r.has_timestamps ? ' · 带时间戳' : ' · 纯文本'}）`);
+      } else {
+        setMsg('所有源都没找到匹配的歌词');
+      }
+    } catch (err: any) {
+      setMsg(`获取失败：${err?.message ?? err}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openSearch() {
+    setSearching(true);
+    setSearchLoading(true);
+    setCandidates([]);
+    setPreviewing(null);
+    setMsg(null);
+    try {
+      const r = await api.searchLyrics(trackId);
+      setCandidates(r.candidates);
+      if (r.count === 0) setMsg('没有任何源返回结果');
+    } catch (err: any) {
+      setMsg(`搜索失败：${err?.message ?? err}`);
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  async function previewCandidate(cand: LyricCandidate) {
+    setPreviewing({ cand, text: null, loading: true });
+    try {
+      const r = await api.previewLyric(cand.source, cand.ext_id);
+      setPreviewing({
+        cand,
+        text: r.synced ?? r.plain ?? '（这一条获取失败或为空）',
+        loading: false,
+      });
+    } catch (err: any) {
+      setPreviewing({
+        cand,
+        text: `预览失败：${err?.message ?? err}`,
+        loading: false,
+      });
+    }
+  }
+
+  async function selectCandidate(cand: LyricCandidate) {
+    if (busy) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await api.selectLyric(trackId, cand.source, cand.ext_id);
+      if (r.ok && r.found) {
+        setStatus('present');
+        setSource(cand.source);
+        setHasTs(!!r.has_timestamps);
+        setMsg(
+          `已使用 ${cand.source} 的歌词${r.has_timestamps ? '（带时间戳）' : '（纯文本）'}`,
+        );
+        setSearching(false);
+        setPreviewing(null);
+      } else {
+        setMsg('该候选项获取失败');
+      }
+    } catch (err: any) {
+      setMsg(`保存失败：${err?.message ?? err}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const statusLine =
     status === 'loading'
       ? '加载中…'
@@ -306,6 +403,22 @@ function LyricsField({ trackId }: { trackId: number }) {
       <div className="text-xs text-zinc-400">{statusLine}</div>
 
       <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={autoFetch}
+          disabled={busy}
+          className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
+        >
+          {busy ? '处理中…' : '自动获取'}
+        </button>
+        <button
+          type="button"
+          onClick={() => (searching ? setSearching(false) : openSearch())}
+          disabled={busy}
+          className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white disabled:opacity-50"
+        >
+          {searching ? '关闭搜索' : '搜索并选择'}
+        </button>
         <input
           ref={fileRef}
           type="file"
@@ -322,7 +435,7 @@ function LyricsField({ trackId }: { trackId: number }) {
           disabled={busy}
           className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white disabled:opacity-50"
         >
-          上传 .lrc 文件
+          上传 .lrc
         </button>
         <button
           type="button"
@@ -367,7 +480,185 @@ function LyricsField({ trackId }: { trackId: number }) {
         </div>
       )}
 
+      {searching && (
+        <SearchPanel
+          loading={searchLoading}
+          candidates={candidates}
+          targetDuration={track.duration_sec}
+          previewing={previewing}
+          onPreview={previewCandidate}
+          onUse={selectCandidate}
+          onClosePreview={() => setPreviewing(null)}
+        />
+      )}
+
       {msg && <div className="text-xs text-zinc-500">{msg}</div>}
+    </div>
+  );
+}
+
+/* ----------------------------- Search panel ----------------------------- */
+
+const SOURCE_LABEL: Record<string, string> = {
+  lrclib: 'LRCLIB',
+  netease: '网易云',
+  qq: 'QQ 音乐',
+};
+
+const SOURCE_COLOR: Record<string, string> = {
+  lrclib: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+  netease: 'bg-red-500/15 text-red-300 border-red-500/30',
+  qq: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+};
+
+function fmtSec(sec: number | null): string {
+  if (sec === null || !Number.isFinite(sec)) return '—';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function SearchPanel({
+  loading,
+  candidates,
+  targetDuration,
+  previewing,
+  onPreview,
+  onUse,
+  onClosePreview,
+}: {
+  loading: boolean;
+  candidates: LyricCandidate[];
+  targetDuration: number | null;
+  previewing: { cand: LyricCandidate; text: string | null; loading: boolean } | null;
+  onPreview: (c: LyricCandidate) => void;
+  onUse: (c: LyricCandidate) => void;
+  onClosePreview: () => void;
+}) {
+  return (
+    <div
+      className="rounded-lg border border-zinc-800 bg-black/30 p-2 space-y-2"
+      style={{ maxHeight: 380, overflow: 'auto' }}
+    >
+      {loading && <div className="text-xs text-zinc-500 px-2 py-1">搜索中…</div>}
+      {!loading && candidates.length === 0 && (
+        <div className="text-xs text-zinc-500 px-2 py-1">没有结果</div>
+      )}
+      {!loading && candidates.length > 0 && (
+        <div className="text-[10px] text-zinc-500 px-1">
+          共 {candidates.length} 条 · 时长偏差超过 ±5 秒会标黄
+        </div>
+      )}
+      <ul className="space-y-1">
+        {candidates.map((c) => {
+          const dt =
+            targetDuration && c.duration_sec
+              ? Math.abs(c.duration_sec - targetDuration)
+              : null;
+          const mismatch = dt !== null && dt > 5;
+          return (
+            <li
+              key={`${c.source}:${c.ext_id}`}
+              className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/[0.03]"
+            >
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded border ${SOURCE_COLOR[c.source] ?? ''}`}
+              >
+                {SOURCE_LABEL[c.source] ?? c.source}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs truncate text-zinc-200">
+                  {c.title || '（无标题）'}
+                  {c.artist && (
+                    <span className="text-zinc-500"> · {c.artist}</span>
+                  )}
+                </div>
+                <div className="text-[10px] text-zinc-500 truncate">
+                  {c.album || '—'} ·{' '}
+                  <span className={mismatch ? 'text-amber-400' : ''}>
+                    {fmtSec(c.duration_sec)}
+                    {dt !== null && (
+                      <span className="text-zinc-600">
+                        {' '}({dt > 0 ? '差 ' + Math.round(dt) + 's' : '完全匹配'})
+                      </span>
+                    )}
+                  </span>
+                  {!c.has_synced && (
+                    <span className="text-zinc-600"> · 纯文本</span>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onPreview(c)}
+                className="px-2 py-1 rounded-full bezel text-[10px] text-zinc-300 hover:text-white shrink-0"
+              >
+                预览
+              </button>
+              <button
+                type="button"
+                onClick={() => onUse(c)}
+                className="px-2 py-1 rounded-full bezel glow-text glow-ring text-[10px] shrink-0"
+              >
+                使用
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      {previewing && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4"
+          onClick={onClosePreview}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl rounded-xl shadow-2xl p-4 space-y-3 max-h-[80vh] flex flex-col"
+            style={{
+              background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
+              border: '1px solid #050506',
+            }}
+          >
+            <div className="flex items-baseline gap-2">
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded border ${SOURCE_COLOR[previewing.cand.source] ?? ''}`}
+              >
+                {SOURCE_LABEL[previewing.cand.source] ?? previewing.cand.source}
+              </span>
+              <span className="text-sm text-zinc-200 truncate">
+                {previewing.cand.title}
+                {previewing.cand.artist && (
+                  <span className="text-zinc-500"> · {previewing.cand.artist}</span>
+                )}
+              </span>
+            </div>
+            <pre
+              className="flex-1 overflow-auto text-xs font-mono whitespace-pre-wrap text-zinc-300 bg-black/40 rounded p-3"
+              style={{ minHeight: 200 }}
+            >
+              {previewing.loading ? '加载中…' : previewing.text}
+            </pre>
+            <div className="flex justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={onClosePreview}
+                className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white"
+              >
+                关闭
+              </button>
+              <button
+                type="button"
+                onClick={() => onUse(previewing.cand)}
+                disabled={previewing.loading || !previewing.text}
+                className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
+              >
+                使用这条
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
