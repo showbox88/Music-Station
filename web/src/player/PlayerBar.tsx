@@ -5,12 +5,46 @@
  * mockup the user provided (recessed pill housing the prev/play/next
  * triplet, glowing pink play button, recessed slider tracks).
  */
+import { useEffect, useState } from 'react';
 import { usePlayer } from './PlayerContext';
 import CoverThumb from '../components/CoverThumb';
+import AddToPlaylistMenu from '../components/AddToPlaylistMenu';
 import { RepeatIcon, RepeatOneIcon, ShuffleIcon } from '../components/Icons';
+import { api } from '../api';
 
 interface Props {
   onExpand?: () => void;
+  /** Called after a server-side library change so other views (e.g. the
+   *  Favorites sidebar list) can refresh. */
+  onLibraryChange?: () => void;
+}
+
+/* ---- Reusable per-track action icons ---- */
+
+function PlusIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+function HeartIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  );
 }
 
 function fmt(sec: number): string {
@@ -20,9 +54,44 @@ function fmt(sec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export default function PlayerBar({ onExpand }: Props) {
+export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
   const p = usePlayer();
+  // Optimistic favorite state — the queue's track object is shared and
+  // doesn't update on its own; mirror locally for instant feedback and
+  // reset whenever the playing track changes.
+  const [favOpt, setFavOpt] = useState<boolean | null>(null);
+  const [addingTo, setAddingTo] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    setFavOpt(null);
+  }, [p.current?.id]);
+
   if (p.queue.length === 0 || !p.current) return null;
+
+  const t = p.current;
+  const isFav = favOpt ?? t.favorited;
+
+  async function toggleFav() {
+    if (!t) return;
+    const next = !isFav;
+    setFavOpt(next);
+    try {
+      await api.updateTrack(t.id, { favorited: next });
+      // Mutate the shared track object so other places that read it
+      // (NowPlayingView, lists) see the new value without a refetch.
+      (t as { favorited: boolean }).favorited = next;
+      onLibraryChange?.();
+    } catch (err: any) {
+      setFavOpt(!next);
+      alert(`Favorite failed: ${err?.message ?? err}`);
+    }
+  }
+
+  function openAddToPlaylist(e: React.MouseEvent<HTMLButtonElement>) {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    // Anchor above the button so the popover doesn't land off-screen on
+    // a short viewport — AddToPlaylistMenu opens upward from this point.
+    setAddingTo({ x: r.left, y: r.top - 8 });
+  }
 
   const pct = p.duration > 0 ? (p.position / p.duration) * 100 : 0;
 
@@ -50,12 +119,12 @@ export default function PlayerBar({ onExpand }: Props) {
           <CoverThumb src={p.current.cover_url} size={80} />
         </button>
         <div className="flex-1 min-w-0 flex flex-col gap-2 py-0.5">
-          <button
-            onClick={onExpand}
-            title="Open full player"
-            className="min-w-0 text-left rounded-lg px-1 py-0.5 hover:bg-white/5 flex items-start gap-2"
-          >
-            <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            <button
+              onClick={onExpand}
+              title="Open full player"
+              className="min-w-0 flex-1 text-left rounded-lg px-1 py-0.5 hover:bg-white/5"
+            >
               <div className="text-sm font-medium truncate whitespace-nowrap">
                 {p.current.title || p.current.rel_path}
               </div>
@@ -63,14 +132,30 @@ export default function PlayerBar({ onExpand }: Props) {
                 {p.current.artist || '—'}
                 {p.current.album ? ` · ${p.current.album}` : ''}
               </div>
+            </button>
+            {/* Counter on top, then mini per-track action buttons under
+                it (slightly smaller than desktop's 8px squares). Same
+                bezel + glow vocabulary as the rest of the bar. */}
+            <div className="shrink-0 flex flex-col items-end gap-1 pt-0.5">
+              <span className="text-[11px] text-zinc-500 tabular-nums leading-none">
+                {(p.shuffle ? p.cursor : p.queue.findIndex((tr) => tr.id === p.current?.id)) + 1}
+                /{p.queue.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <MiniBtn onClick={openAddToPlaylist} title="Add to playlist">
+                  <PlusIcon />
+                </MiniBtn>
+                <MiniBtn
+                  onClick={toggleFav}
+                  title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+                  active={isFav}
+                  accent
+                >
+                  <HeartIcon filled={isFav} />
+                </MiniBtn>
+              </div>
             </div>
-            {/* Queue counter sits on the title line so the bottom row is
-                free for bigger transport buttons. */}
-            <span className="text-[11px] text-zinc-500 tabular-nums shrink-0 pt-0.5">
-              {(p.shuffle ? p.cursor : p.queue.findIndex((t) => t.id === p.current?.id)) + 1}
-              /{p.queue.length}
-            </span>
-          </button>
+          </div>
           <div className="flex items-center gap-2 px-1">
             {/* Main transport pill — bigger than mode buttons. prev/next
                 = 40px, play = 48px. Generous gap-2 between the three. */}
@@ -198,9 +283,22 @@ export default function PlayerBar({ onExpand }: Props) {
         <span className="text-xs text-zinc-500 tabular-nums w-10">{fmt(p.duration)}</span>
       </div>
 
-      {/* Mode toggles (desktop only — mobile copy lives inside the
-          cover/title block). */}
+      {/* Per-track actions + mode toggles (desktop only — mobile copies
+          live inside the cover/title block). Same w-8 h-8 bezel circle
+          across the row so add / favorite / shuffle / repeat read as one
+          control cluster. */}
       <div className="hidden md:flex items-center gap-2 shrink-0">
+        <ModeBtn onClick={openAddToPlaylist} title="Add to playlist">
+          <PlusIcon />
+        </ModeBtn>
+        <ModeBtn
+          onClick={toggleFav}
+          title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+          active={isFav}
+          accent
+        >
+          <HeartIcon filled={isFav} />
+        </ModeBtn>
         <ModeBtn active={p.shuffle} onClick={p.toggleShuffle} title="Shuffle">
           <ShuffleIcon />
         </ModeBtn>
@@ -252,6 +350,17 @@ export default function PlayerBar({ onExpand }: Props) {
       >
         ⤢
       </button>
+
+      {/* Add-to-playlist popover anchored near whichever + button was
+          clicked. Closes itself on outside click / Escape. */}
+      {addingTo && (
+        <AddToPlaylistMenu
+          track={t}
+          anchor={addingTo}
+          onClose={() => setAddingTo(null)}
+          onAdded={() => onLibraryChange?.()}
+        />
+      )}
     </div>
   );
 }
@@ -277,23 +386,78 @@ function TransportBtn({
 }
 
 function ModeBtn({
-  active,
+  active = false,
+  accent = false,
   onClick,
   title,
   children,
 }: {
-  active: boolean;
-  onClick: () => void;
+  active?: boolean;
+  /** When true the active state glows pink (favorite heart) instead of
+   *  the regular accent ring — visual hierarchy: love > toggle. */
+  accent?: boolean;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   title: string;
   children: React.ReactNode;
 }) {
+  const accentStyle = accent && active
+    ? {
+        color: '#ff2db5',
+        boxShadow:
+          '0 0 6px rgba(255,45,181,0.55), 0 0 14px rgba(255,45,181,0.45), inset 0 1px 0 rgba(255,255,255,0.06), 0 1px 2px rgba(0,0,0,0.6)',
+      }
+    : undefined;
   return (
     <button
       onClick={onClick}
       title={title}
       className={`w-8 h-8 rounded-full bezel flex items-center justify-center ${
-        active ? 'glow-text glow-ring' : 'text-zinc-100 hover:text-white'
+        active && !accent
+          ? 'glow-text glow-ring'
+          : !active
+            ? 'text-zinc-100 hover:text-white'
+            : ''
       }`}
+      style={accentStyle}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Mobile compact variant of ModeBtn — same vocabulary, 7×7 instead of 8×8. */
+function MiniBtn({
+  active = false,
+  accent = false,
+  onClick,
+  title,
+  children,
+}: {
+  active?: boolean;
+  accent?: boolean;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  const accentStyle = accent && active
+    ? {
+        color: '#ff2db5',
+        boxShadow:
+          '0 0 5px rgba(255,45,181,0.5), 0 0 10px rgba(255,45,181,0.4), inset 0 1px 0 rgba(255,255,255,0.06), 0 1px 2px rgba(0,0,0,0.6)',
+      }
+    : undefined;
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`w-7 h-7 rounded-full bezel flex items-center justify-center ${
+        active && !accent
+          ? 'glow-text glow-ring'
+          : !active
+            ? 'text-zinc-300 hover:text-white'
+            : ''
+      }`}
+      style={accentStyle}
     >
       {children}
     </button>

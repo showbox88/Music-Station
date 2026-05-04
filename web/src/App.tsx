@@ -98,7 +98,10 @@ function AppContent() {
           <PlaylistView playlistId={view.id} refreshKey={refreshKey} onChanged={refresh} />
         )}
       </div>
-      <PlayerBar onExpand={() => setNowPlayingOpen(true)} />
+      <PlayerBar
+        onExpand={() => setNowPlayingOpen(true)}
+        onLibraryChange={refresh}
+      />
       <NowPlayingView
         open={nowPlayingOpen}
         onClose={() => setNowPlayingOpen(false)}
