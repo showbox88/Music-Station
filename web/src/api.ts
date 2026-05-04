@@ -11,6 +11,14 @@ export interface TrackEdit {
   favorited?: boolean;
 }
 
+export interface AuthUser {
+  id: number;
+  username: string;
+  display_name: string | null;
+  is_admin: number;
+  must_change_password: number;
+}
+
 export type LyricSource = 'local' | 'lrclib' | 'netease' | 'qq' | 'kugou' | 'manual';
 
 export interface LyricsResponse {
@@ -62,36 +70,61 @@ function url(path: string): string {
   return `${API_PREFIX}${path.startsWith('/') ? path : '/' + path}`;
 }
 
-async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(url(path));
+// All API calls send the session cookie. credentials:'include' is needed
+// because Vite dev runs on a different port than the backend.
+const FETCH_OPTS: RequestInit = { credentials: 'include' };
+
+/**
+ * Listeners notified whenever the server returns 401. The auth context
+ * subscribes so it can flip into "logged out" state and the app re-renders
+ * the Login screen instead of leaking a half-broken UI.
+ */
+const unauthorizedListeners = new Set<() => void>();
+export function onUnauthorized(cb: () => void): () => void {
+  unauthorizedListeners.add(cb);
+  return () => unauthorizedListeners.delete(cb);
+}
+function notifyUnauthorized() {
+  for (const cb of unauthorizedListeners) cb();
+}
+
+async function handleResponse<T>(res: Response): Promise<T> {
+  if (res.status === 401) {
+    notifyUnauthorized();
+    throw new Error('401 Unauthorized');
+  }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
   return res.json();
+}
+
+async function getJson<T>(path: string): Promise<T> {
+  const res = await fetch(url(path), FETCH_OPTS);
+  return handleResponse<T>(res);
 }
 
 async function postJson<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(url(path), {
+    ...FETCH_OPTS,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
-  return res.json();
+  return handleResponse<T>(res);
 }
 
 async function putJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(url(path), {
+    ...FETCH_OPTS,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
-  return res.json();
+  return handleResponse<T>(res);
 }
 
 async function deleteReq<T>(path: string): Promise<T> {
-  const res = await fetch(url(path), { method: 'DELETE' });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
-  return res.json();
+  const res = await fetch(url(path), { ...FETCH_OPTS, method: 'DELETE' });
+  return handleResponse<T>(res);
 }
 
 export interface TracksQuery {
@@ -172,7 +205,15 @@ export const api = {
   uploadCover: async (trackId: number, file: File) => {
     const fd = new FormData();
     fd.append('cover', file, file.name);
-    const res = await fetch(url(`/tracks/${trackId}/cover`), { method: 'POST', body: fd });
+    const res = await fetch(url(`/tracks/${trackId}/cover`), {
+      ...FETCH_OPTS,
+      method: 'POST',
+      body: fd,
+    });
+    if (res.status === 401) {
+      notifyUnauthorized();
+      throw new Error('401 Unauthorized');
+    }
     if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
     return res.json() as Promise<{ ok: boolean; cover_url: string }>;
   },
@@ -202,6 +243,17 @@ export const api = {
   deleteLyrics: (trackId: number) =>
     deleteReq<{ ok: boolean }>(`/tracks/${trackId}/lyrics`),
 
+  // ----- auth -----
+  login: (username: string, password: string) =>
+    postJson<{ ok: boolean; user: AuthUser }>('/auth/login', { username, password }),
+  logout: () => postJson<{ ok: boolean }>('/auth/logout'),
+  me: () => getJson<{ user: AuthUser }>('/auth/me'),
+  changePassword: (oldPw: string, newPw: string) =>
+    postJson<{ ok: boolean }>('/auth/change-password', {
+      old_password: oldPw,
+      new_password: newPw,
+    }),
+
   uploadTracks: async (
     files: File[],
     onProgress?: (loaded: number, total: number) => void,
@@ -211,6 +263,7 @@ export const api = {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', url('/upload'));
+      xhr.withCredentials = true;
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable && onProgress) onProgress(e.loaded, e.total);
       };

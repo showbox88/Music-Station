@@ -4,15 +4,46 @@ import TrackList from './components/TrackList';
 import Sidebar, { type View } from './components/Sidebar';
 import PlaylistView from './components/PlaylistView';
 import LyricsEditor from './components/LyricsEditor';
+import Login from './components/Login';
+import ChangePasswordModal from './components/ChangePasswordModal';
 import { PlayerProvider, usePlayer } from './player/PlayerContext';
 import PlayerBar from './player/PlayerBar';
 import NowPlayingView from './player/NowPlayingView';
+import { AuthProvider, useAuth } from './AuthContext';
 import { api } from './api';
 
 export default function App() {
   return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
+  );
+}
+
+/**
+ * Decides which top-level UI to show based on auth state:
+ *   - loading   → blank (avoid flashing the login form for already-signed-in users)
+ *   - no user   → <Login />
+ *   - user with must_change_password → main app + forced ChangePasswordModal
+ *   - normal    → main app
+ *
+ * PlayerProvider lives INSIDE the gate so unauthenticated users don't
+ * spin up an audio context that they have no way to use.
+ */
+function AuthGate() {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="h-full w-full flex items-center justify-center text-sm text-zinc-500">
+        加载中…
+      </div>
+    );
+  }
+  if (!user) return <Login />;
+  return (
     <PlayerProvider>
       <AppContent />
+      {!!user.must_change_password && <ChangePasswordModal forced />}
     </PlayerProvider>
   );
 }

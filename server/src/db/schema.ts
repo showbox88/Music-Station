@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import bcrypt from 'bcryptjs';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
@@ -121,14 +122,68 @@ export function openDatabase(dbPath: string): Database.Database {
       uploaded_at TEXT DEFAULT (datetime('now'))
     );
 
-    -- Admin user (S5). For S1-S4 left empty, no auth enforced.
+    -- Users. Authentication enforced from Slice 1 onwards.
+    -- Migrations below add is_admin, must_change_password, display_name,
+    -- disabled to existing DBs.
     CREATE TABLE IF NOT EXISTS users (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       username      TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       created_at    TEXT DEFAULT (datetime('now'))
     );
+
+    -- Cookie-based sessions. Token is a 32-byte hex string the client
+    -- sends back via the mw_session cookie.
+    CREATE TABLE IF NOT EXISTS sessions (
+      token       TEXT PRIMARY KEY,
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at  TEXT DEFAULT (datetime('now')),
+      expires_at  TEXT NOT NULL,
+      user_agent  TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
   `);
 
+  // Idempotent column migrations on users
+  const userCols = db.prepare(`PRAGMA table_info(users)`).all() as Array<{ name: string }>;
+  const hasUserCol = (n: string) => userCols.some((c) => c.name === n);
+  if (!hasUserCol('is_admin')) {
+    db.exec(`ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!hasUserCol('must_change_password')) {
+    db.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!hasUserCol('display_name')) {
+    db.exec(`ALTER TABLE users ADD COLUMN display_name TEXT`);
+  }
+  if (!hasUserCol('disabled')) {
+    // 1 = login blocked. Lets the admin "封锁" a user without deleting their data.
+    db.exec(`ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0`);
+  }
+
   return db;
+}
+
+/**
+ * Ensure at least one admin exists. Called once at startup.
+ *
+ * If the users table is empty, creates `showbox88` with the default password
+ * "changeme123" and must_change_password=1 (forced reset on first login).
+ *
+ * Idempotent: if any user exists this is a no-op. Run after openDatabase
+ * but before the API starts.
+ */
+export function bootstrapAdmin(db: Database.Database): void {
+  const count = (db.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number }).n;
+  if (count > 0) return;
+  const hash = bcrypt.hashSync('changeme123', 10);
+  db.prepare(
+    `INSERT INTO users (username, password_hash, is_admin, must_change_password, display_name)
+     VALUES (?, ?, 1, 1, ?)`,
+  ).run('showbox88', hash, 'Admin');
+  console.error(
+    '[music-station] bootstrap: created admin showbox88 / changeme123 ' +
+    '(forced password change on first login)',
+  );
 }

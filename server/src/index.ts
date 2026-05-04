@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import express from 'express';
-import { openDatabase } from './db/schema.js';
+import { openDatabase, bootstrapAdmin } from './db/schema.js';
 import { scanLibrary } from './scanner.js';
 import { tracksRouter } from './api/tracks.js';
 import { statusRouter } from './api/status.js';
@@ -22,6 +22,7 @@ import { uploadRouter } from './api/upload.js';
 import { playlistsRouter } from './api/playlists.js';
 import { coversRouter } from './api/covers.js';
 import { lyricsRouter } from './api/lyrics.js';
+import { authRouter, requireAuth } from './api/auth.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // .env lives at repo root (../../ from server/dist/ or server/src/)
@@ -45,6 +46,7 @@ console.error(`  COVER_DIR=${COVER_DIR}`);
 console.error(`  LYRICS_DIR=${LYRICS_DIR}`);
 
 const db = openDatabase(DB_PATH);
+bootstrapAdmin(db);
 
 // Initial scan in background; API serves whatever is in DB so far.
 scanLibrary(db, MUSIC_DIR)
@@ -56,7 +58,17 @@ app.use(express.json({ limit: '4mb' }));
 
 // Static cover serving — must precede /api routers since the cover URL
 // is /api/covers/<filename>. We use express.static so range/cache work.
+// Covers are not gated: they're tiny image files referenced from <img>
+// tags which can't send credentials cross-origin reliably anyway.
 app.use('/api/covers', express.static(COVER_DIR, { maxAge: '1h', fallthrough: true }));
+
+// Auth routes (login/logout/me/change-password) — NOT gated by auth.
+app.use('/api/auth', authRouter({ db }));
+
+// Everything else under /api requires a valid session. Mounted AFTER
+// /api/auth and /api/covers (above) so those stay open. The middleware
+// attaches req.user to downstream handlers.
+app.use('/api', requireAuth(db));
 
 // API routes
 app.use('/api/tracks', tracksRouter({ db, publicUrl: PUBLIC_URL, musicDir: MUSIC_DIR, coverDir: COVER_DIR }));

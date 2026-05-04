@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { Status } from '../types';
 import UploadZone from './UploadZone';
 import DiskBar from './DiskBar';
+import { useAuth } from '../AuthContext';
+import ChangePasswordModal from './ChangePasswordModal';
 
 interface HeaderProps {
   onRescanned?: () => void;
@@ -99,7 +101,91 @@ export default function Header({ onRescanned, onUploaded, onOpenSidebar }: Heade
         >
           {scanning ? 'Scanning…' : 'Rescan + Covers'}
         </button>
+        <UserMenu />
       </div>
     </header>
+  );
+}
+
+/**
+ * Avatar-style user menu in the top-right. Click to open a small popover
+ * with display-name, change-password, and logout. Closes on outside-click
+ * or Escape.
+ */
+function UserMenu() {
+  const { user, logout } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  if (!user) return null;
+  const initial = (user.display_name?.[0] ?? user.username[0] ?? '?').toUpperCase();
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-8 h-8 rounded-full bezel text-xs font-semibold flex items-center justify-center text-zinc-200 hover:text-white"
+        title={user.display_name || user.username}
+      >
+        {initial}
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 mt-2 w-52 rounded-lg shadow-2xl py-1 z-50"
+          style={{
+            background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
+            border: '1px solid #050506',
+          }}
+        >
+          <div className="px-3 py-2 border-b border-black/60">
+            <div className="text-sm text-zinc-200 truncate">
+              {user.display_name || user.username}
+            </div>
+            <div className="text-[10px] text-zinc-500 truncate">
+              @{user.username}
+              {!!user.is_admin && <span className="ml-1 text-amber-400">· admin</span>}
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setPwOpen(true);
+              setOpen(false);
+            }}
+            className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5 hover:text-white"
+          >
+            修改密码
+          </button>
+          <button
+            onClick={() => {
+              setOpen(false);
+              logout();
+            }}
+            className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-white/5 hover:text-red-300"
+          >
+            退出登录
+          </button>
+        </div>
+      )}
+      {pwOpen && (
+        <ChangePasswordModal forced={false} onClose={() => setPwOpen(false)} />
+      )}
+    </div>
   );
 }
