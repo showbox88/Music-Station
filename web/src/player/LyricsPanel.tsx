@@ -19,7 +19,7 @@
  *   - lyrics absent             → caller decides what to render (we render nothing)
  *   - lyrics exist but no [mm:ss] timestamps → static block, no sync, no seek
  */
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePlayer } from './PlayerContext';
 
 export interface LyricsLine {
@@ -157,6 +157,19 @@ function ScrollView({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const lineRefs = useRef<Array<HTMLDivElement | null>>([]);
   const isInline = variant === 'inline';
+  // Measured container height. Only used in inline mode when the caller
+  // didn't pass an explicit padBlock — we then pad to ~40% of the
+  // container so the active line can scroll to the visual center even
+  // when the parent uses flex-1 (e.g. the "Expand" affordance grows
+  // the lyrics box dynamically).
+  const [measuredH, setMeasuredH] = useState(0);
+  useEffect(() => {
+    const c = containerRef.current;
+    if (!c) return;
+    const ro = new ResizeObserver(() => setMeasuredH(c.clientHeight));
+    ro.observe(c);
+    return () => ro.disconnect();
+  }, []);
 
   // Auto-scroll the active line into vertical center of THIS container.
   // Scoped to the container (not page) so a partly-off-screen container
@@ -172,7 +185,7 @@ function ScrollView({
     const target =
       el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2 - nudge;
     container.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
-  }, [activeIdx, isInline]);
+  }, [activeIdx, isInline, measuredH]);
 
   // Vertical fade mask — top/bottom of the scroll area dissolves into the
   // page background so lines emerge from the dark and recede into it
@@ -210,10 +223,15 @@ function ScrollView({
       className={`mw-no-scrollbar h-full overflow-y-auto text-center ${isInline ? 'px-3' : 'px-6'}`}
       style={{
         // Pad top/bottom so the first and last lines can sit at the
-        // center. Full-screen uses viewport units; inline accepts a
-        // caller-provided px value sized to ~40% of the container height.
-        paddingTop: isInline ? (padBlock ?? 70) : '40vh',
-        paddingBottom: isInline ? (padBlock ?? 70) : '40vh',
+        // center. Full-screen uses viewport units; inline uses either
+        // the caller-provided px value or 40% of the measured container
+        // height (for dynamic-height parents like the expanded lyrics box).
+        paddingTop: isInline
+          ? (padBlock ?? (measuredH > 0 ? Math.round(measuredH * 0.4) : 70))
+          : '40vh',
+        paddingBottom: isInline
+          ? (padBlock ?? (measuredH > 0 ? Math.round(measuredH * 0.4) : 70))
+          : '40vh',
         scrollBehavior: 'smooth',
         ...maskStyle,
       }}

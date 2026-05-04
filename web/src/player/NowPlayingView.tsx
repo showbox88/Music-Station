@@ -61,6 +61,9 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
   const [eqOpen, setEqOpen] = useState(false);
   const [lyricsFull, setLyricsFull] = useState(false);
   const [vizMode, setVizMode] = useState<'wave' | 'lyrics'>('wave');
+  // When true, the lyrics box grows upward to swallow the vinyl area so
+  // many more lines fit on screen. Reset on track change or wave switch.
+  const [lyricsExpanded, setLyricsExpanded] = useState(false);
   const [lyrics, setLyrics] = useState<LyricsState>({ status: 'idle' });
   const [fetchingLyrics, setFetchingLyrics] = useState(false);
   // Visualizer / lyrics area is taller on desktop than on mobile so that
@@ -127,6 +130,15 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
       setVizMode('wave');
     }
   }, [lyrics.status, vizMode]);
+
+  // Collapse the expanded lyrics view whenever we leave lyrics mode or
+  // change tracks, so a fresh play doesn't start with the vinyl hidden.
+  useEffect(() => {
+    if (vizMode !== 'lyrics') setLyricsExpanded(false);
+  }, [vizMode]);
+  useEffect(() => {
+    setLyricsExpanded(false);
+  }, [p.current?.id]);
 
   async function handleFetchLyrics() {
     const id = p.current?.id;
@@ -262,24 +274,33 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
             relative to the disc, not the page). On mobile the disc is
             slightly smaller and pushed down so the tonearm doesn't
             collide with the EQ / DOLBY buttons in the top bar; tapping
-            the disc closes the view (replaces the back arrow). */}
-        <div className="flex-1 flex items-start md:items-center justify-center min-h-0 pt-14 md:pt-0">
-          <button
-            onClick={onClose}
-            title="Back to library"
-            className="relative md:cursor-default md:pointer-events-none"
-            style={{ width: 'min(56vw, 320px)', aspectRatio: '1 / 1' }}
-          >
-            <Vinyl coverUrl={t.cover_url} spinning={p.isPlaying} />
-            <Tonearm playing={p.isPlaying} />
-          </button>
-        </div>
+            the disc closes the view (replaces the back arrow).
+            Hidden when lyricsExpanded, freeing all vertical space for
+            the lyrics column. */}
+        {!lyricsExpanded && (
+          <div className="flex-1 flex items-start md:items-center justify-center min-h-0 pt-14 md:pt-0">
+            <button
+              onClick={onClose}
+              title="Back to library"
+              className="relative md:cursor-default md:pointer-events-none"
+              style={{ width: 'min(56vw, 320px)', aspectRatio: '1 / 1' }}
+            >
+              <Vinyl coverUrl={t.cover_url} spinning={p.isPlaying} />
+              <Tonearm playing={p.isPlaying} />
+            </button>
+          </div>
+        )}
 
         {/* Visualizer / lyrics area. Top-left LRC switch toggles between
             wave and lyrics; without it, clicks inside the lyrics panel
             were ambiguous (seek vs. switch back). Same bezel style as the
-            EQ/DOLBY buttons in the top bar so it reads as a peer toggle. */}
-        <div className="shrink-0 mt-2 relative" style={{ height: vizHeight }}>
+            EQ/DOLBY buttons in the top bar so it reads as a peer toggle.
+            When lyricsExpanded, this box grows (flex-1) to swallow the
+            vinyl area above so many more lyric lines fit on screen. */}
+        <div
+          className={`mt-2 relative ${lyricsExpanded ? 'flex-1 min-h-0' : 'shrink-0'}`}
+          style={lyricsExpanded ? undefined : { height: vizHeight }}
+        >
           <button
             onClick={() => {
               if (vizMode === 'lyrics') {
@@ -304,13 +325,24 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
           >
             {vizMode === 'lyrics' ? 'Wave' : 'LRC'}
           </button>
+          {vizMode === 'lyrics' && lyrics.status === 'present' && (
+            <button
+              onClick={() => setLyricsExpanded((e) => !e)}
+              title={lyricsExpanded ? '收起歌词区' : '向上扩展歌词区'}
+              className="absolute top-2 right-2 z-10 text-[10px] px-2 py-1 rounded-full bezel text-zinc-300 hover:text-white"
+            >
+              {lyricsExpanded ? 'Shrink' : 'Expand'}
+            </button>
+          )}
           {vizMode === 'wave' ? (
             <AudioVisualizer height={vizHeight} bars={56} />
           ) : lyrics.status === 'present' ? (
             <LyricsPanel
               parsed={lyrics.parsed}
               mode="inline"
-              padBlock={Math.round(vizHeight * 0.4)}
+              // When expanded, container height is dynamic (flex-1) so we
+              // let LyricsPanel measure itself and pick a 40%-height pad.
+              padBlock={lyricsExpanded ? undefined : Math.round(vizHeight * 0.4)}
             />
           ) : null}
         </div>
