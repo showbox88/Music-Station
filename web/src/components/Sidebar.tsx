@@ -119,7 +119,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
             view.kind === 'all' ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
           }`}
         >
-          ♪ All Tracks
+          <span className="inline-block w-5 text-center mr-1">♪</span>All Tracks
         </button>
         <button
           onClick={() => setView({ kind: 'favorites' })}
@@ -127,7 +127,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
             view.kind === 'favorites' ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
           }`}
         >
-          ♥ Favorites
+          <span className="inline-block w-5 text-center mr-1">♥</span>Favorites
         </button>
         <button
           onClick={() => setView({ kind: 'lyrics-editor' })}
@@ -136,7 +136,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           }`}
           title="边听边按空格打时间戳，制作 LRC 同步歌词"
         >
-          🎤 Lyrics Editor
+          <span className="inline-block w-5 text-center mr-1">🎤</span>Lyrics Editor
         </button>
       </div>
 
