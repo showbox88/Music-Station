@@ -103,6 +103,21 @@ body {
       0 0 28px var(--accent-glow);
   }
 
+  /* Resting bezel that lights up to glow-text + glow-ring on hover. Used
+     for the +Upload / Rescan header chips so they don't shout at rest.
+     box-shadow merges the bezel's inset highlight + drop with the three
+     glow halo layers so the button still reads as a tactile bezel. */
+  .bezel-hover-glow:hover {
+    color: var(--accent);
+    text-shadow: 0 0 6px var(--accent-glow), 0 0 12px var(--accent-glow);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 1px 2px rgba(0, 0, 0, 0.6),
+      0 0 6px var(--accent-glow-strong),
+      0 0 14px var(--accent-glow),
+      0 0 28px var(--accent-glow);
+  }
+
   /* Central play button — same dark bezel face as the other transport
      buttons, with magenta-glow icon and a stronger soft halo so it still
      reads as the primary action without being a separate visual style. */

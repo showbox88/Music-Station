@@ -101,7 +101,7 @@ export default function UploadZone({ onUploaded }: Props) {
       ) : (
         <button
           onClick={() => inputRef.current?.click()}
-          className="text-xs px-3 py-1.5 rounded-full bezel glow-text glow-ring"
+          className="text-xs px-3 py-1.5 rounded-full bezel text-zinc-300 bezel-hover-glow"
         >
           + Upload
         </button>

@@ -94,7 +94,7 @@ export default function Header({ onRescanned, onUploaded, onOpenSidebar }: Heade
         <button
           onClick={onRescan}
           disabled={scanning}
-          className="hidden md:inline-flex text-xs px-3 py-1.5 rounded-full bezel disabled:opacity-50 text-zinc-300 hover:text-white"
+          className="hidden md:inline-flex text-xs px-3 py-1.5 rounded-full bezel disabled:opacity-50 text-zinc-300 bezel-hover-glow"
           title="Scan music dir + auto-fetch missing covers from iTunes"
         >
           {scanning ? 'Scanning…' : 'Rescan + Covers'}
