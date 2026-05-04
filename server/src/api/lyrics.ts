@@ -38,7 +38,7 @@ interface TrackRow {
   duration_sec: number | null;
 }
 
-type SourceName = 'lrclib' | 'netease' | 'qq';
+type SourceName = 'lrclib' | 'netease' | 'qq' | 'kugou';
 
 interface Candidate {
   source: SourceName;
@@ -295,9 +295,117 @@ async function getQQ(extId: string): Promise<LyricBody> {
   }
 }
 
+/* -------------------------------- Kugou ------------------------------- */
+
+const KUGOU_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+};
+
+// Kugou's ext_id encodes both hash and duration_ms because the lyric
+// download endpoint matches by hash+duration to disambiguate covers/remixes.
+// Format: "<hash>:<durationMs>"
+function kugouExtId(hash: string, durationMs: number): string {
+  return `${hash}:${durationMs}`;
+}
+function parseKugouExtId(ext: string): { hash: string; durationMs: number } | null {
+  const [hash, ms] = ext.split(':');
+  if (!hash || !ms) return null;
+  const durationMs = Number(ms);
+  if (!Number.isFinite(durationMs)) return null;
+  return { hash, durationMs };
+}
+
+async function searchKugou(t: TrackRow): Promise<Candidate[]> {
+  if (!t.title) return [];
+  const query = `${t.artist ?? ''} ${t.title}`.trim().slice(0, 200);
+  try {
+    const url =
+      `https://mobileservice.kugou.com/api/v3/search/song` +
+      `?keyword=${encodeURIComponent(query)}&page=1&pagesize=10&showtype=10`;
+    const resp = await fetch(url, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: KUGOU_HEADERS,
+    });
+    if (!resp.ok) return [];
+    const j = (await resp.json()) as {
+      data?: {
+        info?: Array<{
+          hash?: string;
+          songname?: string;
+          singername?: string;
+          album_name?: string;
+          duration?: number;  // seconds
+        }>;
+      };
+    };
+    const list = j.data?.info;
+    if (!Array.isArray(list)) return [];
+    return list
+      .filter((s) => s.hash)
+      .slice(0, 10)
+      .map((s) => ({
+        source: 'kugou' as const,
+        ext_id: kugouExtId(s.hash as string, (s.duration ?? 0) * 1000),
+        title: s.songname ?? '',
+        artist: s.singername ?? '',
+        album: s.album_name || null,
+        duration_sec: typeof s.duration === 'number' ? s.duration : null,
+        has_synced: true,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+async function getKugou(extId: string): Promise<LyricBody> {
+  const parsed = parseKugouExtId(extId);
+  if (!parsed) return EMPTY_BODY;
+  try {
+    // Step 1: krcs lookup → returns candidates [{ id, accesskey, ... }]
+    const lookupUrl =
+      `https://krcs.kugou.com/search?ver=1&man=yes&client=mobi` +
+      `&hash=${encodeURIComponent(parsed.hash)}&duration=${parsed.durationMs}`;
+    const lResp = await fetch(lookupUrl, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: KUGOU_HEADERS,
+    });
+    if (!lResp.ok) return EMPTY_BODY;
+    const lJ = (await lResp.json()) as {
+      candidates?: Array<{ id?: string; accesskey?: string }>;
+    };
+    const cand = lJ.candidates?.[0];
+    if (!cand?.id || !cand?.accesskey) return EMPTY_BODY;
+
+    // Step 2: download lrc (charset=utf8 returns base64-encoded UTF-8 LRC)
+    const dlUrl =
+      `https://lyrics.kugou.com/download?ver=1&client=pc&fmt=lrc&charset=utf8` +
+      `&id=${encodeURIComponent(cand.id)}&accesskey=${encodeURIComponent(cand.accesskey)}`;
+    const dResp = await fetch(dlUrl, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: KUGOU_HEADERS,
+    });
+    if (!dResp.ok) return EMPTY_BODY;
+    const dJ = (await dResp.json()) as { content?: string; status?: number };
+    if (dJ.status !== 200 || !dJ.content) return EMPTY_BODY;
+    let text: string;
+    try {
+      text = Buffer.from(dJ.content, 'base64').toString('utf8').trim();
+    } catch {
+      return EMPTY_BODY;
+    }
+    if (!text) return EMPTY_BODY;
+    return hasTimestamps(text)
+      ? { synced: text, plain: null }
+      : { synced: null, plain: text };
+  } catch {
+    return EMPTY_BODY;
+  }
+}
+
 /* ------------------------------ Dispatch ------------------------------ */
 
-const SOURCES: SourceName[] = ['lrclib', 'netease', 'qq'];
+const SOURCES: SourceName[] = ['lrclib', 'netease', 'qq', 'kugou'];
 
 async function searchAll(t: TrackRow): Promise<Candidate[]> {
   // Run all sources in parallel; ignore individual failures.
@@ -305,6 +413,7 @@ async function searchAll(t: TrackRow): Promise<Candidate[]> {
     searchLrclib(t),
     searchNetease(t),
     searchQQ(t),
+    searchKugou(t),
   ]);
   const out: Candidate[] = [];
   for (const r of results) {
@@ -318,6 +427,7 @@ async function getBySource(source: SourceName, extId: string): Promise<LyricBody
     case 'lrclib': return getLrclib(extId);
     case 'netease': return getNetease(extId);
     case 'qq': return getQQ(extId);
+    case 'kugou': return getKugou(extId);
   }
 }
 
@@ -445,7 +555,7 @@ export function lyricsRouter({ db, lyricsDir }: Deps): Router {
       return;
     }
 
-    const priority: Record<SourceName, number> = { lrclib: 0, netease: 1, qq: 2 };
+    const priority: Record<SourceName, number> = { lrclib: 0, netease: 1, qq: 2, kugou: 3 };
     const target = t.duration_sec ?? null;
     const ranked = [...candidates].sort((a, b) => {
       // Prefer candidates with synced lyrics

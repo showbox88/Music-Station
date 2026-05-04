@@ -11,7 +11,7 @@ export interface TrackEdit {
   favorited?: boolean;
 }
 
-export type LyricSource = 'local' | 'lrclib' | 'netease' | 'qq' | 'manual';
+export type LyricSource = 'local' | 'lrclib' | 'netease' | 'qq' | 'kugou' | 'manual';
 
 export interface LyricsResponse {
   found: boolean;
@@ -21,7 +21,7 @@ export interface LyricsResponse {
 }
 
 export interface LyricCandidate {
-  source: 'lrclib' | 'netease' | 'qq';
+  source: 'lrclib' | 'netease' | 'qq' | 'kugou';
   ext_id: string;
   title: string;
   artist: string;
@@ -38,7 +38,7 @@ export interface LyricSearchResponse {
 export interface LyricPreviewResponse {
   ok: boolean;
   found: boolean;
-  source?: 'lrclib' | 'netease' | 'qq';
+  source?: 'lrclib' | 'netease' | 'qq' | 'kugou';
   ext_id?: string;
   synced?: string | null;
   plain?: string | null;

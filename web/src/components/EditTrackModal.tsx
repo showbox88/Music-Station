@@ -503,12 +503,14 @@ const SOURCE_LABEL: Record<string, string> = {
   lrclib: 'LRCLIB',
   netease: '网易云',
   qq: 'QQ 音乐',
+  kugou: '酷狗',
 };
 
 const SOURCE_COLOR: Record<string, string> = {
   lrclib: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
   netease: 'bg-red-500/15 text-red-300 border-red-500/30',
   qq: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+  kugou: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
 };
 
 function fmtSec(sec: number | null): string {
