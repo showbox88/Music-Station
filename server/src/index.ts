@@ -65,6 +65,17 @@ app.use('/api/covers', express.static(COVER_DIR, { maxAge: '1h', fallthrough: tr
 // Auth routes (login/logout/me/change-password) — NOT gated by auth.
 app.use('/api/auth', authRouter({ db }));
 
+// Public health probe for deploy.sh and external monitors. Intentionally
+// minimal so it can't be used to enumerate library contents.
+app.get('/api/health', (_req, res) => {
+  res.json({
+    ok: true,
+    service: 'music-station',
+    version: '0.1.0',
+    uptime_sec: Math.round((Date.now() - startedAt.getTime()) / 1000),
+  });
+});
+
 // Everything else under /api requires a valid session. Mounted AFTER
 // /api/auth and /api/covers (above) so those stay open. The middleware
 // attaches req.user to downstream handlers.

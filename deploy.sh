@@ -13,7 +13,7 @@ set -euo pipefail
 
 REPO_DIR=/opt/music-station
 SERVICE=music-station
-HEALTH_URL=http://127.0.0.1:3002/api/status
+HEALTH_URL=http://127.0.0.1:3002/api/health
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "deploy.sh: must be invoked via sudo" >&2
