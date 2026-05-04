@@ -111,7 +111,8 @@ function dto(row: TrackRow, publicUrl: string, meId: number) {
  *   - mine
  *   - public
  *   - directly shared with me
- *   - in any playlist visible to me (transitive: shared playlist → tracks in it)
+ *   - in any playlist visible to me (transitive: shared/public playlist → tracks in it)
+ *   - in someone's favorites that are visible to me (Slice 5: shared/public favorites → tracks in them)
  *
  * The @me bind param must be set on the caller's parameter object.
  */
@@ -127,6 +128,15 @@ const VISIBLE_PREDICATE = `(
         p.owner_id = @me
         OR p.is_public = 1
         OR EXISTS (SELECT 1 FROM playlist_shares ps2 WHERE ps2.playlist_id = p.id AND ps2.with_user_id = @me)
+      )
+  )
+  OR EXISTS (
+    SELECT 1 FROM user_favorites uf
+    JOIN users uo ON uo.id = uf.user_id
+    WHERE uf.track_id = t.id
+      AND (
+        uo.favorites_public = 1
+        OR EXISTS (SELECT 1 FROM favorites_shares fs WHERE fs.owner_user_id = uo.id AND fs.with_user_id = @me)
       )
   )
 )`;

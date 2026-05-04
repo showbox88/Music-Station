@@ -219,6 +219,20 @@ export function openDatabase(dbPath: string): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_user_favorites_track ON user_favorites(track_id);
   `);
 
+  // ---- Slice 5: favorites-list sharing ----
+  if (!hasUserCol('favorites_public')) {
+    db.exec(`ALTER TABLE users ADD COLUMN favorites_public INTEGER NOT NULL DEFAULT 0`);
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS favorites_shares (
+      owner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      with_user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at    TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (owner_user_id, with_user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_favorites_shares_with_user ON favorites_shares(with_user_id);
+  `);
+
   return db;
 }
 

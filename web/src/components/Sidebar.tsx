@@ -4,13 +4,15 @@
  */
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import type { Playlist } from '../types';
+import type { FavoritesOwner, Playlist } from '../types';
 import { usePlayer } from '../player/PlayerContext';
 import { useAuth } from '../AuthContext';
+import FavoritesShareModal from './FavoritesShareModal';
 
 export type View =
   | { kind: 'all' }
   | { kind: 'favorites' }
+  | { kind: 'user-favorites'; userId: number; ownerName: string }
   | { kind: 'lyrics-editor' }
   | { kind: 'admin' }
   | { kind: 'playlist'; id: number };
@@ -27,9 +29,11 @@ interface Props {
 
 export default function Sidebar({ view, setView, refreshKey, onChanged, open = false, onClose }: Props) {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [favOwners, setFavOwners] = useState<FavoritesOwner[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [favShareOpen, setFavShareOpen] = useState(false);
   const player = usePlayer();
   const { user } = useAuth();
 
@@ -38,6 +42,10 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
       .listPlaylists()
       .then((r) => setPlaylists(r.playlists))
       .catch((e) => setErr(String(e?.message ?? e)));
+    api
+      .visibleFavoritesOwners()
+      .then((r) => setFavOwners(r.owners))
+      .catch(() => setFavOwners([]));
   }
   useEffect(load, [refreshKey]);
 
@@ -124,14 +132,59 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
         >
           <span className="inline-block w-5 text-center mr-1">{'♪︎'}</span>All Tracks
         </button>
-        <button
-          onClick={() => setView({ kind: 'favorites' })}
-          className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
+        <div
+          className={`group flex items-center w-full px-3 py-2 rounded-lg text-sm cursor-pointer ${
             view.kind === 'favorites' ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
           }`}
+          onClick={() => setView({ kind: 'favorites' })}
         >
-          <span className="inline-block w-5 text-center mr-1">{'♥︎'}</span>Favorites
-        </button>
+          <span className="inline-block w-5 text-center mr-1">{'♥︎'}</span>
+          <span className="flex-1">Favorites</span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setFavShareOpen(true);
+            }}
+            className="opacity-0 group-hover:opacity-100 text-xs px-1 text-zinc-400 hover:text-white"
+            title="分享我的收藏"
+          >
+            🔗
+          </button>
+        </div>
+        {favOwners.map((o) => {
+          const selected =
+            view.kind === 'user-favorites' && view.userId === o.user.id;
+          const ownerLabel = o.user.display_name || o.user.username;
+          return (
+            <button
+              key={o.user.id}
+              onClick={() =>
+                setView({
+                  kind: 'user-favorites',
+                  userId: o.user.id,
+                  ownerName: ownerLabel,
+                })
+              }
+              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 ${
+                selected ? 'bezel glow-text' : 'text-zinc-400 hover:bg-white/5'
+              }`}
+              title={
+                o.shared_with_me
+                  ? `${ownerLabel} 把收藏分享给了你`
+                  : `${ownerLabel} 的收藏是公开的`
+              }
+            >
+              <span className="inline-block w-5 text-center text-zinc-500">♥</span>
+              <span className="flex-1 truncate">{ownerLabel} 的收藏</span>
+              {o.shared_with_me ? (
+                <span className="text-[9px] uppercase text-pink-300/70">分享</span>
+              ) : (
+                <span className="text-[9px] uppercase text-zinc-500/70">公开</span>
+              )}
+              <span className="text-[10px] text-zinc-500 tabular-nums ml-1">{o.count}</span>
+            </button>
+          );
+        })}
         <button
           onClick={() => setView({ kind: 'lyrics-editor' })}
           className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
@@ -269,6 +322,12 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
 
         {err && <div className="text-xs text-red-400 px-2 py-1">{err}</div>}
       </div>
+      {favShareOpen && (
+        <FavoritesShareModal
+          onClose={() => setFavShareOpen(false)}
+          onChanged={load}
+        />
+      )}
     </aside>
   );
 }

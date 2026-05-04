@@ -36,6 +36,26 @@ export interface ShareUser {
   display_name: string | null;
 }
 
+export interface FavoritesOwner {
+  user: ShareUser;
+  count: number;
+  is_public: boolean;
+  shared_with_me: boolean;
+}
+
+export interface FavoritesView {
+  user: ShareUser;
+  is_public: boolean;
+  shared_with_me: boolean;
+  is_owner: boolean;
+  tracks: Track[];
+}
+
+export interface FavoritesSettings {
+  is_public: boolean;
+  shared_with: ShareUser[];
+}
+
 export interface TrackListResponse {
   total: number;
   limit: number;

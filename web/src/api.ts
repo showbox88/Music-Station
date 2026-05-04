@@ -1,4 +1,7 @@
 import type {
+  FavoritesOwner,
+  FavoritesSettings,
+  FavoritesView,
   Playlist,
   PlaylistDetail,
   ShareUser,
@@ -202,6 +205,21 @@ export const api = {
       user_ids: userIds,
     }),
   shareCandidates: () => getJson<{ users: ShareUser[] }>('/users/share-candidates'),
+
+  // ----- favorites sharing -----
+  getFavoritesSettings: () => getJson<FavoritesSettings>('/favorites/settings'),
+  setFavoritesVisibility: (isPublic: boolean) =>
+    putJson<{ ok: boolean; is_public: boolean }>('/favorites/visibility', {
+      is_public: isPublic,
+    }),
+  setFavoritesShares: (userIds: number[]) =>
+    putJson<{ ok: boolean; shared_with: ShareUser[] }>('/favorites/shares', {
+      user_ids: userIds,
+    }),
+  visibleFavoritesOwners: () =>
+    getJson<{ owners: FavoritesOwner[] }>('/favorites/visible-owners'),
+  getUserFavorites: (userId: number) =>
+    getJson<FavoritesView>(`/favorites/of/${userId}`),
   getTrackByPath: (relPath: string) =>
     getJson<Track>(`/tracks/by-path?p=${encodeURIComponent(relPath)}`),
   deleteTrack: async (id: number) => {

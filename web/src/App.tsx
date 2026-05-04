@@ -5,6 +5,7 @@ import Sidebar, { type View } from './components/Sidebar';
 import PlaylistView from './components/PlaylistView';
 import LyricsEditor from './components/LyricsEditor';
 import AdminPanel from './components/AdminPanel';
+import UserFavoritesView from './components/UserFavoritesView';
 import Login from './components/Login';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import { PlayerProvider, usePlayer } from './player/PlayerContext';
@@ -128,6 +129,13 @@ function AppContent() {
           <LyricsEditor />
         ) : view.kind === 'admin' ? (
           <AdminPanel />
+        ) : view.kind === 'user-favorites' ? (
+          <UserFavoritesView
+            userId={view.userId}
+            ownerName={view.ownerName}
+            refreshKey={refreshKey}
+            onChanged={refresh}
+          />
         ) : (
           <PlaylistView playlistId={view.id} refreshKey={refreshKey} onChanged={refresh} />
         )}

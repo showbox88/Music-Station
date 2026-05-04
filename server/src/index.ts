@@ -25,6 +25,7 @@ import { lyricsRouter } from './api/lyrics.js';
 import { authRouter, requireAuth, requireAdmin } from './api/auth.js';
 import { adminRouter } from './api/admin.js';
 import { usersRouter } from './api/users.js';
+import { favoritesRouter } from './api/favorites.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // .env lives at repo root (../../ from server/dist/ or server/src/)
@@ -89,6 +90,7 @@ app.use('/api/admin', requireAdmin(db), adminRouter({ db }));
 
 // Per-user routes (any logged-in user)
 app.use('/api/users', usersRouter({ db }));
+app.use('/api/favorites', favoritesRouter({ db, publicUrl: PUBLIC_URL }));
 
 // API routes
 app.use('/api/tracks', tracksRouter({ db, publicUrl: PUBLIC_URL, musicDir: MUSIC_DIR, coverDir: COVER_DIR }));
