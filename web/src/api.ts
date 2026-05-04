@@ -225,6 +225,16 @@ export const api = {
     deleteReq<{ ok: boolean }>(`/playlists/${id}/tracks/${trackId}`),
   reorderPlaylist: (id: number, trackIds: number[]) =>
     putJson<{ ok: boolean; count: number }>(`/playlists/${id}/order`, { track_ids: trackIds }),
+  setPlaylistVisibility: (id: number, isPublic: boolean) =>
+    putJson<{ ok: boolean; is_public: boolean }>(`/playlists/${id}/visibility`, {
+      is_public: isPublic,
+    }),
+  getPlaylistShares: (id: number) =>
+    getJson<{ shared_with: ShareUser[] }>(`/playlists/${id}/shares`),
+  setPlaylistShares: (id: number, userIds: number[]) =>
+    putJson<{ ok: boolean; shared_with: ShareUser[] }>(`/playlists/${id}/shares`, {
+      user_ids: userIds,
+    }),
 
   // ----- covers -----
   searchCovers: (q: string, limit = 12) =>

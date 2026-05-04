@@ -182,6 +182,25 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
 
         {playlists.map((pl) => {
           const selected = view.kind === 'playlist' && view.id === pl.id;
+          // Sharing badge — show only for non-owned playlists.
+          const ownerLabel = pl.owner_display_name || pl.owner_username || '';
+          const badge = pl.is_owner
+            ? pl.is_public
+              ? { text: '公开', cls: 'text-emerald-300/80', title: '所有用户可见' }
+              : null
+            : pl.shared_with_me
+              ? {
+                  text: `← ${ownerLabel}`,
+                  cls: 'text-pink-300/80',
+                  title: `${ownerLabel} 把这个列表分享给了你`,
+                }
+              : pl.is_public
+                ? {
+                    text: `公开 · ${ownerLabel}`,
+                    cls: 'text-zinc-400/80',
+                    title: `${ownerLabel} 把这个列表设为公开`,
+                  }
+                : null;
           return (
             <div
               key={pl.id}
@@ -191,7 +210,17 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
               onClick={() => setView({ kind: 'playlist', id: pl.id })}
             >
               <span className="mr-2 opacity-70">▤</span>
-              <span className="flex-1 truncate">{pl.name}</span>
+              <span className="flex-1 min-w-0 truncate">
+                <span className="truncate align-middle">{pl.name}</span>
+                {badge && (
+                  <span
+                    className={`ml-1.5 text-[9px] uppercase ${badge.cls}`}
+                    title={badge.title}
+                  >
+                    {badge.text}
+                  </span>
+                )}
+              </span>
               <span className="text-xs text-zinc-500 ml-2 tabular-nums">{pl.track_count}</span>
               <span className="ml-2 opacity-0 group-hover:opacity-100 flex gap-1">
                 <button
@@ -205,26 +234,30 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
                 >
                   ▶
                 </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRename(pl);
-                  }}
-                  className="text-xs px-1 text-zinc-400 hover:text-white"
-                  title="Rename"
-                >
-                  ✎
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(pl);
-                  }}
-                  className="text-xs px-1 text-zinc-400 hover:text-red-400"
-                  title="Delete"
-                >
-                  ✕
-                </button>
+                {pl.is_owner && (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRename(pl);
+                      }}
+                      className="text-xs px-1 text-zinc-400 hover:text-white"
+                      title="Rename"
+                    >
+                      ✎
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(pl);
+                      }}
+                      className="text-xs px-1 text-zinc-400 hover:text-red-400"
+                      title="Delete"
+                    >
+                      ✕
+                    </button>
+                  </>
+                )}
               </span>
             </div>
           );

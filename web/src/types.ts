@@ -61,12 +61,16 @@ export interface Playlist {
   description: string | null;
   created_at: string;
   track_count: number;
+  // Slice 4 — ownership / visibility
+  owner_id: number | null;
+  owner_username: string | null;
+  owner_display_name: string | null;
+  is_public: boolean;
+  is_owner: boolean;
+  shared_with_me: boolean;
+  source: TrackSource;
 }
 
-export interface PlaylistDetail {
-  id: number;
-  name: string;
-  description: string | null;
-  created_at: string;
+export interface PlaylistDetail extends Playlist {
   tracks: Track[];
 }

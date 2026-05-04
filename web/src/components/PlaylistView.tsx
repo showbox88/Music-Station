@@ -72,12 +72,31 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="px-6 py-3 border-b border-black/60 flex items-center justify-between"
+      <div className="px-6 py-3 border-b border-black/60 flex flex-wrap items-center justify-between gap-2"
         style={{ background: 'linear-gradient(180deg, #1c1c1e 0%, #18181a 100%)' }}>
         {data ? (
           <>
-            <div>
-              <h2 className="text-lg font-semibold">{data.name}</h2>
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold truncate">
+                {data.name}
+                {!data.is_owner && (
+                  <span
+                    className="ml-2 text-[10px] uppercase px-1.5 py-0.5 rounded border border-pink-500/30 bg-pink-500/10 text-pink-300 align-middle"
+                    title={`所有者：${data.owner_display_name || data.owner_username}`}
+                  >
+                    {data.shared_with_me ? '分享自' : '公开 ·'}{' '}
+                    {data.owner_display_name || data.owner_username}
+                  </span>
+                )}
+                {data.is_owner && data.is_public && (
+                  <span
+                    className="ml-2 text-[10px] uppercase px-1.5 py-0.5 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 align-middle"
+                    title="所有用户可见"
+                  >
+                    公开
+                  </span>
+                )}
+              </h2>
               <div className="text-xs text-zinc-500">
                 {data.tracks.length} track{data.tracks.length !== 1 ? 's' : ''}
                 {data.description ? ` · ${data.description}` : ''}
@@ -102,6 +121,9 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
               >
                 🔀 Shuffle
               </button>
+              {data.is_owner && (
+                <PlaylistShareControls playlist={data} onChanged={load} />
+              )}
             </div>
           </>
         ) : (
@@ -217,34 +239,38 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                 </td>
                 <td className="pr-2 md:pr-4 text-right whitespace-nowrap">
                   <div className="inline-flex items-center gap-1.5 md:gap-2">
-                    {/* Reorder arrows are desktop-only — drag/up-down on
-                        a phone is awkward, leave it for the desktop view. */}
-                    <button
-                      onClick={() => move(idx, -1)}
-                      disabled={idx === 0}
-                      title="Move up"
-                      className="hidden md:flex w-8 h-8 rounded-full bezel items-center justify-center text-zinc-300 hover:text-white disabled:opacity-30"
-                    >
-                      ↑
-                    </button>
-                    <button
-                      onClick={() => move(idx, 1)}
-                      disabled={idx === (data?.tracks.length ?? 0) - 1}
-                      title="Move down"
-                      className="hidden md:flex w-8 h-8 rounded-full bezel items-center justify-center text-zinc-300 hover:text-white disabled:opacity-30"
-                    >
-                      ↓
-                    </button>
-                    <button
-                      onClick={() => remove(t)}
-                      title="Remove from playlist"
-                      className="w-8 h-8 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-red-400"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                      </svg>
-                    </button>
+                    {/* Reorder + remove only for the playlist owner —
+                        non-owners can play but not modify the list. */}
+                    {data?.is_owner && (
+                      <>
+                        <button
+                          onClick={() => move(idx, -1)}
+                          disabled={idx === 0}
+                          title="Move up"
+                          className="hidden md:flex w-8 h-8 rounded-full bezel items-center justify-center text-zinc-300 hover:text-white disabled:opacity-30"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          onClick={() => move(idx, 1)}
+                          disabled={idx === (data?.tracks.length ?? 0) - 1}
+                          title="Move down"
+                          className="hidden md:flex w-8 h-8 rounded-full bezel items-center justify-center text-zinc-300 hover:text-white disabled:opacity-30"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          onClick={() => remove(t)}
+                          title="Remove from playlist"
+                          className="w-8 h-8 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-red-400"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                          </svg>
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -276,6 +302,200 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Visibility / share controls for a playlist owner. A button in the header
+ * opens a modal: "公开" toggle + user checklist (replace semantics for the
+ * share list). On change, calls onChanged() so the parent refreshes the
+ * data (which updates the badge in the header + sidebar).
+ */
+function PlaylistShareControls({
+  playlist,
+  onChanged,
+}: {
+  playlist: PlaylistDetail;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="px-3 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
+        title="可见性 / 分享"
+      >
+        🔗 分享
+      </button>
+      {open && (
+        <PlaylistShareModal
+          playlist={playlist}
+          onClose={() => setOpen(false)}
+          onChanged={onChanged}
+        />
+      )}
+    </>
+  );
+}
+
+function PlaylistShareModal({
+  playlist,
+  onClose,
+  onChanged,
+}: {
+  playlist: PlaylistDetail;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [isPublic, setIsPublic] = useState(playlist.is_public);
+  const [busy, setBusy] = useState(false);
+  const [candidates, setCandidates] = useState<
+    Array<{ id: number; username: string; display_name: string | null }>
+  >([]);
+  const [shared, setShared] = useState<Set<number>>(new Set());
+  const [origShared, setOrigShared] = useState<Set<number>>(new Set());
+  const [loaded, setLoaded] = useState(false);
+  const [savingShares, setSavingShares] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([api.shareCandidates(), api.getPlaylistShares(playlist.id)])
+      .then(([cands, mine]) => {
+        setCandidates(cands.users);
+        const ids = new Set(mine.shared_with.map((u) => u.id));
+        setShared(ids);
+        setOrigShared(new Set(ids));
+        setLoaded(true);
+      })
+      .catch((e: any) => setMsg(`加载失败：${e?.message ?? e}`));
+  }, [playlist.id]);
+
+  async function togglePublic() {
+    if (busy) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await api.setPlaylistVisibility(playlist.id, !isPublic);
+      setIsPublic(r.is_public);
+      onChanged();
+      setMsg(r.is_public ? '已设为公开' : '已设为私有');
+    } catch (e: any) {
+      setMsg(`保存失败：${e?.message ?? e}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggleShare(id: number) {
+    setShared((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const dirty =
+    shared.size !== origShared.size ||
+    [...shared].some((id) => !origShared.has(id));
+
+  async function saveShares() {
+    if (savingShares || !dirty) return;
+    setSavingShares(true);
+    setMsg(null);
+    try {
+      await api.setPlaylistShares(playlist.id, [...shared]);
+      setOrigShared(new Set(shared));
+      onChanged();
+      setMsg(`已更新分享列表（${shared.size} 人）`);
+    } catch (e: any) {
+      setMsg(`保存失败：${e?.message ?? e}`);
+    } finally {
+      setSavingShares(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-xl shadow-2xl p-6 space-y-3"
+        style={{
+          background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
+          border: '1px solid #050506',
+        }}
+      >
+        <div>
+          <h2 className="text-base font-semibold">分享 “{playlist.name}”</h2>
+          <p className="text-xs text-zinc-500 mt-1">
+            列表对别人可见时，列表里的歌曲也跟着可见（即使是私有歌）。
+          </p>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-zinc-200">
+          <input
+            type="checkbox"
+            checked={isPublic}
+            onChange={togglePublic}
+            disabled={busy}
+          />
+          公开（所有登录用户都能看到）
+        </label>
+
+        <div className="text-xs text-zinc-500">或者只分享给特定用户：</div>
+
+        {!loaded ? (
+          <div className="text-xs text-zinc-500">加载用户列表…</div>
+        ) : candidates.length === 0 ? (
+          <div className="text-xs text-zinc-600">暂无其他用户。</div>
+        ) : (
+          <div className="max-h-48 overflow-auto rounded border border-zinc-800 bg-black/30 p-1.5 space-y-0.5">
+            {candidates.map((u) => (
+              <label
+                key={u.id}
+                className="flex items-center gap-2 text-sm text-zinc-300 px-1.5 py-1 rounded hover:bg-white/5 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={shared.has(u.id)}
+                  onChange={() => toggleShare(u.id)}
+                />
+                <span className="truncate">
+                  {u.display_name || u.username}
+                  <span className="text-zinc-600 ml-1">@{u.username}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {msg && <div className="text-xs text-zinc-500">{msg}</div>}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
+          >
+            关闭
+          </button>
+          {loaded && candidates.length > 0 && (
+            <button
+              type="button"
+              onClick={saveShares}
+              disabled={!dirty || savingShares}
+              className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-40"
+            >
+              {savingShares ? '保存中…' : dirty ? '保存分享列表' : '已保存'}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

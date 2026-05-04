@@ -185,6 +185,28 @@ export function openDatabase(dbPath: string): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_track_shares_with_user ON track_shares(with_user_id);
   `);
 
+  // ---- Slice 4: playlist ownership & sharing (with transitive visibility) ----
+  const playlistCols = db.prepare(`PRAGMA table_info(playlists)`).all() as Array<{ name: string }>;
+  const hasPlaylistCol = (n: string) => playlistCols.some((c) => c.name === n);
+  if (!hasPlaylistCol('owner_id')) {
+    db.exec(`ALTER TABLE playlists ADD COLUMN owner_id INTEGER REFERENCES users(id)`);
+  }
+  if (!hasPlaylistCol('is_public')) {
+    db.exec(`ALTER TABLE playlists ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0`);
+  }
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_playlists_owner ON playlists(owner_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_playlists_public ON playlists(is_public)`);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS playlist_shares (
+      playlist_id  INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+      with_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at   TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (playlist_id, with_user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_playlist_shares_with_user ON playlist_shares(with_user_id);
+  `);
+
   // Per-user favorites. Replaces the legacy single-tenant tracks.favorited
   // column (kept around for backfill but no longer read/written by the API).
   db.exec(`
@@ -222,6 +244,16 @@ export function backfillOwnership(db: Database.Database): void {
   if (orphans > 0) {
     db.prepare('UPDATE tracks SET owner_id = ? WHERE owner_id IS NULL').run(adminId);
     console.error(`[music-station] backfill: assigned owner_id=${adminId} to ${orphans} tracks`);
+  }
+
+  const orphanPlaylists = (
+    db.prepare('SELECT COUNT(*) AS n FROM playlists WHERE owner_id IS NULL').get() as { n: number }
+  ).n;
+  if (orphanPlaylists > 0) {
+    db.prepare('UPDATE playlists SET owner_id = ? WHERE owner_id IS NULL').run(adminId);
+    console.error(
+      `[music-station] backfill: assigned owner_id=${adminId} to ${orphanPlaylists} playlists`,
+    );
   }
 
   // Migrate legacy tracks.favorited → user_favorites for the admin.

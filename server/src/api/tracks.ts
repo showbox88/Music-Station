@@ -66,11 +66,13 @@ function buildCoverUrl(coverFilename: string | null, version: string | null): st
 function dto(row: TrackRow, publicUrl: string, meId: number) {
   const isOwner = row.owner_id === meId;
   // "source" = where this row came from for the calling user. Used by the
-  // UI to render badges and apply the filter chips.
+  // UI to render badges and apply the filter chips. With transitive
+  // sharing (Slice 4) a "shared" track may have come via a direct
+  // track_share OR via a shared/owned playlist — we collapse both into
+  // 'shared' since the UI just shows "shared by <owner>".
   let source: 'mine' | 'public' | 'shared' = 'mine';
   if (!isOwner) {
-    if (row.shared_with_me) source = 'shared';
-    else source = 'public';
+    source = row.is_public ? 'public' : 'shared';
   }
   return {
     id: row.id,
@@ -104,8 +106,12 @@ function dto(row: TrackRow, publicUrl: string, meId: number) {
 
 /**
  * Visibility predicate fragment to drop into a WHERE.
- * Returns SQL like:
- *   (t.owner_id = @me OR t.is_public = 1 OR EXISTS (...))
+ *
+ * A track is visible to :me iff:
+ *   - mine
+ *   - public
+ *   - directly shared with me
+ *   - in any playlist visible to me (transitive: shared playlist → tracks in it)
  *
  * The @me bind param must be set on the caller's parameter object.
  */
@@ -113,6 +119,16 @@ const VISIBLE_PREDICATE = `(
   t.owner_id = @me
   OR t.is_public = 1
   OR EXISTS (SELECT 1 FROM track_shares ts WHERE ts.track_id = t.id AND ts.with_user_id = @me)
+  OR EXISTS (
+    SELECT 1 FROM playlist_tracks pt
+    JOIN playlists p ON p.id = pt.playlist_id
+    WHERE pt.track_id = t.id
+      AND (
+        p.owner_id = @me
+        OR p.is_public = 1
+        OR EXISTS (SELECT 1 FROM playlist_shares ps2 WHERE ps2.playlist_id = p.id AND ps2.with_user_id = @me)
+      )
+  )
 )`;
 
 /**
@@ -186,7 +202,10 @@ export function tracksRouter({ db, publicUrl, musicDir, coverDir }: Deps): Route
     } else if (sourceParam === 'public') {
       where.push('t.owner_id <> @me AND t.is_public = 1');
     } else if (sourceParam === 'shared') {
-      where.push('t.owner_id <> @me AND ts.track_id IS NOT NULL');
+      // "shared with me" = visible (per VISIBLE_PREDICATE) but neither
+      // mine nor public. Covers direct track_shares AND transitive paths
+      // via playlists shared with me.
+      where.push('t.owner_id <> @me AND t.is_public = 0');
     }
     // 'all' (default) → no extra constraint beyond visibility.
 
