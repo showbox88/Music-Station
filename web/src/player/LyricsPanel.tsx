@@ -116,9 +116,13 @@ interface Props {
   /** Lead time in ms — highlight a line a hair before its timestamp so it
    *  feels in-sync rather than chasing. Empirically ~150ms feels right. */
   lead?: number;
+  /** Inline-mode top/bottom padding override (px). Should be ~40% of the
+   *  parent container height so the active line scrolls to the center.
+   *  Defaults to 70 (good for ~200px containers). */
+  padBlock?: number;
 }
 
-export default function LyricsPanel({ parsed, mode, lead = 150 }: Props) {
+export default function LyricsPanel({ parsed, mode, lead = 150, padBlock }: Props) {
   const { position, seek } = usePlayer();
   const currentMs = Math.max(0, position * 1000 + lead);
   const activeIdx = useMemo(
@@ -132,6 +136,7 @@ export default function LyricsPanel({ parsed, mode, lead = 150 }: Props) {
       activeIdx={activeIdx}
       onSeek={(ms) => seek(ms / 1000)}
       variant={mode}
+      padBlock={padBlock}
     />
   );
 }
@@ -141,11 +146,13 @@ function ScrollView({
   activeIdx,
   onSeek,
   variant,
+  padBlock,
 }: {
   parsed: ParsedLyrics;
   activeIdx: number;
   onSeek: (ms: number) => void;
   variant: 'inline' | 'full';
+  padBlock?: number;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const lineRefs = useRef<Array<HTMLDivElement | null>>([]);
@@ -186,10 +193,10 @@ function ScrollView({
       className={`mw-no-scrollbar h-full overflow-y-auto text-center ${isInline ? 'px-3' : 'px-6'}`}
       style={{
         // Pad top/bottom so the first and last lines can sit at the
-        // center. Full-screen uses viewport units; inline uses a smaller
-        // pixel pad sized for the ~200px container in NowPlayingView.
-        paddingTop: isInline ? 70 : '40vh',
-        paddingBottom: isInline ? 70 : '40vh',
+        // center. Full-screen uses viewport units; inline accepts a
+        // caller-provided px value sized to ~40% of the container height.
+        paddingTop: isInline ? (padBlock ?? 70) : '40vh',
+        paddingBottom: isInline ? (padBlock ?? 70) : '40vh',
         scrollBehavior: 'smooth',
       }}
     >

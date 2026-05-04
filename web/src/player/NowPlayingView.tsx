@@ -63,6 +63,21 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
   const [vizMode, setVizMode] = useState<'wave' | 'lyrics'>('wave');
   const [lyrics, setLyrics] = useState<LyricsState>({ status: 'idle' });
   const [fetchingLyrics, setFetchingLyrics] = useState(false);
+  // Visualizer / lyrics area is taller on desktop than on mobile so that
+  // the vinyl above stays prominent on small phones (where 200px would
+  // squash the disc). Tracks the matchMedia state with a listener so it
+  // adapts on viewport resize / orientation change.
+  const [vizHeight, setVizHeight] = useState<number>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+      ? 120
+      : 200,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const handler = (e: MediaQueryListEvent) => setVizHeight(e.matches ? 120 : 200);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
   // Optimistic favorite state: the queue's track object is shared and
   // doesn't update on its own; we mirror it locally for instant feedback
   // and reset whenever the playing track changes.
@@ -260,45 +275,48 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
           </button>
         </div>
 
-        {/* Visualizer area — doubles as a tap target to swap with an
-            inline scrolling lyrics panel. Hint icon in the corner indicates
-            the current mode and what a click will do. */}
-        <div
-          className="shrink-0 mt-2 relative cursor-pointer group"
-          onClick={() => {
-            if (vizMode === 'lyrics') setVizMode('wave');
-            else if (lyrics.status === 'present') setVizMode('lyrics');
-            else if (lyrics.status === 'absent' && !fetchingLyrics)
-              handleFetchLyrics();
-          }}
-          title={
-            vizMode === 'lyrics'
-              ? '点击返回音波'
-              : lyrics.status === 'present'
-                ? '点击切换为滚动歌词'
-                : fetchingLyrics
-                  ? '下载中…'
-                  : '点击下载这首歌的歌词'
-          }
-          style={{ height: 200 }}
-        >
-          {vizMode === 'wave' ? (
-            <AudioVisualizer height={200} bars={56} />
-          ) : lyrics.status === 'present' ? (
-            <LyricsPanel parsed={lyrics.parsed} mode="inline" />
-          ) : null}
-          {/* Tiny corner hint — only visible on hover. */}
-          <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-70 transition-opacity pointer-events-none">
-            <span className="text-[10px] text-zinc-300 bg-black/40 px-1.5 py-0.5 rounded">
-              {vizMode === 'lyrics'
-                ? '点击 → 音波'
+        {/* Visualizer / lyrics area. Top-left LRC switch toggles between
+            wave and lyrics; without it, clicks inside the lyrics panel
+            were ambiguous (seek vs. switch back). Same bezel style as the
+            EQ/DOLBY buttons in the top bar so it reads as a peer toggle. */}
+        <div className="shrink-0 mt-2 relative" style={{ height: vizHeight }}>
+          <button
+            onClick={() => {
+              if (vizMode === 'lyrics') {
+                setVizMode('wave');
+              } else if (lyrics.status === 'present') {
+                setVizMode('lyrics');
+              } else if (!fetchingLyrics) {
+                handleFetchLyrics();
+              }
+            }}
+            disabled={fetchingLyrics || lyrics.status === 'loading'}
+            title={
+              vizMode === 'lyrics'
+                ? '切换为音波'
                 : lyrics.status === 'present'
-                  ? '点击 → 歌词'
+                  ? '切换为歌词'
                   : fetchingLyrics
                     ? '下载中…'
-                    : '点击下载歌词'}
-            </span>
-          </div>
+                    : '下载并显示歌词'
+            }
+            className={`absolute top-2 left-2 z-10 w-10 h-10 rounded-full bezel flex items-center justify-center text-[10px] font-semibold tracking-wider disabled:opacity-50 ${
+              vizMode === 'lyrics'
+                ? 'glow-text glow-ring'
+                : 'text-zinc-300 hover:text-white'
+            }`}
+          >
+            LRC
+          </button>
+          {vizMode === 'wave' ? (
+            <AudioVisualizer height={vizHeight} bars={56} />
+          ) : lyrics.status === 'present' ? (
+            <LyricsPanel
+              parsed={lyrics.parsed}
+              mode="inline"
+              padBlock={Math.round(vizHeight * 0.4)}
+            />
+          ) : null}
         </div>
 
         {/* Progress — recessed track + magenta fill */}
