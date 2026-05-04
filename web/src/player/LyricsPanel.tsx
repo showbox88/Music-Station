@@ -171,6 +171,19 @@ function ScrollView({
     container.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
   }, [activeIdx]);
 
+  // Vertical fade mask — top/bottom of the scroll area dissolves into the
+  // page background so lines emerge from the dark and recede into it
+  // instead of being chopped at a hard edge. Uses CSS mask-image so the
+  // alpha curve is applied to the actual content (no overlay div). The
+  // inline variant fades a larger fraction since the box itself is short.
+  const maskGradient = isInline
+    ? 'linear-gradient(to bottom, transparent 0, black 32%, black 68%, transparent 100%)'
+    : 'linear-gradient(to bottom, transparent 0, black 18%, black 82%, transparent 100%)';
+  const maskStyle: React.CSSProperties = {
+    WebkitMaskImage: maskGradient,
+    maskImage: maskGradient,
+  };
+
   if (!parsed.hasTimestamps) {
     return (
       <div
@@ -180,6 +193,7 @@ function ScrollView({
             ? 'px-4 py-4 text-zinc-300 text-sm leading-relaxed'
             : 'px-6 py-10 text-zinc-300 text-base leading-relaxed'
         }`}
+        style={maskStyle}
       >
         <ScrollbarHider />
         {parsed.raw}
@@ -198,6 +212,7 @@ function ScrollView({
         paddingTop: isInline ? (padBlock ?? 70) : '40vh',
         paddingBottom: isInline ? (padBlock ?? 70) : '40vh',
         scrollBehavior: 'smooth',
+        ...maskStyle,
       }}
     >
       <ScrollbarHider />
