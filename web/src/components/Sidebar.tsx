@@ -6,11 +6,13 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { Playlist } from '../types';
 import { usePlayer } from '../player/PlayerContext';
+import { useAuth } from '../AuthContext';
 
 export type View =
   | { kind: 'all' }
   | { kind: 'favorites' }
   | { kind: 'lyrics-editor' }
+  | { kind: 'admin' }
   | { kind: 'playlist'; id: number };
 
 interface Props {
@@ -29,6 +31,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const player = usePlayer();
+  const { user } = useAuth();
 
   function load() {
     api
@@ -138,6 +141,17 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
         >
           <span className="inline-block w-5 text-center mr-1">{'✎︎'}</span>Lyrics Editor
         </button>
+        {!!user?.is_admin && (
+          <button
+            onClick={() => setView({ kind: 'admin' })}
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
+              view.kind === 'admin' ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
+            }`}
+            title="用户管理（仅管理员）"
+          >
+            <span className="inline-block w-5 text-center mr-1">{'⚙︎'}</span>Admin
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto p-2 space-y-0.5">

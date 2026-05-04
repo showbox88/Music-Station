@@ -22,7 +22,8 @@ import { uploadRouter } from './api/upload.js';
 import { playlistsRouter } from './api/playlists.js';
 import { coversRouter } from './api/covers.js';
 import { lyricsRouter } from './api/lyrics.js';
-import { authRouter, requireAuth } from './api/auth.js';
+import { authRouter, requireAuth, requireAdmin } from './api/auth.js';
+import { adminRouter } from './api/admin.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // .env lives at repo root (../../ from server/dist/ or server/src/)
@@ -80,6 +81,9 @@ app.get('/api/health', (_req, res) => {
 // /api/auth and /api/covers (above) so those stay open. The middleware
 // attaches req.user to downstream handlers.
 app.use('/api', requireAuth(db));
+
+// Admin-only routes (gated additionally by requireAdmin inside)
+app.use('/api/admin', requireAdmin(db), adminRouter({ db }));
 
 // API routes
 app.use('/api/tracks', tracksRouter({ db, publicUrl: PUBLIC_URL, musicDir: MUSIC_DIR, coverDir: COVER_DIR }));

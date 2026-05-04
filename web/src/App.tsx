@@ -4,6 +4,7 @@ import TrackList from './components/TrackList';
 import Sidebar, { type View } from './components/Sidebar';
 import PlaylistView from './components/PlaylistView';
 import LyricsEditor from './components/LyricsEditor';
+import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import { PlayerProvider, usePlayer } from './player/PlayerContext';
@@ -125,6 +126,8 @@ function AppContent() {
           <TrackList refreshKey={refreshKey} onChanged={refresh} favoritedOnly />
         ) : view.kind === 'lyrics-editor' ? (
           <LyricsEditor />
+        ) : view.kind === 'admin' ? (
+          <AdminPanel />
         ) : (
           <PlaylistView playlistId={view.id} refreshKey={refreshKey} onChanged={refresh} />
         )}

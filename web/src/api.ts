@@ -19,6 +19,16 @@ export interface AuthUser {
   must_change_password: number;
 }
 
+export interface AdminUser {
+  id: number;
+  username: string;
+  display_name: string | null;
+  is_admin: number;
+  must_change_password: number;
+  disabled: number;
+  created_at: string;
+}
+
 export type LyricSource = 'local' | 'lrclib' | 'netease' | 'qq' | 'kugou' | 'manual';
 
 export interface LyricsResponse {
@@ -253,6 +263,23 @@ export const api = {
       old_password: oldPw,
       new_password: newPw,
     }),
+
+  // ----- admin -----
+  adminListUsers: () => getJson<{ users: AdminUser[] }>('/admin/users'),
+  adminCreateUser: (input: {
+    username: string;
+    password: string;
+    display_name?: string | null;
+    is_admin?: boolean;
+  }) => postJson<{ ok: boolean; user: AdminUser }>('/admin/users', input),
+  adminUpdateUser: (
+    id: number,
+    fields: { display_name?: string | null; is_admin?: boolean; disabled?: boolean },
+  ) => putJson<{ ok: boolean; user: AdminUser }>(`/admin/users/${id}`, fields),
+  adminResetPassword: (id: number, newPw: string) =>
+    postJson<{ ok: boolean }>(`/admin/users/${id}/reset-password`, { new_password: newPw }),
+  adminDeleteUser: (id: number) =>
+    deleteReq<{ ok: boolean; deleted_id: number }>(`/admin/users/${id}`),
 
   uploadTracks: async (
     files: File[],
