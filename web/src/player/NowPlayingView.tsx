@@ -222,7 +222,7 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
           <button
             onClick={() => p.spatial.cycle()}
             title={`Spatial reverb: ${p.spatial.preset.toUpperCase()} — click to cycle Off → Cinema → Hall → Club. Real ConvolverNode with synthesized IR.`}
-            className={`min-w-[3.5rem] h-10 px-2 rounded-full bezel flex items-center justify-center text-[10px] font-semibold tracking-wider mr-1 ${
+            className={`min-w-[3.25rem] h-6 px-2 rounded-md bezel flex items-center justify-center text-[10px] font-semibold tracking-wider mr-1 ${
               p.spatial.preset !== 'off' ? 'glow-text glow-ring' : 'text-zinc-300 hover:text-white'
             }`}
           >
@@ -231,7 +231,7 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
           <button
             onClick={() => setEqOpen(true)}
             title="Equalizer"
-            className={`w-10 h-10 rounded-full bezel flex items-center justify-center text-[10px] font-semibold tracking-wider ${
+            className={`h-6 px-3 rounded-md bezel flex items-center justify-center text-[10px] font-semibold tracking-wider ${
               !p.eq.bypass && p.eq.gains.some((g) => Math.abs(g) > 0.05)
                 ? 'glow-text glow-ring'
                 : 'text-zinc-300 hover:text-white'
@@ -254,14 +254,14 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
                     : '下载歌词'
             }
             disabled={fetchingLyrics || lyrics.status === 'loading'}
-            className={`w-10 h-10 ml-1 rounded-full bezel flex items-center justify-center ${
+            className={`h-6 px-3 ml-1 rounded-md bezel flex items-center justify-center ${
               lyrics.status === 'present'
                 ? 'glow-text glow-ring'
                 : 'text-zinc-300 hover:text-white'
             } disabled:opacity-50`}
           >
             {/* Microphone-ish icon for "lyrics" — speaker bubble with note inside */}
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="9" y="3" width="6" height="11" rx="3" />
               <path d="M5 11a7 7 0 0 0 14 0" />
               <line x1="12" y1="18" x2="12" y2="22" />
