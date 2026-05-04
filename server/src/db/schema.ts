@@ -162,7 +162,84 @@ export function openDatabase(dbPath: string): Database.Database {
     db.exec(`ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0`);
   }
 
+  // ---- Slice 3: track ownership & sharing ----
+  const trackCols = db.prepare(`PRAGMA table_info(tracks)`).all() as Array<{ name: string }>;
+  const hasTrackCol = (n: string) => trackCols.some((c) => c.name === n);
+  if (!hasTrackCol('owner_id')) {
+    db.exec(`ALTER TABLE tracks ADD COLUMN owner_id INTEGER REFERENCES users(id)`);
+  }
+  if (!hasTrackCol('is_public')) {
+    db.exec(`ALTER TABLE tracks ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0`);
+  }
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_tracks_owner ON tracks(owner_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_tracks_public ON tracks(is_public)`);
+
+  // Track-level direct shares: "owner shares this track with another user".
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS track_shares (
+      track_id     INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+      with_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at   TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (track_id, with_user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_track_shares_with_user ON track_shares(with_user_id);
+  `);
+
+  // Per-user favorites. Replaces the legacy single-tenant tracks.favorited
+  // column (kept around for backfill but no longer read/written by the API).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_favorites (
+      user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+      added_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, track_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_favorites_track ON user_favorites(track_id);
+  `);
+
   return db;
+}
+
+/**
+ * One-time backfill for legacy data: anchor everything that existed
+ * before multi-user to the bootstrap admin (user 1).
+ *
+ *  - tracks.owner_id IS NULL  → owner_id = 1
+ *  - tracks.favorited = 1     → INSERT INTO user_favorites (1, track_id)
+ *
+ * Idempotent. Run once at startup after bootstrapAdmin.
+ */
+export function backfillOwnership(db: Database.Database): void {
+  // Only relevant if user 1 exists (which bootstrapAdmin guarantees).
+  const adminId = (db.prepare('SELECT id FROM users ORDER BY id ASC LIMIT 1').get() as
+    | { id: number }
+    | undefined)?.id;
+  if (!adminId) return;
+
+  const orphans = (db.prepare('SELECT COUNT(*) AS n FROM tracks WHERE owner_id IS NULL').get() as {
+    n: number;
+  }).n;
+  if (orphans > 0) {
+    db.prepare('UPDATE tracks SET owner_id = ? WHERE owner_id IS NULL').run(adminId);
+    console.error(`[music-station] backfill: assigned owner_id=${adminId} to ${orphans} tracks`);
+  }
+
+  // Migrate legacy tracks.favorited → user_favorites for the admin.
+  const cols = db.prepare(`PRAGMA table_info(tracks)`).all() as Array<{ name: string }>;
+  const hasFavorited = cols.some((c) => c.name === 'favorited');
+  if (hasFavorited) {
+    const moved = db
+      .prepare(
+        `INSERT OR IGNORE INTO user_favorites (user_id, track_id)
+         SELECT ?, id FROM tracks WHERE favorited = 1`,
+      )
+      .run(adminId);
+    if (moved.changes > 0) {
+      console.error(
+        `[music-station] backfill: migrated ${moved.changes} legacy favorites to user ${adminId}`,
+      );
+    }
+  }
 }
 
 /**

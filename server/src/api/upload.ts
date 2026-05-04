@@ -98,6 +98,20 @@ export function uploadRouter({ db, musicDir }: Deps): Router {
         return;
       }
 
+      // Assign ownership of just-uploaded tracks to the calling user.
+      // The scanner inserts rows with owner_id NULL (it doesn't know about
+      // sessions), so we look up rows by filename and stamp owner_id here.
+      // This is also where future per-user upload quota would live.
+      const ownerId = req.user?.id ?? null;
+      if (ownerId) {
+        const setOwner = db.prepare(
+          'UPDATE tracks SET owner_id = ? WHERE rel_path = ? AND owner_id IS NULL',
+        );
+        for (const f of files) {
+          setOwner.run(ownerId, f.filename);
+        }
+      }
+
       // Log to upload_log
       const logStmt = db.prepare(
         `INSERT INTO upload_log (filename, size_bytes, status, message) VALUES (?, ?, ?, ?)`,

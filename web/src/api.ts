@@ -1,4 +1,11 @@
-import type { Playlist, PlaylistDetail, Status, Track, TrackListResponse } from './types';
+import type {
+  Playlist,
+  PlaylistDetail,
+  ShareUser,
+  Status,
+  Track,
+  TrackListResponse,
+} from './types';
 
 export interface TrackEdit {
   title?: string | null;
@@ -143,6 +150,7 @@ export interface TracksQuery {
   album?: string;
   genre?: string;
   favorited?: boolean;          // when true, only favorited tracks
+  source?: 'all' | 'mine' | 'public' | 'shared';
   limit?: number;
   offset?: number;
   sort?: 'title' | 'artist' | 'album' | 'added_at' | 'duration_sec';
@@ -183,6 +191,17 @@ export const api = {
     return getJson<TrackListResponse>(`/tracks?${params.toString()}`);
   },
   updateTrack: (id: number, fields: TrackEdit) => putJson<Track>(`/tracks/${id}`, fields),
+  setTrackVisibility: (id: number, isPublic: boolean) =>
+    putJson<{ ok: boolean; is_public: boolean }>(`/tracks/${id}/visibility`, {
+      is_public: isPublic,
+    }),
+  getTrackShares: (id: number) =>
+    getJson<{ shared_with: ShareUser[] }>(`/tracks/${id}/shares`),
+  setTrackShares: (id: number, userIds: number[]) =>
+    putJson<{ ok: boolean; shared_with: ShareUser[] }>(`/tracks/${id}/shares`, {
+      user_ids: userIds,
+    }),
+  shareCandidates: () => getJson<{ users: ShareUser[] }>('/users/share-candidates'),
   getTrackByPath: (relPath: string) =>
     getJson<Track>(`/tracks/by-path?p=${encodeURIComponent(relPath)}`),
   deleteTrack: async (id: number) => {

@@ -1,3 +1,5 @@
+export type TrackSource = 'mine' | 'public' | 'shared';
+
 export interface Track {
   id: number;
   rel_path: string;
@@ -12,12 +14,26 @@ export interface Track {
   bitrate: number | null;
   mime: string | null;
   rating: number;             // 0..5
-  favorited: boolean;         // heart toggle, drives the Favorites view
+  favorited: boolean;         // per-user; reflects current user's user_favorites
   added_at: string;
   modified_at: string;
   last_edited_at: string | null;
   url: string;
   cover_url: string | null;
+  // Slice 3 — visibility / sharing
+  owner_id: number | null;
+  owner_username: string | null;
+  owner_display_name: string | null;
+  is_public: boolean;
+  is_owner: boolean;
+  shared_with_me: boolean;
+  source: TrackSource;
+}
+
+export interface ShareUser {
+  id: number;
+  username: string;
+  display_name: string | null;
 }
 
 export interface TrackListResponse {

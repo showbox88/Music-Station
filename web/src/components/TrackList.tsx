@@ -26,8 +26,11 @@ interface Props {
   favoritedOnly?: boolean;
 }
 
+type SourceFilter = 'all' | 'mine' | 'public' | 'shared';
+
 export default function TrackList({ refreshKey, onChanged, favoritedOnly = false }: Props) {
   const [q, setQ] = useState('');
+  const [source, setSource] = useState<SourceFilter>('all');
   const [tracks, setTracks] = useState<Track[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -51,6 +54,7 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
       .listTracks({
         q: debouncedQ || undefined,
         favorited: favoritedOnly || undefined,
+        source: source === 'all' ? undefined : source,
         limit: 500,
         sort: 'title',
         dir: 'asc',
@@ -65,7 +69,7 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, refreshKey, favoritedOnly]);
+  }, [debouncedQ, refreshKey, favoritedOnly, source]);
 
   const showing = useMemo(() => tracks.length, [tracks]);
 
@@ -85,16 +89,40 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="px-3 md:px-6 py-3 border-b border-black/60 flex items-center gap-2 md:gap-3"
+      <div className="px-3 md:px-6 py-3 border-b border-black/60 flex flex-wrap items-center gap-2 md:gap-3"
         style={{ background: 'linear-gradient(180deg, #1c1c1e 0%, #18181a 100%)' }}>
         <input
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search title / artist…"
-          className="input flex-1 max-w-md"
+          className="input flex-1 max-w-md min-w-0"
         />
-        <span className="text-xs text-zinc-500 tabular-nums shrink-0">
+        {!favoritedOnly && (
+          <div className="flex items-center gap-1 shrink-0">
+            {(
+              [
+                ['all', '全部'],
+                ['mine', '我的'],
+                ['public', '公开'],
+                ['shared', '分享给我的'],
+              ] as Array<[SourceFilter, string]>
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setSource(key)}
+                className={`text-[11px] px-2.5 py-1 rounded-full bezel ${
+                  source === key
+                    ? 'glow-text glow-ring text-white'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        <span className="text-xs text-zinc-500 tabular-nums shrink-0 ml-auto">
           {loading ? '…' : `${showing}/${total}`}
         </span>
       </div>
@@ -209,7 +237,10 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
                       title={`Edited ${t.last_edited_at}`}
                     />
                   )}
-                  <div className="truncate whitespace-nowrap">{t.title || '—'}</div>
+                  <div className="truncate whitespace-nowrap flex items-center gap-1.5">
+                    <span className="truncate">{t.title || '—'}</span>
+                    <SourceBadge track={t} />
+                  </div>
                   {/* Mobile-only second line: artist (truncated, never
                       wraps) on the left, star rating on the right. */}
                   <div className="md:hidden flex items-center justify-between gap-2 mt-0.5">
@@ -281,8 +312,9 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
                     </button>
                     <button
                       onClick={() => onDelete(t)}
-                      title="Delete (file + DB)"
-                      className="w-8 h-8 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-red-400"
+                      title={t.is_owner ? 'Delete (file + DB)' : '只能删除自己上传的曲目'}
+                      disabled={!t.is_owner}
+                      className="w-8 h-8 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-red-400 disabled:opacity-30 disabled:hover:text-zinc-300"
                     >
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
                         <line x1="6" y1="6" x2="18" y2="18" />
@@ -325,4 +357,47 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
       )}
     </div>
   );
+}
+
+/**
+ * Tiny inline pill that says where this track came from for the calling
+ * user. Only shown when not "mine" — the user owns most of their library
+ * by default and a "mine" badge would just be noise.
+ */
+function SourceBadge({ track }: { track: Track }) {
+  if (track.is_owner) {
+    if (track.is_public) {
+      return (
+        <span
+          className="text-[9px] uppercase px-1.5 py-0.5 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 shrink-0"
+          title="你公开了这首歌，所有用户可见"
+        >
+          公开
+        </span>
+      );
+    }
+    return null;
+  }
+  const ownerLabel = track.owner_display_name || track.owner_username || '其他用户';
+  if (track.shared_with_me) {
+    return (
+      <span
+        className="text-[9px] uppercase px-1.5 py-0.5 rounded border border-pink-500/30 bg-pink-500/10 text-pink-300 shrink-0"
+        title={`${ownerLabel} 把这首歌分享给了你`}
+      >
+        分享自 {ownerLabel}
+      </span>
+    );
+  }
+  if (track.is_public) {
+    return (
+      <span
+        className="text-[9px] uppercase px-1.5 py-0.5 rounded border border-zinc-500/30 bg-zinc-500/10 text-zinc-300 shrink-0"
+        title={`${ownerLabel} 把这首歌设为公开`}
+      >
+        公开 · {ownerLabel}
+      </span>
+    );
+  }
+  return null;
 }

@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import express from 'express';
-import { openDatabase, bootstrapAdmin } from './db/schema.js';
+import { openDatabase, bootstrapAdmin, backfillOwnership } from './db/schema.js';
 import { scanLibrary } from './scanner.js';
 import { tracksRouter } from './api/tracks.js';
 import { statusRouter } from './api/status.js';
@@ -24,6 +24,7 @@ import { coversRouter } from './api/covers.js';
 import { lyricsRouter } from './api/lyrics.js';
 import { authRouter, requireAuth, requireAdmin } from './api/auth.js';
 import { adminRouter } from './api/admin.js';
+import { usersRouter } from './api/users.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // .env lives at repo root (../../ from server/dist/ or server/src/)
@@ -48,6 +49,7 @@ console.error(`  LYRICS_DIR=${LYRICS_DIR}`);
 
 const db = openDatabase(DB_PATH);
 bootstrapAdmin(db);
+backfillOwnership(db);
 
 // Initial scan in background; API serves whatever is in DB so far.
 scanLibrary(db, MUSIC_DIR)
@@ -84,6 +86,9 @@ app.use('/api', requireAuth(db));
 
 // Admin-only routes (gated additionally by requireAdmin inside)
 app.use('/api/admin', requireAdmin(db), adminRouter({ db }));
+
+// Per-user routes (any logged-in user)
+app.use('/api/users', usersRouter({ db }));
 
 // API routes
 app.use('/api/tracks', tracksRouter({ db, publicUrl: PUBLIC_URL, musicDir: MUSIC_DIR, coverDir: COVER_DIR }));

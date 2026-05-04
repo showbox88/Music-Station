@@ -79,7 +79,20 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
           <p className="text-xs text-zinc-600 mt-1">
             Edits go to the database only — the MP3 file is never modified.
           </p>
+          {!track.is_owner && (
+            <p className="text-xs text-amber-400 mt-2">
+              这首歌的所有者是{' '}
+              {track.owner_display_name || track.owner_username || '其他用户'}。
+              你只能改自己的标记（评分/收藏），不能改元数据或分享设置。
+            </p>
+          )}
         </div>
+
+        {track.is_owner && (
+          <Field label="可见性 / 分享">
+            <VisibilityField track={track} />
+          </Field>
+        )}
 
         <Field label="Cover">
           <CoverPicker track={{ ...track, cover_url: coverUrl }} onChanged={setCoverUrl} />
@@ -104,6 +117,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
             onChange={(e) => setForm({ ...form, title: e.target.value })}
             className="input"
             autoFocus
+            disabled={!track.is_owner}
           />
         </Field>
         <Field label="Artist">
@@ -112,6 +126,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
             value={form.artist}
             onChange={(e) => setForm({ ...form, artist: e.target.value })}
             className="input"
+            disabled={!track.is_owner}
           />
         </Field>
         <Field label="Album">
@@ -120,6 +135,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
             value={form.album}
             onChange={(e) => setForm({ ...form, album: e.target.value })}
             className="input"
+            disabled={!track.is_owner}
           />
         </Field>
         <Field label="Genre">
@@ -128,6 +144,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
             value={form.genre}
             onChange={(e) => setForm({ ...form, genre: e.target.value })}
             className="input"
+            disabled={!track.is_owner}
           />
         </Field>
         <div className="grid grid-cols-2 gap-3">
@@ -139,6 +156,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
               value={form.year}
               onChange={(e) => setForm({ ...form, year: e.target.value })}
               className="input"
+              disabled={!track.is_owner}
             />
           </Field>
           <Field label="Track #">
@@ -149,6 +167,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
               value={form.track_no}
               onChange={(e) => setForm({ ...form, track_no: e.target.value })}
               className="input"
+              disabled={!track.is_owner}
             />
           </Field>
         </div>
@@ -172,6 +191,147 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+/**
+ * Visibility / sharing controls for the track owner.
+ *
+ *  - "公开" toggle: any logged-in user can then see this track.
+ *  - User picker: a checklist of all other users; checked users get this
+ *    track via track_shares. PUT-replace semantics — the displayed checked
+ *    set is the current truth, save commits it.
+ */
+function VisibilityField({ track }: { track: Track }) {
+  const [isPublic, setIsPublic] = useState(track.is_public);
+  const [busyVis, setBusyVis] = useState(false);
+  const [candidates, setCandidates] = useState<
+    Array<{ id: number; username: string; display_name: string | null }>
+  >([]);
+  const [shared, setShared] = useState<Set<number>>(new Set());
+  const [origShared, setOrigShared] = useState<Set<number>>(new Set());
+  const [loaded, setLoaded] = useState(false);
+  const [savingShares, setSavingShares] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([api.shareCandidates(), api.getTrackShares(track.id)])
+      .then(([cands, mine]) => {
+        if (cancelled) return;
+        setCandidates(cands.users);
+        const ids = new Set(mine.shared_with.map((u) => u.id));
+        setShared(ids);
+        setOrigShared(new Set(ids));
+        setLoaded(true);
+      })
+      .catch((e: any) => {
+        if (!cancelled) setMsg(`加载失败：${e?.message ?? e}`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [track.id]);
+
+  async function togglePublic() {
+    if (busyVis) return;
+    setBusyVis(true);
+    setMsg(null);
+    try {
+      const r = await api.setTrackVisibility(track.id, !isPublic);
+      setIsPublic(r.is_public);
+      setMsg(r.is_public ? '已设为公开（所有用户可见）' : '已设为私有');
+    } catch (e: any) {
+      setMsg(`保存失败：${e?.message ?? e}`);
+    } finally {
+      setBusyVis(false);
+    }
+  }
+
+  function toggleShare(id: number) {
+    setShared((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const dirty =
+    shared.size !== origShared.size ||
+    [...shared].some((id) => !origShared.has(id));
+
+  async function saveShares() {
+    if (savingShares || !dirty) return;
+    setSavingShares(true);
+    setMsg(null);
+    try {
+      await api.setTrackShares(track.id, [...shared]);
+      setOrigShared(new Set(shared));
+      setMsg(`已更新分享列表（${shared.size} 人）`);
+    } catch (e: any) {
+      setMsg(`保存失败：${e?.message ?? e}`);
+    } finally {
+      setSavingShares(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <label className="flex items-center gap-2 text-sm text-zinc-200">
+        <input
+          type="checkbox"
+          checked={isPublic}
+          onChange={togglePublic}
+          disabled={busyVis}
+        />
+        公开（所有登录用户都能看到）
+      </label>
+
+      <div className="text-xs text-zinc-500">或者只分享给特定用户：</div>
+
+      {!loaded ? (
+        <div className="text-xs text-zinc-500">加载用户列表…</div>
+      ) : candidates.length === 0 ? (
+        <div className="text-xs text-zinc-600">暂无其他用户。先在管理员页面添加用户。</div>
+      ) : (
+        <div
+          className="max-h-32 overflow-auto rounded border border-zinc-800 bg-black/30 p-1.5 space-y-0.5"
+        >
+          {candidates.map((u) => (
+            <label
+              key={u.id}
+              className="flex items-center gap-2 text-sm text-zinc-300 px-1.5 py-1 rounded hover:bg-white/5 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={shared.has(u.id)}
+                onChange={() => toggleShare(u.id)}
+              />
+              <span className="truncate">
+                {u.display_name || u.username}
+                <span className="text-zinc-600 ml-1">@{u.username}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {loaded && candidates.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={saveShares}
+            disabled={!dirty || savingShares}
+            className="px-3 py-1 rounded-full bezel text-xs glow-text glow-ring disabled:opacity-40"
+          >
+            {savingShares ? '保存中…' : dirty ? '保存分享列表' : '已保存'}
+          </button>
+        </div>
+      )}
+
+      {msg && <div className="text-xs text-zinc-500">{msg}</div>}
     </div>
   );
 }
