@@ -145,7 +145,11 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
               that's distinct from the top-level All Tracks pill so the
               hierarchy stays readable. */}
         <div
-          className="w-full px-3 py-2 rounded-lg text-sm cursor-pointer text-zinc-300 hover:bg-white/5 flex items-center"
+          className={`w-full px-3 py-2 rounded-lg text-sm cursor-pointer flex items-center ${
+            view.kind === 'favorites' || view.kind === 'user-favorites'
+              ? 'bezel glow-text'
+              : 'text-zinc-300 hover:bg-white/5'
+          }`}
           onClick={() => setFavExpanded((v) => !v)}
         >
           <span className="inline-block w-5 text-center mr-1">{'♥︎'}</span>
