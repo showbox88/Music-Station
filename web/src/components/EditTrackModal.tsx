@@ -362,19 +362,23 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
  *   2. Search & select: list candidates from all sources, user picks
  *   3. Manual upload / paste
  */
+type LyricTab = 'auto' | 'search' | 'upload' | 'paste';
+
 function LyricsField({ track }: { track: Track }) {
   const trackId = track.id;
   const [status, setStatus] = useState<'loading' | 'absent' | 'present' | 'error'>('loading');
   const [source, setSource] = useState<string | null>(null);
   const [hasTs, setHasTs] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [pasting, setPasting] = useState(false);
+  // Active tab — null means no panel is open. Replaces the old separate
+  // `pasting` / `searching` booleans so only ONE panel can be open at a
+  // time and the modal doesn't grow vertically without bound.
+  const [tab, setTab] = useState<LyricTab | null>(null);
   const [pasteText, setPasteText] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  // Search panel state
-  const [searching, setSearching] = useState(false);  // panel open?
+  // Search-tab-specific state
   const [searchLoading, setSearchLoading] = useState(false);
   const [candidates, setCandidates] = useState<LyricCandidate[]>([]);
   const [previewing, setPreviewing] = useState<{
@@ -445,7 +449,7 @@ function LyricsField({ track }: { track: Track }) {
         setStatus('present');
         setSource('manual');
         setHasTs(!!r.has_timestamps);
-        setPasting(false);
+        setTab(null);
         setPasteText('');
         setMsg(`保存成功${r.has_timestamps ? '（带时间戳）' : '（纯文本）'}`);
       }
@@ -495,8 +499,7 @@ function LyricsField({ track }: { track: Track }) {
     }
   }
 
-  async function openSearch() {
-    setSearching(true);
+  async function runSearch() {
     setSearchLoading(true);
     setCandidates([]);
     setPreviewing(null);
@@ -543,7 +546,7 @@ function LyricsField({ track }: { track: Track }) {
         setMsg(
           `已使用 ${cand.source} 的歌词${r.has_timestamps ? '（带时间戳）' : '（纯文本）'}`,
         );
-        setSearching(false);
+        setTab(null);
         setPreviewing(null);
       } else {
         setMsg('该候选项获取失败');
@@ -564,98 +567,164 @@ function LyricsField({ track }: { track: Track }) {
           ? '暂无歌词'
           : '加载失败';
 
+  function pickTab(t: LyricTab) {
+    if (tab === t) {
+      setTab(null);
+      return;
+    }
+    setTab(t);
+    setMsg(null);
+    if (t === 'search' && candidates.length === 0) {
+      // Auto-fire search when first opening the tab so the user sees
+      // candidates immediately.
+      runSearch();
+    }
+    if (t === 'upload') {
+      // Trigger file picker right away — most users come to this tab
+      // already wanting to pick a file.
+      setTimeout(() => fileRef.current?.click(), 0);
+    }
+  }
+
+  const tabBtnClass = (t: LyricTab) =>
+    `px-3 py-1.5 rounded-full bezel text-xs disabled:opacity-50 ${
+      tab === t ? 'glow-text glow-ring' : 'text-zinc-300 hover:text-white'
+    }`;
+
   return (
     <div className="space-y-2">
-      <div className="text-xs text-zinc-400">{statusLine}</div>
-
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={autoFetch}
-          disabled={busy}
-          className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
-        >
-          {busy ? '处理中…' : '自动获取'}
-        </button>
-        <button
-          type="button"
-          onClick={() => (searching ? setSearching(false) : openSearch())}
-          disabled={busy}
-          className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white disabled:opacity-50"
-        >
-          {searching ? '关闭搜索' : '搜索并选择'}
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".lrc,.txt,text/plain"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) uploadFile(f);
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          disabled={busy}
-          className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white disabled:opacity-50"
-        >
-          上传 .lrc
-        </button>
-        <button
-          type="button"
-          onClick={() => setPasting((v) => !v)}
-          disabled={busy}
-          className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white disabled:opacity-50"
-        >
-          {pasting ? '取消粘贴' : '粘贴文本'}
-        </button>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-zinc-400 flex-1">{statusLine}</span>
         {status === 'present' && (
           <button
             type="button"
             onClick={remove}
             disabled={busy}
-            className="px-3 py-1.5 rounded-full bezel text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+            className="px-3 py-1 rounded-full bezel text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
           >
             删除
           </button>
         )}
       </div>
 
-      {pasting && (
-        <div className="space-y-2">
-          <textarea
-            value={pasteText}
-            onChange={(e) => setPasteText(e.target.value)}
-            rows={6}
-            placeholder="粘贴 LRC 文本，例如：&#10;[00:12.34]第一句&#10;[00:18.20]第二句"
-            className="input font-mono text-xs w-full"
-            style={{ minHeight: 120, resize: 'vertical' }}
-          />
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={savePasted}
-              disabled={busy || !pasteText.trim()}
-              className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
-            >
-              {busy ? '保存中…' : '保存歌词'}
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Tab strip — clicking an inactive tab opens its panel; clicking the
+          active tab closes it. Only one panel is visible at a time, in a
+          fixed-height scrollable area below, so the rest of the form
+          never gets pushed off-screen. */}
+      <div className="flex flex-wrap gap-1.5">
+        <button type="button" onClick={() => pickTab('auto')} disabled={busy} className={tabBtnClass('auto')}>
+          自动获取
+        </button>
+        <button type="button" onClick={() => pickTab('search')} disabled={busy} className={tabBtnClass('search')}>
+          搜索并选择
+        </button>
+        <button type="button" onClick={() => pickTab('upload')} disabled={busy} className={tabBtnClass('upload')}>
+          上传 .lrc
+        </button>
+        <button type="button" onClick={() => pickTab('paste')} disabled={busy} className={tabBtnClass('paste')}>
+          粘贴文本
+        </button>
+      </div>
 
-      {searching && (
-        <SearchPanel
-          loading={searchLoading}
-          candidates={candidates}
-          targetDuration={track.duration_sec}
-          previewing={previewing}
-          onPreview={previewCandidate}
-          onUse={selectCandidate}
-          onClosePreview={() => setPreviewing(null)}
-        />
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".lrc,.txt,text/plain"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) uploadFile(f);
+        }}
+      />
+
+      {tab && (
+        <div
+          className="rounded-lg border border-zinc-800 bg-black/30 p-3 space-y-2"
+          style={{ maxHeight: 320, overflow: 'auto' }}
+        >
+          {tab === 'auto' && (
+            <div className="space-y-2">
+              <p className="text-xs text-zinc-400">
+                按 LRCLIB → 网易云 → QQ 音乐 → 酷狗 的顺序自动尝试，挑出第一条匹配的歌词存盘。
+                适合大批量歌曲快速覆盖；要精确挑版本请用「搜索并选择」。
+              </p>
+              <button
+                type="button"
+                onClick={autoFetch}
+                disabled={busy}
+                className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
+              >
+                {busy ? '处理中…' : '现在获取'}
+              </button>
+            </div>
+          )}
+
+          {tab === 'search' && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-zinc-500">
+                  从 4 个源同时搜索，挑你想要的版本
+                </span>
+                <button
+                  type="button"
+                  onClick={runSearch}
+                  disabled={busy || searchLoading}
+                  className="px-2.5 py-1 rounded-full bezel text-[11px] text-zinc-300 hover:text-white disabled:opacity-50"
+                >
+                  {searchLoading ? '搜索中…' : '重新搜索'}
+                </button>
+              </div>
+              <SearchPanel
+                loading={searchLoading}
+                candidates={candidates}
+                targetDuration={track.duration_sec}
+                previewing={previewing}
+                onPreview={previewCandidate}
+                onUse={selectCandidate}
+                onClosePreview={() => setPreviewing(null)}
+              />
+            </div>
+          )}
+
+          {tab === 'upload' && (
+            <div className="space-y-2">
+              <p className="text-xs text-zinc-400">
+                选一个 .lrc / .txt 文件（≤256KB）。带 [mm:ss.xx] 时间戳会自动识别。
+              </p>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={busy}
+                className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
+              >
+                {busy ? '上传中…' : '选择文件'}
+              </button>
+            </div>
+          )}
+
+          {tab === 'paste' && (
+            <div className="space-y-2">
+              <textarea
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                rows={6}
+                placeholder="粘贴 LRC 文本，例如：&#10;[00:12.34]第一句&#10;[00:18.20]第二句"
+                className="input font-mono text-xs w-full"
+                style={{ minHeight: 120, resize: 'vertical' }}
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={savePasted}
+                  disabled={busy || !pasteText.trim()}
+                  className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
+                >
+                  {busy ? '保存中…' : '保存歌词'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {msg && <div className="text-xs text-zinc-500">{msg}</div>}
