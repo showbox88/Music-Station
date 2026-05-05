@@ -66,6 +66,8 @@
     "user_favorites_public_tooltip": "{name} 的收藏是公开的",
     "lyrics_editor": "歌词编辑器",
     "lyrics_editor_tooltip": "边听边按空格打时间戳，制作 LRC 同步歌词",
+    "visualizer_lab": "音效实验室",
+    "visualizer_lab_tooltip": "预览、隐藏，或编写自己的可视化特效",
     "admin": "管理员",
     "admin_tooltip": "用户管理（仅管理员）",
     "playlists": "播放列表",
@@ -353,5 +355,27 @@
     "save_partial_confirm": "还有 {count} 行未标记时间戳，保存时会被丢弃。继续？",
     "save_success": "已保存到这首歌的歌词文件（{count} 行）",
     "save_failed": "保存失败：{err}"
+  },
+  "viz_lab": {
+    "title": "音效实验室",
+    "description": "预览使用合成的频谱信号，因此不播放音乐也能动起来。",
+    "builtins_section": "内建特效",
+    "custom_section": "你的自定义特效",
+    "no_customs": "还没有自定义特效——在下方贴一段代码就能加一个。",
+    "add_new": "新建特效",
+    "builtin_badge": "内建",
+    "custom_badge": "自定义",
+    "show": "显示",
+    "hide": "隐藏",
+    "show_tooltip": "重新加入循环列表",
+    "hide_tooltip": "从循环列表中移除",
+    "delete_tooltip": "删除这个自定义特效",
+    "delete_confirm": "确定删除这个自定义特效？该操作无法撤销。",
+    "name_placeholder": "特效名称（如：我的彩条）",
+    "name_required": "请先给特效命名。",
+    "preview": "预览",
+    "save": "保存",
+    "live_preview": "实时预览",
+    "signature_hint": "函数体。可用变量：ctx (CanvasRenderingContext2D)、W、H（画布像素）、heights[56]（0..1）、peaks[56]（0..1）、rot（缓慢旋转的弧度）。"
   }
 }

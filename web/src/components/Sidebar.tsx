@@ -15,6 +15,7 @@ export type View =
   | { kind: 'favorites' }
   | { kind: 'user-favorites'; userId: number; ownerName: string }
   | { kind: 'lyrics-editor' }
+  | { kind: 'visualizer-lab' }
   | { kind: 'admin' }
   | { kind: 'playlist'; id: number };
 
@@ -257,6 +258,16 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
         >
           <span className="inline-block w-5 text-center mr-1">{'✎︎'}</span>
           {t('sidebar.lyrics_editor')}
+        </button>
+        <button
+          onClick={() => setView({ kind: 'visualizer-lab' })}
+          className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
+            view.kind === 'visualizer-lab' ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
+          }`}
+          title={t('sidebar.visualizer_lab_tooltip')}
+        >
+          <span className="inline-block w-5 text-center mr-1">{'◐'}</span>
+          {t('sidebar.visualizer_lab')}
         </button>
         {!!user?.is_admin && (
           <button

@@ -2,30 +2,24 @@
  * Real-time audio visualizer driven by AnalyserNode from PlayerContext.
  *
  * This file owns the canvas, sampling/tweening of frequency bins, and
- * dispatch to a per-style draw function. The actual rendering for each
- * style lives in its own module under `./viz/` and is registered through
- * `./viz/index.ts`.
+ * dispatch to a per-style draw function. Built-in styles live under
+ * `./viz/` and are registered through `./viz/index.ts`. The user can also
+ * paste custom draw snippets via VisualizerLab — those are stored in
+ * prefs.viz_custom and compiled lazily here.
  *
  * The user's chosen style is persisted via PrefsContext as `viz_style`.
+ * Built-in styles can be hidden from the cycle via `viz_disabled`.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { usePlayer } from './PlayerContext';
 import { usePrefs } from '../PrefsContext';
 import {
   STYLES,
   STYLE_LABEL,
-  drawBars,
-  drawMirror,
-  drawWave,
-  drawPulse,
-  drawRainbow,
-  drawCaps,
-  drawDots,
-  drawRibbon,
-  drawFlower,
-  drawStems,
-  drawGrid,
+  drawStyle,
+  compileCustom,
   type VizStyle,
+  type CustomDrawFn,
 } from './viz';
 
 interface Props {
@@ -37,13 +31,35 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
   const { getAnalyser, isPlaying } = usePlayer();
   const { prefs, setPref } = usePrefs();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const style: VizStyle = STYLES.includes(prefs.viz_style as VizStyle)
-    ? (prefs.viz_style as VizStyle)
-    : 'bars';
+
+  // Cycle list = enabled built-ins (in STYLES order) + custom ids.
+  // If the user disables every built-in and has no customs, we fall back
+  // to the full STYLES list so something still renders.
+  const cycle = useMemo<string[]>(() => {
+    const disabled = new Set(prefs.viz_disabled ?? []);
+    const customs = prefs.viz_custom ?? [];
+    const enabled = STYLES.filter((s) => !disabled.has(s));
+    const list = [...enabled, ...customs.map((c) => c.id)];
+    return list.length > 0 ? list : [...STYLES];
+  }, [prefs.viz_disabled, prefs.viz_custom]);
+
+  // Resolve current style id against the cycle. If the saved one was
+  // removed (deleted custom, or hidden), pick the first available.
+  const styleId: string = cycle.includes(prefs.viz_style as string)
+    ? (prefs.viz_style as string)
+    : cycle[0];
+
+  const isBuiltin = (STYLES as string[]).includes(styleId);
+  const customDef = !isBuiltin
+    ? (prefs.viz_custom ?? []).find((c) => c.id === styleId) ?? null
+    : null;
+  const label = isBuiltin
+    ? STYLE_LABEL[styleId as VizStyle]
+    : customDef?.name ?? '?';
 
   const cycleStyle = () => {
-    const i = STYLES.indexOf(style);
-    setPref('viz_style', STYLES[(i + 1) % STYLES.length]);
+    const i = cycle.indexOf(styleId);
+    setPref('viz_style', cycle[(i + 1) % cycle.length]);
   };
 
   useEffect(() => {
@@ -55,21 +71,14 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
     let raf = 0;
     let buffer: Uint8Array | null = null;
     const heights = new Float32Array(bars);
-    // Floating peak caps for the "caps" style. Decay slowly so the cap
-    // hovers above the current bar height before falling.
     const peaks = new Float32Array(bars);
     const peakHoldFrames = new Int16Array(bars);
-    // Rotation for the flower style — slowly winds for a "spinning" feel.
     let rot = 0;
-    // For Ribbon: each layer samples a different frequency slice.
     const RIBBON_LAYERS = 6;
     const ribbonHeights: Float32Array[] = Array.from(
       { length: RIBBON_LAYERS },
       () => new Float32Array(bars),
     );
-    // Per-layer x-axis permutation: each layer scrambles which X position
-    // gets which bin from its slice, so the 6 ribbons don't all peak on
-    // the left like a sorted-low-to-high spectrum would.
     const ribbonPerms: Int16Array[] = Array.from({ length: RIBBON_LAYERS }, (_, l) => {
       const arr = new Int16Array(bars);
       for (let i = 0; i < bars; i++) arr[i] = i;
@@ -83,6 +92,17 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
       }
       return arr;
     });
+
+    // Compile the custom draw fn once per (effect run × style change).
+    // If compile fails, customErr stays set and we fall back to clearing
+    // the canvas + a tiny "error" hint at top-left so the user knows.
+    let customFn: CustomDrawFn | null = null;
+    let customErr: string | null = null;
+    if (!isBuiltin && customDef) {
+      const r = compileCustom(customDef.code);
+      if ('fn' in r) customFn = r.fn;
+      else customErr = r.error;
+    }
 
     function resizeIfNeeded() {
       if (!canvas) return;
@@ -130,9 +150,6 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
       }
     }
 
-    /** Sample the FFT into RIBBON_LAYERS independent slices. Each layer
-     *  covers a contiguous (but slightly overlapping) chunk of the
-     *  spectrum, so layer 0 = sub-bass, layer N = high treble. */
     function sampleAndTweenRibbon() {
       const analyser = getAnalyser();
       if (!analyser || !isPlaying) {
@@ -177,31 +194,34 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
       const H = canvas.height;
 
       tween(sample());
-      if (style === 'ribbon') sampleAndTweenRibbon();
+      if (styleId === 'ribbon') sampleAndTweenRibbon();
       ctx.clearRect(0, 0, W, H);
+      rot += 0.004;
 
-      switch (style) {
-        case 'bars':    drawBars(ctx, W, H, heights); break;
-        case 'mirror':  drawMirror(ctx, W, H, heights); break;
-        case 'wave':    drawWave(ctx, W, H, heights); break;
-        case 'pulse':   drawPulse(ctx, W, H, heights); break;
-        case 'rainbow': drawRainbow(ctx, W, H, heights); break;
-        case 'caps':    drawCaps(ctx, W, H, heights, peaks); break;
-        case 'dots':    drawDots(ctx, W, H, heights); break;
-        case 'ribbon':  drawRibbon(ctx, W, H, ribbonHeights); break;
-        case 'flower':
-          rot += 0.004;
-          drawFlower(ctx, W, H, heights, rot);
-          break;
-        case 'stems':   drawStems(ctx, W, H, heights); break;
-        case 'grid':    drawGrid(ctx, W, H, heights); break;
+      if (isBuiltin) {
+        drawStyle(styleId as VizStyle, {
+          ctx, W, H, heights, peaks, rot, ribbonHeights,
+        });
+      } else if (customFn) {
+        try {
+          customFn(ctx, W, H, heights, peaks, rot);
+        } catch (e: any) {
+          customErr = String(e?.message ?? e);
+          customFn = null; // stop hammering — show error and stand still
+        }
+      }
+
+      if (customErr) {
+        ctx.fillStyle = 'rgba(255, 80, 80, 0.9)';
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.fillText(`viz error: ${customErr.slice(0, 80)}`, 8, 16);
       }
 
       raf = requestAnimationFrame(draw);
     }
     draw();
     return () => cancelAnimationFrame(raf);
-  }, [bars, style, getAnalyser, isPlaying]);
+  }, [bars, styleId, isBuiltin, customDef, getAnalyser, isPlaying]);
 
   return (
     <div className="relative" style={{ height: `${height}px` }}>
@@ -211,10 +231,10 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
       />
       <button
         onClick={cycleStyle}
-        title={`Visualizer: ${STYLE_LABEL[style]} (click to cycle)`}
+        title={`Visualizer: ${label} (click to cycle)`}
         className="absolute top-2 right-2 text-[10px] px-2 py-1 rounded-full bezel text-zinc-300 hover:text-white"
       >
-        {STYLE_LABEL[style]}
+        {label}
       </button>
     </div>
   );

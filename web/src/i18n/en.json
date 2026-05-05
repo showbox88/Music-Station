@@ -66,6 +66,8 @@
     "user_favorites_public_tooltip": "{name}'s favorites are public",
     "lyrics_editor": "Lyrics Editor",
     "lyrics_editor_tooltip": "Listen and tap Space to make synced LRC",
+    "visualizer_lab": "Visualizer Lab",
+    "visualizer_lab_tooltip": "Preview, hide, or write your own visualizer effects",
     "admin": "Admin",
     "admin_tooltip": "User management (admin only)",
     "playlists": "Playlists",
@@ -353,5 +355,27 @@
     "save_partial_confirm": "{count} lines have no timestamps and will be dropped on save. Continue?",
     "save_success": "Saved to this track's lyric file ({count} lines)",
     "save_failed": "Save failed: {err}"
+  },
+  "viz_lab": {
+    "title": "Visualizer Lab",
+    "description": "Previews use a synthetic spectrum so they animate without playback.",
+    "builtins_section": "Built-in effects",
+    "custom_section": "Your custom effects",
+    "no_customs": "No custom effects yet — paste some code below to add one.",
+    "add_new": "Add a new effect",
+    "builtin_badge": "built-in",
+    "custom_badge": "custom",
+    "show": "Show",
+    "hide": "Hide",
+    "show_tooltip": "Re-add to the visualizer cycle",
+    "hide_tooltip": "Remove from the visualizer cycle",
+    "delete_tooltip": "Delete this custom effect",
+    "delete_confirm": "Delete this custom effect? This cannot be undone.",
+    "name_placeholder": "Effect name (e.g. My Bars)",
+    "name_required": "Please give your effect a name first.",
+    "preview": "Preview",
+    "save": "Save",
+    "live_preview": "Live preview",
+    "signature_hint": "Function body. Inputs: ctx (CanvasRenderingContext2D), W, H (canvas px), heights[56] in 0..1, peaks[56] in 0..1, rot (slow-rotating angle in rad)."
   }
 }

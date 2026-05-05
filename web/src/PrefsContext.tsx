@@ -49,6 +49,10 @@ export type SpatialPreset = 'off' | 'cinema' | 'hall' | 'club';
 export interface PrefsBlob {
   spatial_preset?: SpatialPreset;
   viz_style?: string;
+  /** Built-in style ids the user has hidden from the cycle. */
+  viz_disabled?: string[];
+  /** User-defined draw snippets. See viz/index.ts → VizCustom. */
+  viz_custom?: import('./player/viz').VizCustom[];
   global_eq_enabled?: boolean;
   global_eq?: EQState;
   [k: string]: unknown;

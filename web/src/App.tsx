@@ -4,6 +4,7 @@ import TrackList from './components/TrackList';
 import Sidebar, { type View } from './components/Sidebar';
 import PlaylistView from './components/PlaylistView';
 import LyricsEditor from './components/LyricsEditor';
+import VisualizerLab from './components/VisualizerLab';
 import AdminPanel from './components/AdminPanel';
 import UserFavoritesView from './components/UserFavoritesView';
 import Login from './components/Login';
@@ -132,6 +133,8 @@ function AppContent() {
           <TrackList refreshKey={refreshKey} onChanged={refresh} favoritedOnly />
         ) : view.kind === 'lyrics-editor' ? (
           <LyricsEditor />
+        ) : view.kind === 'visualizer-lab' ? (
+          <VisualizerLab />
         ) : view.kind === 'admin' ? (
           <AdminPanel />
         ) : view.kind === 'user-favorites' ? (
