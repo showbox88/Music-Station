@@ -19,6 +19,7 @@ import {
   EQ_PREAMP_MIN,
   EQ_PREAMP_MAX,
 } from './PlayerContext';
+import { useT } from '../i18n/useT';
 
 interface Props {
   open: boolean;
@@ -63,6 +64,7 @@ function detectActivePreset(gains: number[]): string | null {
 
 export default function EQPanel({ open, onClose }: Props) {
   const { eq, globalEq } = usePlayer();
+  const t = useT();
 
   useEffect(() => {
     if (!open) return;
@@ -94,11 +96,11 @@ export default function EQPanel({ open, onClose }: Props) {
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold tracking-wide glow-text">Equalizer</h2>
+          <h2 className="text-lg font-semibold tracking-wide glow-text">{t('eq_panel.title')}</h2>
           <div className="flex items-center gap-2">
-            {/* Mode pill: 独立 ↔ 全局. Independent of On/Off — switching
-                modes loads the corresponding curve into the panel; the
-                On/Off button below decides whether it's audible. */}
+            {/* Mode pill — independent of On/Off. Switching modes loads
+                the corresponding curve into the panel; the On/Off button
+                below decides whether it's audible. */}
             <div
               className="inline-flex rounded-full overflow-hidden text-xs"
               style={{ border: '1px solid #050506' }}
@@ -110,9 +112,9 @@ export default function EQPanel({ open, onClose }: Props) {
                     ? 'glow-text glow-ring'
                     : 'text-zinc-400 hover:text-white'
                 }`}
-                title="每首歌独立保存自己的 EQ 曲线"
+                title={t('eq_panel.mode_per_track_tooltip')}
               >
-                独立
+                {t('eq_panel.mode_per_track')}
               </button>
               <button
                 onClick={() => globalEq.setEnabled(true)}
@@ -121,9 +123,9 @@ export default function EQPanel({ open, onClose }: Props) {
                     ? 'glow-text glow-ring'
                     : 'text-zinc-400 hover:text-white'
                 }`}
-                title="所有歌共用一条全局 EQ 曲线"
+                title={t('eq_panel.mode_global_tooltip')}
               >
-                全局
+                {t('eq_panel.mode_global')}
               </button>
             </div>
             <button
@@ -134,25 +136,25 @@ export default function EQPanel({ open, onClose }: Props) {
               }`}
               title={
                 globalEq.enabled
-                  ? '全局模式下 EQ 始终开启；切换到「独立」才能关闭'
+                  ? t('eq_panel.on_disabled_global_tooltip')
                   : eq.bypass
-                    ? 'EQ off — click to engage'
-                    : 'EQ engaged — click to bypass'
+                    ? t('eq_panel.on_engage_tooltip')
+                    : t('eq_panel.on_bypass_tooltip')
               }
             >
-              {eq.bypass ? 'Off' : 'On'}
+              {eq.bypass ? t('eq_panel.off') : t('eq_panel.on')}
             </button>
             <button
               onClick={eq.reset}
               className="text-xs px-3 py-1 rounded-full bezel text-zinc-300 hover:text-white"
-              title="Reset all bands and pre-amp to 0 dB"
+              title={t('eq_panel.reset_tooltip')}
             >
-              Reset
+              {t('eq_panel.reset')}
             </button>
             <button
               onClick={onClose}
               className="w-8 h-8 rounded-full bezel text-zinc-300 hover:text-white flex items-center justify-center"
-              title="Close (Esc)"
+              title={t('eq_panel.close_tooltip')}
             >
               ✕
             </button>
@@ -198,7 +200,7 @@ export default function EQPanel({ open, onClose }: Props) {
           {/* Pre-amp */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs uppercase text-zinc-500 tracking-wide">Pre-amp</span>
+              <span className="text-xs uppercase text-zinc-500 tracking-wide">{t('eq_panel.preamp_label')}</span>
               <span className="text-xs text-zinc-300 tabular-nums">
                 {fmtGain(eq.preamp)} dB
               </span>
@@ -228,14 +230,14 @@ export default function EQPanel({ open, onClose }: Props) {
               }}
             />
             <p className="text-[10px] text-zinc-600 mt-1">
-              Reduce when boosting bands to prevent clipping.
+              {t('eq_panel.preamp_help')}
             </p>
           </div>
 
           {/* Presets */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs uppercase text-zinc-500 tracking-wide">Preset</span>
+              <span className="text-xs uppercase text-zinc-500 tracking-wide">{t('eq_panel.preset_label')}</span>
               <span className="text-xs text-zinc-500">{active ? '' : 'Custom'}</span>
             </div>
             <select

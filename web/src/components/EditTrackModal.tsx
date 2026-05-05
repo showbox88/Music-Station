@@ -264,6 +264,7 @@ function ModalTabButton({
  *    set is the current truth, save commits it.
  */
 function VisibilityField({ track }: { track: Track }) {
+  const t = useT();
   const [isPublic, setIsPublic] = useState(track.is_public);
   const [busyVis, setBusyVis] = useState(false);
   const [candidates, setCandidates] = useState<
@@ -287,7 +288,7 @@ function VisibilityField({ track }: { track: Track }) {
         setLoaded(true);
       })
       .catch((e: any) => {
-        if (!cancelled) setMsg(`加载失败：${e?.message ?? e}`);
+        if (!cancelled) setMsg(`${e?.message ?? e}`);
       });
     return () => {
       cancelled = true;
@@ -301,9 +302,9 @@ function VisibilityField({ track }: { track: Track }) {
     try {
       const r = await api.setTrackVisibility(track.id, !isPublic);
       setIsPublic(r.is_public);
-      setMsg(r.is_public ? '已设为公开（所有用户可见）' : '已设为私有');
+      setMsg(r.is_public ? t('share.now_public') : t('share.now_private'));
     } catch (e: any) {
-      setMsg(`保存失败：${e?.message ?? e}`);
+      setMsg(t('share.save_failed', { err: e?.message ?? String(e) }));
     } finally {
       setBusyVis(false);
     }
@@ -329,9 +330,9 @@ function VisibilityField({ track }: { track: Track }) {
     try {
       await api.setTrackShares(track.id, [...shared]);
       setOrigShared(new Set(shared));
-      setMsg(`已更新分享列表（${shared.size} 人）`);
+      setMsg(t('share.saved_share_count', { count: shared.size }));
     } catch (e: any) {
-      setMsg(`保存失败：${e?.message ?? e}`);
+      setMsg(t('share.save_failed', { err: e?.message ?? String(e) }));
     } finally {
       setSavingShares(false);
     }
@@ -346,15 +347,15 @@ function VisibilityField({ track }: { track: Track }) {
           onChange={togglePublic}
           disabled={busyVis}
         />
-        公开（所有登录用户都能看到）
+        {t('share.public_toggle')}
       </label>
 
-      <div className="text-xs text-zinc-500">或者只分享给特定用户：</div>
+      <div className="text-xs text-zinc-500">{t('share.or_share_with_specific')}</div>
 
       {!loaded ? (
-        <div className="text-xs text-zinc-500">加载用户列表…</div>
+        <div className="text-xs text-zinc-500">{t('share.loading_users')}</div>
       ) : candidates.length === 0 ? (
-        <div className="text-xs text-zinc-600">暂无其他用户。先在管理员页面添加用户。</div>
+        <div className="text-xs text-zinc-600">{t('share.no_other_users')}</div>
       ) : (
         <div
           className="max-h-32 overflow-auto rounded border border-zinc-800 bg-black/30 p-1.5 space-y-0.5"
@@ -386,7 +387,7 @@ function VisibilityField({ track }: { track: Track }) {
             disabled={!dirty || savingShares}
             className="px-3 py-1 rounded-full bezel text-xs glow-text glow-ring disabled:opacity-40"
           >
-            {savingShares ? '保存中…' : dirty ? '保存分享列表' : '已保存'}
+            {savingShares ? t('common.saving') : dirty ? t('share.save_share_list') : t('share.saved')}
           </button>
         </div>
       )}
@@ -472,7 +473,7 @@ function LyricsField({ track }: { track: Track }) {
   async function uploadFile(file: File) {
     if (busy) return;
     if (file.size > 256 * 1024) {
-      setMsg('文件超过 256KB 上限');
+      setMsg(t('lyrics.upload.too_large'));
       return;
     }
     setBusy(true);
@@ -484,10 +485,13 @@ function LyricsField({ track }: { track: Track }) {
         setStatus('present');
         setSource('manual');
         setHasTs(!!r.has_timestamps);
-        setMsg(`上传成功${r.has_timestamps ? '（带时间戳）' : '（纯文本）'}`);
+        const tsSuffix = r.has_timestamps
+          ? t('lyrics.auto.timestamps_yes')
+          : t('lyrics.auto.timestamps_no');
+        setMsg(t('lyrics.upload.success', { ts: tsSuffix }));
       }
     } catch (err: any) {
-      setMsg(`上传失败：${err?.message ?? err}`);
+      setMsg(t('lyrics.upload.failed', { err: err?.message ?? String(err) }));
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -506,10 +510,13 @@ function LyricsField({ track }: { track: Track }) {
         setHasTs(!!r.has_timestamps);
         setTab(null);
         setPasteText('');
-        setMsg(`保存成功${r.has_timestamps ? '（带时间戳）' : '（纯文本）'}`);
+        const tsSuffix = r.has_timestamps
+          ? t('lyrics.auto.timestamps_yes')
+          : t('lyrics.auto.timestamps_no');
+        setMsg(t('lyrics.paste.success', { ts: tsSuffix }));
       }
     } catch (err: any) {
-      setMsg(`保存失败：${err?.message ?? err}`);
+      setMsg(t('lyrics.paste.failed', { err: err?.message ?? String(err) }));
     } finally {
       setBusy(false);
     }
@@ -517,7 +524,7 @@ function LyricsField({ track }: { track: Track }) {
 
   async function remove() {
     if (busy) return;
-    if (!confirm('确认删除这首歌的歌词文件？')) return;
+    if (!confirm(t('lyrics.delete.confirm'))) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -525,9 +532,9 @@ function LyricsField({ track }: { track: Track }) {
       setStatus('absent');
       setSource(null);
       setHasTs(false);
-      setMsg('已删除');
+      setMsg(t('lyrics.delete.deleted'));
     } catch (err: any) {
-      setMsg(`删除失败：${err?.message ?? err}`);
+      setMsg(t('lyrics.delete.failed', { err: err?.message ?? String(err) }));
     } finally {
       setBusy(false);
     }
@@ -543,12 +550,15 @@ function LyricsField({ track }: { track: Track }) {
         setStatus('present');
         setSource(r.source ?? null);
         setHasTs(!!r.has_timestamps);
-        setMsg(`已获取（${r.source}${r.has_timestamps ? ' · 带时间戳' : ' · 纯文本'}）`);
+        const tsSuffix = r.has_timestamps
+          ? t('lyrics.auto.timestamps_yes')
+          : t('lyrics.auto.timestamps_no');
+        setMsg(t('lyrics.auto.fetched', { source: r.source ?? '?', ts: tsSuffix }));
       } else {
-        setMsg('所有源都没找到匹配的歌词');
+        setMsg(t('lyrics.auto.no_results'));
       }
     } catch (err: any) {
-      setMsg(`获取失败：${err?.message ?? err}`);
+      setMsg(t('lyrics.auto.failed', { err: err?.message ?? String(err) }));
     } finally {
       setBusy(false);
     }
@@ -562,9 +572,9 @@ function LyricsField({ track }: { track: Track }) {
     try {
       const r = await api.searchLyrics(trackId);
       setCandidates(r.candidates);
-      if (r.count === 0) setMsg('没有任何源返回结果');
+      if (r.count === 0) setMsg(t('lyrics.search.no_source_returned'));
     } catch (err: any) {
-      setMsg(`搜索失败：${err?.message ?? err}`);
+      setMsg(t('lyrics.search.search_failed', { err: err?.message ?? String(err) }));
     } finally {
       setSearchLoading(false);
     }
@@ -576,13 +586,13 @@ function LyricsField({ track }: { track: Track }) {
       const r = await api.previewLyric(cand.source, cand.ext_id);
       setPreviewing({
         cand,
-        text: r.synced ?? r.plain ?? '（这一条获取失败或为空）',
+        text: r.synced ?? r.plain ?? t('lyrics.search.fetch_select_failed'),
         loading: false,
       });
     } catch (err: any) {
       setPreviewing({
         cand,
-        text: `预览失败：${err?.message ?? err}`,
+        text: t('lyrics.search.preview_failed', { err: err?.message ?? String(err) }),
         loading: false,
       });
     }
@@ -598,16 +608,17 @@ function LyricsField({ track }: { track: Track }) {
         setStatus('present');
         setSource(cand.source);
         setHasTs(!!r.has_timestamps);
-        setMsg(
-          `已使用 ${cand.source} 的歌词${r.has_timestamps ? '（带时间戳）' : '（纯文本）'}`,
-        );
+        const tsSuffix = r.has_timestamps
+          ? t('lyrics.auto.timestamps_yes')
+          : t('lyrics.auto.timestamps_no');
+        setMsg(t('lyrics.select.used', { source: cand.source, ts: tsSuffix }));
         setTab(null);
         setPreviewing(null);
       } else {
-        setMsg('该候选项获取失败');
+        setMsg(t('lyrics.search.fetch_select_failed'));
       }
     } catch (err: any) {
-      setMsg(`保存失败：${err?.message ?? err}`);
+      setMsg(t('share.save_failed', { err: err?.message ?? String(err) }));
     } finally {
       setBusy(false);
     }
@@ -701,17 +712,14 @@ function LyricsField({ track }: { track: Track }) {
         >
           {tab === 'auto' && (
             <div className="space-y-2">
-              <p className="text-xs text-zinc-400">
-                按 LRCLIB → 网易云 → QQ 音乐 → 酷狗 的顺序自动尝试，挑出第一条匹配的歌词存盘。
-                适合大批量歌曲快速覆盖；要精确挑版本请用「搜索并选择」。
-              </p>
+              <p className="text-xs text-zinc-400">{t('lyrics.auto.description')}</p>
               <button
                 type="button"
                 onClick={autoFetch}
                 disabled={busy}
                 className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
               >
-                {busy ? '处理中…' : '现在获取'}
+                {busy ? t('lyrics.auto.processing') : t('lyrics.auto.fetch_now')}
               </button>
             </div>
           )}
@@ -719,16 +727,14 @@ function LyricsField({ track }: { track: Track }) {
           {tab === 'search' && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-500">
-                  从 4 个源同时搜索，挑你想要的版本
-                </span>
+                <span className="text-xs text-zinc-500">{t('lyrics.search.description')}</span>
                 <button
                   type="button"
                   onClick={runSearch}
                   disabled={busy || searchLoading}
                   className="px-2.5 py-1 rounded-full bezel text-[11px] text-zinc-300 hover:text-white disabled:opacity-50"
                 >
-                  {searchLoading ? '搜索中…' : '重新搜索'}
+                  {searchLoading ? t('lyrics.search.searching') : t('lyrics.search.research')}
                 </button>
               </div>
               <SearchPanel
@@ -745,16 +751,14 @@ function LyricsField({ track }: { track: Track }) {
 
           {tab === 'upload' && (
             <div className="space-y-2">
-              <p className="text-xs text-zinc-400">
-                选一个 .lrc / .txt 文件（≤256KB）。带 [mm:ss.xx] 时间戳会自动识别。
-              </p>
+              <p className="text-xs text-zinc-400">{t('lyrics.upload.description')}</p>
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={busy}
                 className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
               >
-                {busy ? '上传中…' : '选择文件'}
+                {busy ? t('lyrics.upload.uploading') : t('lyrics.upload.choose_file')}
               </button>
             </div>
           )}
@@ -765,7 +769,7 @@ function LyricsField({ track }: { track: Track }) {
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
                 rows={6}
-                placeholder="粘贴 LRC 文本，例如：&#10;[00:12.34]第一句&#10;[00:18.20]第二句"
+                placeholder={t('lyrics.paste.placeholder')}
                 className="input font-mono text-xs w-full"
                 style={{ minHeight: 120, resize: 'vertical' }}
               />
@@ -776,7 +780,7 @@ function LyricsField({ track }: { track: Track }) {
                   disabled={busy || !pasteText.trim()}
                   className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
                 >
-                  {busy ? '保存中…' : '保存歌词'}
+                  {busy ? t('lyrics.paste.saving') : t('lyrics.paste.save')}
                 </button>
               </div>
             </div>
@@ -791,11 +795,13 @@ function LyricsField({ track }: { track: Track }) {
 
 /* ----------------------------- Search panel ----------------------------- */
 
+// Source display names — kept in English (recognizable transliterations
+// for non-CJK users) since the codes are also used by the server.
 const SOURCE_LABEL: Record<string, string> = {
   lrclib: 'LRCLIB',
-  netease: '网易云',
-  qq: 'QQ 音乐',
-  kugou: '酷狗',
+  netease: 'Netease',
+  qq: 'QQ Music',
+  kugou: 'Kugou',
 };
 
 const SOURCE_COLOR: Record<string, string> = {
@@ -829,18 +835,19 @@ function SearchPanel({
   onUse: (c: LyricCandidate) => void;
   onClosePreview: () => void;
 }) {
+  const t = useT();
   return (
     <div
       className="rounded-lg border border-zinc-800 bg-black/30 p-2 space-y-2"
       style={{ maxHeight: 380, overflow: 'auto' }}
     >
-      {loading && <div className="text-xs text-zinc-500 px-2 py-1">搜索中…</div>}
+      {loading && <div className="text-xs text-zinc-500 px-2 py-1">{t('lyrics.search.searching')}</div>}
       {!loading && candidates.length === 0 && (
-        <div className="text-xs text-zinc-500 px-2 py-1">没有结果</div>
+        <div className="text-xs text-zinc-500 px-2 py-1">{t('lyrics.search.no_results')}</div>
       )}
       {!loading && candidates.length > 0 && (
         <div className="text-[10px] text-zinc-500 px-1">
-          共 {candidates.length} 条 · 时长偏差超过 ±5 秒会标黄
+          {t('lyrics.search.count_hint', { count: candidates.length })}
         </div>
       )}
       <ul className="space-y-1">
@@ -862,7 +869,7 @@ function SearchPanel({
               </span>
               <div className="min-w-0 flex-1">
                 <div className="text-xs truncate text-zinc-200">
-                  {c.title || '（无标题）'}
+                  {c.title || '—'}
                   {c.artist && (
                     <span className="text-zinc-500"> · {c.artist}</span>
                   )}
@@ -873,12 +880,15 @@ function SearchPanel({
                     {fmtSec(c.duration_sec)}
                     {dt !== null && (
                       <span className="text-zinc-600">
-                        {' '}({dt > 0 ? '差 ' + Math.round(dt) + 's' : '完全匹配'})
+                        {' '}
+                        ({dt > 0
+                          ? t('lyrics.search.duration_diff', { diff: Math.round(dt) })
+                          : t('lyrics.search.duration_match')})
                       </span>
                     )}
                   </span>
                   {!c.has_synced && (
-                    <span className="text-zinc-600"> · 纯文本</span>
+                    <span className="text-zinc-600"> · {t('lyrics.search.plain_text')}</span>
                   )}
                 </div>
               </div>
@@ -887,14 +897,14 @@ function SearchPanel({
                 onClick={() => onPreview(c)}
                 className="px-2 py-1 rounded-full bezel text-[10px] text-zinc-300 hover:text-white shrink-0"
               >
-                预览
+                {t('lyrics.search.preview')}
               </button>
               <button
                 type="button"
                 onClick={() => onUse(c)}
                 className="px-2 py-1 rounded-full bezel glow-text glow-ring text-[10px] shrink-0"
               >
-                使用
+                {t('lyrics.search.use')}
               </button>
             </li>
           );
@@ -931,7 +941,7 @@ function SearchPanel({
               className="flex-1 overflow-auto text-xs font-mono whitespace-pre-wrap text-zinc-300 bg-black/40 rounded p-3"
               style={{ minHeight: 200 }}
             >
-              {previewing.loading ? '加载中…' : previewing.text}
+              {previewing.loading ? t('lyrics.search.preview_loading') : previewing.text}
             </pre>
             <div className="flex justify-end gap-2 shrink-0">
               <button
@@ -939,7 +949,7 @@ function SearchPanel({
                 onClick={onClosePreview}
                 className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white"
               >
-                关闭
+                {t('common.close')}
               </button>
               <button
                 type="button"
@@ -947,7 +957,7 @@ function SearchPanel({
                 disabled={previewing.loading || !previewing.text}
                 className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
               >
-                使用这条
+                {t('lyrics.search.use_this')}
               </button>
             </div>
           </div>

@@ -11,6 +11,7 @@ import { usePlayer } from '../player/PlayerContext';
 import StarRating from './StarRating';
 import CoverThumb from './CoverThumb';
 import EditTrackModal from './EditTrackModal';
+import { useT } from '../i18n/useT';
 
 interface Props {
   playlistId: number;
@@ -31,6 +32,7 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
   const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState<Track | null>(null);
   const player = usePlayer();
+  const t = useT();
 
   function load() {
     setLoading(true);
@@ -52,17 +54,19 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
     const prev = data;
     setData({ ...data, tracks: next });
     try {
-      await api.reorderPlaylist(playlistId, next.map((t) => t.id));
+      await api.reorderPlaylist(playlistId, next.map((x) => x.id));
     } catch (e: any) {
-      setErr(`Reorder failed: ${e?.message ?? e}`);
+      setErr(t('playlist_view.reorder_failed', { err: e?.message ?? String(e) }));
       setData(prev); // revert
     }
   }
 
-  async function remove(t: Track) {
-    if (!confirm(`Remove "${t.title || t.rel_path}" from this playlist?`)) return;
+  async function remove(track: Track) {
+    if (!confirm(
+      t('playlist_view.remove_confirm', { name: track.title || track.rel_path }),
+    )) return;
     try {
-      await api.removeTrackFromPlaylist(playlistId, t.id);
+      await api.removeTrackFromPlaylist(playlistId, track.id);
       load();
       onChanged();
     } catch (e: any) {
@@ -82,23 +86,32 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                 {!data.is_owner && (
                   <span
                     className="ml-2 text-[10px] uppercase px-1.5 py-0.5 rounded border border-pink-500/30 bg-pink-500/10 text-pink-300 align-middle"
-                    title={`所有者：${data.owner_display_name || data.owner_username}`}
+                    title={t('common.owned_by', {
+                      name: data.owner_display_name || data.owner_username || '',
+                    })}
                   >
-                    {data.shared_with_me ? '分享自' : '公开 ·'}{' '}
-                    {data.owner_display_name || data.owner_username}
+                    {data.shared_with_me
+                      ? t('playlist_view.shared_from_owner', {
+                          name: data.owner_display_name || data.owner_username || '',
+                        })
+                      : t('playlist_view.public_from_owner', {
+                          name: data.owner_display_name || data.owner_username || '',
+                        })}
                   </span>
                 )}
                 {data.is_owner && data.is_public && (
                   <span
                     className="ml-2 text-[10px] uppercase px-1.5 py-0.5 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 align-middle"
-                    title="所有用户可见"
+                    title={t('playlist_view.owner_public_tooltip')}
                   >
-                    公开
+                    {t('playlist_view.owner_public_badge')}
                   </span>
                 )}
               </h2>
               <div className="text-xs text-zinc-500">
-                {data.tracks.length} track{data.tracks.length !== 1 ? 's' : ''}
+                {data.tracks.length === 1
+                  ? t('playlist_view.tracks_count', { count: 1 })
+                  : t('playlist_view.tracks_count_plural', { count: data.tracks.length })}
                 {data.description ? ` · ${data.description}` : ''}
               </div>
             </div>
@@ -108,7 +121,7 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                 disabled={data.tracks.length === 0}
                 className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
               >
-                ▶ Play
+                ▶ {t('playlist_view.play')}
               </button>
               <button
                 onClick={() => {
@@ -119,7 +132,7 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                 disabled={data.tracks.length === 0}
                 className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white disabled:opacity-50"
               >
-                🔀 Shuffle
+                🔀 {t('playlist_view.shuffle')}
               </button>
               {data.is_owner && (
                 <PlaylistShareControls playlist={data} onChanged={load} />
@@ -153,12 +166,12 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
             </tr>
           </thead>
           <tbody>
-            {data?.tracks.map((t, idx) => {
-              const isPlaying = player.current?.id === t.id;
+            {data?.tracks.map((track, idx) => {
+              const isPlaying = player.current?.id === track.id;
               return (
               <tr
-                key={t.id}
-                onDoubleClick={() => setEditing(t)}
+                key={track.id}
+                onDoubleClick={() => setEditing(track)}
                 className={`border-b border-black/40 cursor-default select-none ${
                   isPlaying ? '' : 'hover:bg-white/[0.03]'
                 }`}
@@ -199,7 +212,7 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                     className="md:hidden relative block rounded overflow-hidden"
                     style={{ width: 56, height: 56 }}
                   >
-                    <CoverThumb src={t.cover_url} size={56} />
+                    <CoverThumb src={track.cover_url} size={56} />
                     <span
                       className="absolute inset-0 flex items-center justify-center pointer-events-none"
                       style={{ color: 'rgba(255,255,255,0.6)' }}
@@ -217,25 +230,25 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                     </span>
                   </button>
                   <div className="hidden md:block">
-                    <CoverThumb src={t.cover_url} size={56} />
+                    <CoverThumb src={track.cover_url} size={56} />
                   </div>
                 </td>
                 <td className="py-2 pr-3 font-medium">
-                  {t.last_edited_at && (
+                  {track.last_edited_at && (
                     <span
                       className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 mr-2 align-middle"
-                      title={`Edited ${t.last_edited_at}`}
+                      title={`Edited ${track.last_edited_at}`}
                     />
                   )}
-                  {t.title || '—'}
+                  {track.title || '—'}
                 </td>
-                <td className="py-2 pr-3 text-zinc-400">{t.artist || '—'}</td>
-                <td className="py-2 pr-3 text-zinc-400">{t.album || '—'}</td>
+                <td className="py-2 pr-3 text-zinc-400">{track.artist || '—'}</td>
+                <td className="py-2 pr-3 text-zinc-400">{track.album || '—'}</td>
                 <td className="py-2 pr-3">
-                  <StarRating value={t.rating} />
+                  <StarRating value={track.rating} />
                 </td>
                 <td className="py-2 pr-3 text-zinc-500 text-right tabular-nums">
-                  {formatDuration(t.duration_sec)}
+                  {formatDuration(track.duration_sec)}
                 </td>
                 <td className="pr-2 md:pr-4 text-right whitespace-nowrap">
                   <div className="inline-flex items-center gap-1.5 md:gap-2">
@@ -246,7 +259,7 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                         <button
                           onClick={() => move(idx, -1)}
                           disabled={idx === 0}
-                          title="Move up"
+                          title={t('playlist_view.move_up')}
                           className="hidden md:flex w-8 h-8 rounded-full bezel items-center justify-center text-zinc-300 hover:text-white disabled:opacity-30"
                         >
                           ↑
@@ -254,14 +267,14 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                         <button
                           onClick={() => move(idx, 1)}
                           disabled={idx === (data?.tracks.length ?? 0) - 1}
-                          title="Move down"
+                          title={t('playlist_view.move_down')}
                           className="hidden md:flex w-8 h-8 rounded-full bezel items-center justify-center text-zinc-300 hover:text-white disabled:opacity-30"
                         >
                           ↓
                         </button>
                         <button
-                          onClick={() => remove(t)}
-                          title="Remove from playlist"
+                          onClick={() => remove(track)}
+                          title={t('playlist_view.remove_tooltip')}
                           className="w-8 h-8 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-red-400"
                         >
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
@@ -279,7 +292,7 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
             {data && data.tracks.length === 0 && (
               <tr>
                 <td colSpan={9} className="text-center py-12 text-zinc-500">
-                  No tracks in this playlist yet. Switch to All Tracks and click + to add.
+                  {t('playlist_view.no_tracks')}
                 </td>
               </tr>
             )}
@@ -319,15 +332,16 @@ function PlaylistShareControls({
   playlist: PlaylistDetail;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <>
       <button
         onClick={() => setOpen(true)}
         className="px-3 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
-        title="可见性 / 分享"
+        title={t('playlist_view.share_button_tooltip')}
       >
-        🔗 分享
+        🔗 {t('playlist_view.share_button')}
       </button>
       {open && (
         <PlaylistShareModal
@@ -349,6 +363,7 @@ function PlaylistShareModal({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [isPublic, setIsPublic] = useState(playlist.is_public);
   const [busy, setBusy] = useState(false);
   const [candidates, setCandidates] = useState<
@@ -369,7 +384,7 @@ function PlaylistShareModal({
         setOrigShared(new Set(ids));
         setLoaded(true);
       })
-      .catch((e: any) => setMsg(`加载失败：${e?.message ?? e}`));
+      .catch((e: any) => setMsg(String(e?.message ?? e)));
   }, [playlist.id]);
 
   async function togglePublic() {
@@ -380,9 +395,9 @@ function PlaylistShareModal({
       const r = await api.setPlaylistVisibility(playlist.id, !isPublic);
       setIsPublic(r.is_public);
       onChanged();
-      setMsg(r.is_public ? '已设为公开' : '已设为私有');
+      setMsg(r.is_public ? t('share.now_public') : t('share.now_private'));
     } catch (e: any) {
-      setMsg(`保存失败：${e?.message ?? e}`);
+      setMsg(t('share.save_failed', { err: e?.message ?? String(e) }));
     } finally {
       setBusy(false);
     }
@@ -409,9 +424,9 @@ function PlaylistShareModal({
       await api.setPlaylistShares(playlist.id, [...shared]);
       setOrigShared(new Set(shared));
       onChanged();
-      setMsg(`已更新分享列表（${shared.size} 人）`);
+      setMsg(t('share.saved_share_count', { count: shared.size }));
     } catch (e: any) {
-      setMsg(`保存失败：${e?.message ?? e}`);
+      setMsg(t('share.save_failed', { err: e?.message ?? String(e) }));
     } finally {
       setSavingShares(false);
     }
@@ -431,9 +446,11 @@ function PlaylistShareModal({
         }}
       >
         <div>
-          <h2 className="text-base font-semibold">分享 “{playlist.name}”</h2>
+          <h2 className="text-base font-semibold">
+            {t('playlist_view.share_modal_title', { name: playlist.name })}
+          </h2>
           <p className="text-xs text-zinc-500 mt-1">
-            列表对别人可见时，列表里的歌曲也跟着可见（即使是私有歌）。
+            {t('playlist_view.share_modal_intro')}
           </p>
         </div>
 
@@ -444,15 +461,15 @@ function PlaylistShareModal({
             onChange={togglePublic}
             disabled={busy}
           />
-          公开（所有登录用户都能看到）
+          {t('share.public_toggle')}
         </label>
 
-        <div className="text-xs text-zinc-500">或者只分享给特定用户：</div>
+        <div className="text-xs text-zinc-500">{t('share.or_share_with_specific')}</div>
 
         {!loaded ? (
-          <div className="text-xs text-zinc-500">加载用户列表…</div>
+          <div className="text-xs text-zinc-500">{t('share.loading_users')}</div>
         ) : candidates.length === 0 ? (
-          <div className="text-xs text-zinc-600">暂无其他用户。</div>
+          <div className="text-xs text-zinc-600">{t('share.no_other_users')}</div>
         ) : (
           <div className="max-h-48 overflow-auto rounded border border-zinc-800 bg-black/30 p-1.5 space-y-0.5">
             {candidates.map((u) => (
@@ -482,7 +499,7 @@ function PlaylistShareModal({
             onClick={onClose}
             className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
           >
-            关闭
+            {t('common.close')}
           </button>
           {loaded && candidates.length > 0 && (
             <button
@@ -491,7 +508,11 @@ function PlaylistShareModal({
               disabled={!dirty || savingShares}
               className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-40"
             >
-              {savingShares ? '保存中…' : dirty ? '保存分享列表' : '已保存'}
+              {savingShares
+                ? t('common.saving')
+                : dirty
+                  ? t('share.save_share_list')
+                  : t('share.saved')}
             </button>
           )}
         </div>

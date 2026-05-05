@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { ShareUser } from '../types';
+import { useT } from '../i18n/useT';
 
 interface Props {
   onClose: () => void;
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export default function FavoritesShareModal({ onClose, onChanged }: Props) {
+  const t = useT();
   const [isPublic, setIsPublic] = useState(false);
   const [busy, setBusy] = useState(false);
   const [candidates, setCandidates] = useState<ShareUser[]>([]);
@@ -35,7 +37,7 @@ export default function FavoritesShareModal({ onClose, onChanged }: Props) {
         setOrigShared(new Set(ids));
         setLoaded(true);
       })
-      .catch((e: any) => setMsg(`加载失败：${e?.message ?? e}`));
+      .catch((e: any) => setMsg(String(e?.message ?? e)));
   }, []);
 
   async function togglePublic() {
@@ -46,9 +48,9 @@ export default function FavoritesShareModal({ onClose, onChanged }: Props) {
       const r = await api.setFavoritesVisibility(!isPublic);
       setIsPublic(r.is_public);
       onChanged();
-      setMsg(r.is_public ? '已设为公开' : '已设为私有');
+      setMsg(r.is_public ? t('share.now_public') : t('share.now_private'));
     } catch (e: any) {
-      setMsg(`保存失败：${e?.message ?? e}`);
+      setMsg(t('share.save_failed', { err: e?.message ?? String(e) }));
     } finally {
       setBusy(false);
     }
@@ -75,9 +77,9 @@ export default function FavoritesShareModal({ onClose, onChanged }: Props) {
       await api.setFavoritesShares([...shared]);
       setOrigShared(new Set(shared));
       onChanged();
-      setMsg(`已更新分享列表（${shared.size} 人）`);
+      setMsg(t('share.saved_share_count', { count: shared.size }));
     } catch (e: any) {
-      setMsg(`保存失败：${e?.message ?? e}`);
+      setMsg(t('share.save_failed', { err: e?.message ?? String(e) }));
     } finally {
       setSavingShares(false);
     }
@@ -97,12 +99,8 @@ export default function FavoritesShareModal({ onClose, onChanged }: Props) {
         }}
       >
         <div>
-          <h2 className="text-base font-semibold">分享我的收藏</h2>
-          <p className="text-xs text-zinc-500 mt-1">
-            分享/公开后，对方在侧边栏会看到一项"
-            <span className="text-zinc-300">你的名字 的收藏</span>
-            "，里面收藏的歌也对他们透传可见（即使是你私有的歌）。
-          </p>
+          <h2 className="text-base font-semibold">{t('favorites_share.title')}</h2>
+          <p className="text-xs text-zinc-500 mt-1">{t('favorites_share.intro')}</p>
         </div>
 
         <label className="flex items-center gap-2 text-sm text-zinc-200">
@@ -112,15 +110,15 @@ export default function FavoritesShareModal({ onClose, onChanged }: Props) {
             onChange={togglePublic}
             disabled={busy}
           />
-          公开（所有登录用户都能看到）
+          {t('share.public_toggle')}
         </label>
 
-        <div className="text-xs text-zinc-500">或者只分享给特定用户：</div>
+        <div className="text-xs text-zinc-500">{t('share.or_share_with_specific')}</div>
 
         {!loaded ? (
-          <div className="text-xs text-zinc-500">加载用户列表…</div>
+          <div className="text-xs text-zinc-500">{t('share.loading_users')}</div>
         ) : candidates.length === 0 ? (
-          <div className="text-xs text-zinc-600">暂无其他用户。</div>
+          <div className="text-xs text-zinc-600">{t('share.no_other_users')}</div>
         ) : (
           <div className="max-h-48 overflow-auto rounded border border-zinc-800 bg-black/30 p-1.5 space-y-0.5">
             {candidates.map((u) => (
@@ -150,7 +148,7 @@ export default function FavoritesShareModal({ onClose, onChanged }: Props) {
             onClick={onClose}
             className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
           >
-            关闭
+            {t('common.close')}
           </button>
           {loaded && candidates.length > 0 && (
             <button
@@ -159,7 +157,11 @@ export default function FavoritesShareModal({ onClose, onChanged }: Props) {
               disabled={!dirty || savingShares}
               className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-40"
             >
-              {savingShares ? '保存中…' : dirty ? '保存分享列表' : '已保存'}
+              {savingShares
+                ? t('common.saving')
+                : dirty
+                  ? t('share.save_share_list')
+                  : t('share.saved')}
             </button>
           )}
         </div>

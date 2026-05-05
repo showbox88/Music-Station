@@ -16,9 +16,11 @@
 import { useEffect, useState } from 'react';
 import { api, type AdminUser } from '../api';
 import { useAuth } from '../AuthContext';
+import { useT } from '../i18n/useT';
 
 export default function AdminPanel() {
   const { user: me } = useAuth();
+  const t = useT();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -50,19 +52,19 @@ export default function AdminPanel() {
     <main className="flex-1 min-w-0 overflow-auto p-5">
       <div className="max-w-3xl mx-auto space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-base font-semibold">⚙︎ 管理员后台 · 用户</h1>
+          <h1 className="text-base font-semibold">⚙︎ {t('admin.title')}</h1>
           <button
             onClick={() => setCreating(true)}
             className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs"
           >
-            ＋ 添加用户
+            {t('admin.add_user')}
           </button>
         </div>
 
         {err && <div className="text-sm text-red-400 bg-red-950/30 p-2 rounded">{err}</div>}
 
         {loading ? (
-          <div className="text-sm text-zinc-500">加载中…</div>
+          <div className="text-sm text-zinc-500">{t('admin.loading')}</div>
         ) : (
           <div className="space-y-2">
             {users.map((u) => (
@@ -103,6 +105,7 @@ function UserRow({
   onChanged: () => void;
   onError: (s: string) => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [resetting, setResetting] = useState(false);
 
@@ -137,7 +140,7 @@ function UserRow({
   async function remove() {
     if (isMe) return;
     if (busy) return;
-    if (!confirm(`确认删除用户 ${user.username}？这会删除其会话。`)) return;
+    if (!confirm(t('admin.delete_confirm', { username: user.username }))) return;
     setBusy(true);
     try {
       await api.adminDeleteUser(user.id);
@@ -165,18 +168,18 @@ function UserRow({
         <div className="text-sm text-zinc-200 truncate">
           {user.display_name || user.username}
           {!!user.is_admin && (
-            <span className="ml-2 text-[10px] text-amber-400">admin</span>
+            <span className="ml-2 text-[10px] text-amber-400">{t('admin.user_admin_label')}</span>
           )}
           {!!user.must_change_password && (
-            <span className="ml-2 text-[10px] text-sky-400">需改密</span>
+            <span className="ml-2 text-[10px] text-sky-400">{t('admin.user_must_change_label')}</span>
           )}
           {!!user.disabled && (
-            <span className="ml-2 text-[10px] text-red-400">已封锁</span>
+            <span className="ml-2 text-[10px] text-red-400">{t('admin.user_disabled_label')}</span>
           )}
-          {isMe && <span className="ml-2 text-[10px] text-zinc-500">（我）</span>}
+          {isMe && <span className="ml-2 text-[10px] text-zinc-500">{t('admin.user_self_marker')}</span>}
         </div>
         <div className="text-[11px] text-zinc-500 truncate">
-          @{user.username} · 注册于 {user.created_at.slice(0, 10)}
+          @{user.username} · {t('admin.registered_on', { date: user.created_at.slice(0, 10) })}
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5 shrink-0">
@@ -185,31 +188,31 @@ function UserRow({
           disabled={busy}
           className="px-2.5 py-1 rounded-full bezel text-[11px] text-zinc-300 hover:text-white"
         >
-          重置密码
+          {t('admin.btn_reset_password')}
         </button>
         <button
           onClick={toggleAdmin}
           disabled={busy || isMe}
           className="px-2.5 py-1 rounded-full bezel text-[11px] text-zinc-300 hover:text-white disabled:opacity-40"
-          title={isMe ? '不能改自己的管理员身份' : ''}
+          title={isMe ? t('admin.tooltip_self_admin') : ''}
         >
-          {user.is_admin ? '降为普通' : '设为管理员'}
+          {user.is_admin ? t('admin.btn_demote_admin') : t('admin.btn_promote_admin')}
         </button>
         <button
           onClick={toggleDisabled}
           disabled={busy || isMe}
           className="px-2.5 py-1 rounded-full bezel text-[11px] text-zinc-300 hover:text-white disabled:opacity-40"
-          title={isMe ? '不能封锁自己' : ''}
+          title={isMe ? t('admin.tooltip_self_disable') : ''}
         >
-          {user.disabled ? '解封' : '封锁'}
+          {user.disabled ? t('admin.btn_enable') : t('admin.btn_disable')}
         </button>
         <button
           onClick={remove}
           disabled={busy || isMe}
           className="px-2.5 py-1 rounded-full bezel text-[11px] text-red-400 hover:text-red-300 disabled:opacity-40"
-          title={isMe ? '不能删除自己' : ''}
+          title={isMe ? t('admin.tooltip_self_delete') : ''}
         >
-          删除
+          {t('admin.btn_delete')}
         </button>
       </div>
       {resetting && (
@@ -236,6 +239,7 @@ function CreateUserModal({
   onCreated: () => void;
   onError: (s: string) => void;
 }) {
+  const t = useT();
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
@@ -248,11 +252,11 @@ function CreateUserModal({
     if (busy) return;
     setLocalErr(null);
     if (!/^[a-z0-9_-]{2,32}$/.test(username)) {
-      setLocalErr('用户名 2-32 位，小写字母 / 数字 / _ / -');
+      setLocalErr(t('admin.create.username_invalid'));
       return;
     }
     if (password.length < 6) {
-      setLocalErr('密码至少 6 位');
+      setLocalErr(t('admin.create.password_too_short'));
       return;
     }
     setBusy(true);
@@ -266,8 +270,8 @@ function CreateUserModal({
       onCreated();
     } catch (e: any) {
       const msg = String(e?.message ?? e);
-      if (msg.includes('409')) setLocalErr('用户名已存在');
-      else if (msg.includes('400')) setLocalErr('输入有误：' + msg);
+      if (msg.includes('409')) setLocalErr(t('admin.create.username_taken'));
+      else if (msg.includes('400')) setLocalErr(t('admin.create.bad_input', { err: msg }));
       else {
         setLocalErr(msg);
         onError(msg);
@@ -291,13 +295,11 @@ function CreateUserModal({
           border: '1px solid #050506',
         }}
       >
-        <h2 className="text-base font-semibold">添加用户</h2>
-        <p className="text-xs text-zinc-500">
-          新用户首次登录会被强制改密。
-        </p>
+        <h2 className="text-base font-semibold">{t('admin.create.title')}</h2>
+        <p className="text-xs text-zinc-500">{t('admin.create.intro')}</p>
 
         <label className="block">
-          <span className="text-xs uppercase text-zinc-500 mb-1 block">用户名</span>
+          <span className="text-xs uppercase text-zinc-500 mb-1 block">{t('admin.create.username_label')}</span>
           <input
             type="text"
             value={username}
@@ -308,7 +310,7 @@ function CreateUserModal({
           />
         </label>
         <label className="block">
-          <span className="text-xs uppercase text-zinc-500 mb-1 block">显示名（可选）</span>
+          <span className="text-xs uppercase text-zinc-500 mb-1 block">{t('admin.create.display_name_label')}</span>
           <input
             type="text"
             value={displayName}
@@ -318,12 +320,12 @@ function CreateUserModal({
           />
         </label>
         <label className="block">
-          <span className="text-xs uppercase text-zinc-500 mb-1 block">初始密码（≥6 位）</span>
+          <span className="text-xs uppercase text-zinc-500 mb-1 block">{t('admin.create.password_label')}</span>
           <input
             type="text"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="把这个发给用户，他登录后必须改"
+            placeholder={t('admin.create.password_help')}
             className="input w-full font-mono"
           />
         </label>
@@ -333,7 +335,7 @@ function CreateUserModal({
             checked={isAdmin}
             onChange={(e) => setIsAdmin(e.target.checked)}
           />
-          设为管理员
+          {t('admin.create.is_admin_label')}
         </label>
 
         {localErr && (
@@ -346,14 +348,14 @@ function CreateUserModal({
             onClick={onClose}
             className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
           >
-            取消
+            {t('common.cancel')}
           </button>
           <button
             type="submit"
             disabled={busy || !username || !password}
             className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
           >
-            {busy ? '创建中…' : '创建'}
+            {busy ? t('admin.create.creating') : t('admin.create.create')}
           </button>
         </div>
       </form>
@@ -372,6 +374,7 @@ function ResetPasswordModal({
   onDone: () => void;
   onError: (s: string) => void;
 }) {
+  const t = useT();
   const [pw, setPw] = useState('');
   const [busy, setBusy] = useState(false);
   const [localErr, setLocalErr] = useState<string | null>(null);
@@ -380,7 +383,7 @@ function ResetPasswordModal({
     e.preventDefault();
     if (busy) return;
     if (pw.length < 6) {
-      setLocalErr('密码至少 6 位');
+      setLocalErr(t('admin.create.password_too_short'));
       return;
     }
     setBusy(true);
@@ -410,12 +413,10 @@ function ResetPasswordModal({
           border: '1px solid #050506',
         }}
       >
-        <h2 className="text-base font-semibold">重置 {user.username} 的密码</h2>
-        <p className="text-xs text-zinc-500">
-          重置后该用户被强制下线，下次登录用新密码并被要求再改一次。
-        </p>
+        <h2 className="text-base font-semibold">{t('admin.reset.title', { username: user.username })}</h2>
+        <p className="text-xs text-zinc-500">{t('admin.reset.intro')}</p>
         <label className="block">
-          <span className="text-xs uppercase text-zinc-500 mb-1 block">新密码（≥6 位）</span>
+          <span className="text-xs uppercase text-zinc-500 mb-1 block">{t('admin.reset.new_password_label')}</span>
           <input
             type="text"
             autoFocus
@@ -433,14 +434,14 @@ function ResetPasswordModal({
             onClick={onClose}
             className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
           >
-            取消
+            {t('common.cancel')}
           </button>
           <button
             type="submit"
             disabled={busy || pw.length < 6}
             className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
           >
-            {busy ? '提交中…' : '重置'}
+            {busy ? t('admin.reset.submitting') : t('admin.reset.submit')}
           </button>
         </div>
       </form>

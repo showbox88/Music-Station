@@ -19,6 +19,7 @@ import { usePlayer } from '../player/PlayerContext';
 import StarRating from './StarRating';
 import CoverThumb from './CoverThumb';
 import EditTrackModal from './EditTrackModal';
+import { useT } from '../i18n/useT';
 
 interface Props {
   userId: number;
@@ -40,6 +41,7 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
   const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState<Track | null>(null);
   const player = usePlayer();
+  const t = useT();
 
   function load() {
     setLoading(true);
@@ -62,7 +64,9 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
           <>
             <div className="min-w-0">
               <h2 className="text-lg font-semibold truncate">
-                ♥ {data.user.display_name || data.user.username} 的收藏
+                ♥ {t('user_favorites_view.title', {
+                  name: data.user.display_name || data.user.username,
+                })}
                 <span
                   className={`ml-2 text-[10px] uppercase px-1.5 py-0.5 rounded border align-middle ${
                     data.shared_with_me
@@ -70,11 +74,13 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
                       : 'border-zinc-500/30 bg-zinc-500/10 text-zinc-300'
                   }`}
                 >
-                  {data.shared_with_me ? '分享给我' : '公开'}
+                  {data.shared_with_me
+                    ? t('user_favorites_view.shared_with_me_badge')
+                    : t('user_favorites_view.public_badge')}
                 </span>
               </h2>
               <div className="text-xs text-zinc-500">
-                {data.tracks.length} 首
+                {t('user_favorites_view.n_tracks', { count: data.tracks.length })}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -83,7 +89,7 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
                 disabled={data.tracks.length === 0}
                 className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
               >
-                ▶ Play
+                ▶ {t('playlist_view.play')}
               </button>
               <button
                 onClick={() => {
@@ -94,18 +100,18 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
                 disabled={data.tracks.length === 0}
                 className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white disabled:opacity-50"
               >
-                🔀 Shuffle
+                🔀 {t('playlist_view.shuffle')}
               </button>
             </div>
           </>
         ) : (
-          <div className="text-sm text-zinc-500">{loading ? '加载中…' : err ? err : ''}</div>
+          <div className="text-sm text-zinc-500">{loading ? t('common.loading') : err ? err : ''}</div>
         )}
       </div>
 
       {err && data === null && (
         <div className="px-6 py-3 text-sm text-red-400 bg-red-950/30 border-b border-red-900">
-          {err.includes('403') ? `无权访问 ${ownerName} 的收藏` : err}
+          {err.includes('403') ? t('user_favorites_view.no_access', { name: ownerName }) : err}
         </div>
       )}
 
@@ -116,20 +122,20 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
               <th className="text-left font-medium py-2 pl-6 w-12">#</th>
               <th className="text-left font-medium py-2 w-10">▶</th>
               <th className="text-left font-medium py-2 w-12"></th>
-              <th className="text-left font-medium py-2">Title</th>
-              <th className="text-left font-medium py-2">Artist</th>
-              <th className="text-left font-medium py-2">Album</th>
-              <th className="text-left font-medium py-2 w-24">Rating</th>
-              <th className="text-right font-medium py-2 pr-6 w-20">Duration</th>
+              <th className="text-left font-medium py-2">{t('tracks.header.title')}</th>
+              <th className="text-left font-medium py-2">{t('tracks.header.artist')}</th>
+              <th className="text-left font-medium py-2">{t('tracks.header.album')}</th>
+              <th className="text-left font-medium py-2 w-24">{t('tracks.header.rating')}</th>
+              <th className="text-right font-medium py-2 pr-6 w-20">{t('tracks.header.duration')}</th>
             </tr>
           </thead>
           <tbody>
-            {data?.tracks.map((t, idx) => {
-              const isPlaying = player.current?.id === t.id;
+            {data?.tracks.map((track, idx) => {
+              const isPlaying = player.current?.id === track.id;
               return (
                 <tr
-                  key={t.id}
-                  onDoubleClick={() => setEditing(t)}
+                  key={track.id}
+                  onDoubleClick={() => setEditing(track)}
                   className={`border-b border-black/40 cursor-default select-none ${
                     isPlaying ? '' : 'hover:bg-white/[0.03]'
                   }`}
@@ -157,7 +163,7 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
                       className="md:hidden relative block rounded overflow-hidden"
                       style={{ width: 56, height: 56 }}
                     >
-                      <CoverThumb src={t.cover_url} size={56} />
+                      <CoverThumb src={track.cover_url} size={56} />
                       <span
                         className="absolute inset-0 flex items-center justify-center pointer-events-none"
                         style={{ color: 'rgba(255,255,255,0.6)' }}
@@ -175,27 +181,29 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
                       </span>
                     </button>
                     <div className="hidden md:block">
-                      <CoverThumb src={t.cover_url} size={56} />
+                      <CoverThumb src={track.cover_url} size={56} />
                     </div>
                   </td>
                   <td className="py-2 pr-3 font-medium">
-                    {t.title || '—'}
-                    {!t.is_owner && (
+                    {track.title || '—'}
+                    {!track.is_owner && (
                       <span
                         className="ml-1.5 text-[9px] uppercase text-zinc-500"
-                        title={`所有者：${t.owner_display_name || t.owner_username}`}
+                        title={t('common.owned_by', {
+                          name: track.owner_display_name || track.owner_username || '',
+                        })}
                       >
-                        · {t.owner_display_name || t.owner_username}
+                        · {track.owner_display_name || track.owner_username}
                       </span>
                     )}
                   </td>
-                  <td className="py-2 pr-3 text-zinc-400">{t.artist || '—'}</td>
-                  <td className="py-2 pr-3 text-zinc-400">{t.album || '—'}</td>
+                  <td className="py-2 pr-3 text-zinc-400">{track.artist || '—'}</td>
+                  <td className="py-2 pr-3 text-zinc-400">{track.album || '—'}</td>
                   <td className="py-2 pr-3">
-                    <StarRating value={t.rating} />
+                    <StarRating value={track.rating} />
                   </td>
                   <td className="py-2 pr-6 text-zinc-500 text-right tabular-nums">
-                    {fmtDur(t.duration_sec)}
+                    {fmtDur(track.duration_sec)}
                   </td>
                 </tr>
               );
@@ -203,7 +211,7 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
             {data && data.tracks.length === 0 && (
               <tr>
                 <td colSpan={8} className="text-center py-12 text-zinc-500">
-                  这位用户的收藏夹是空的。
+                  {t('user_favorites_view.no_tracks')}
                 </td>
               </tr>
             )}
