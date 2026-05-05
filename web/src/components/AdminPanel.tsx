@@ -62,7 +62,7 @@ export default function AdminPanel() {
           </button>
         </div>
 
-        {err && <div className="text-sm text-red-400 bg-red-950/30 p-2 rounded">{err}</div>}
+        {err && <div className="error-box">{err}</div>}
 
         {loading ? (
           <div className="text-sm text-zinc-500">{t('admin.loading')}</div>
@@ -334,7 +334,7 @@ function CreateUserModal({
         </label>
 
         {localErr && (
-          <div className="text-sm text-red-400 bg-red-950/30 p-2 rounded">{localErr}</div>
+          <div className="error-box">{localErr}</div>
         )}
 
         <div className="flex justify-end gap-2 pt-1">
@@ -414,7 +414,7 @@ function ResetPasswordModal({
           />
         </label>
         {localErr && (
-          <div className="text-sm text-red-400 bg-red-950/30 p-2 rounded">{localErr}</div>
+          <div className="error-box">{localErr}</div>
         )}
         <div className="flex justify-end gap-2 pt-1">
           <button

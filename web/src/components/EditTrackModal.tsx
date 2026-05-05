@@ -197,7 +197,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
         {/* Footer */}
         {err && (
           <div className="px-6 pb-2 shrink-0">
-            <div className="text-sm text-red-400 bg-red-950/30 p-2 rounded">{err}</div>
+            <div className="error-box">{err}</div>
           </div>
         )}
         <div className="px-6 pb-5 pt-3 shrink-0 flex justify-end gap-2 border-t border-black/60">

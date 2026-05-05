@@ -113,7 +113,7 @@ export default function ChangePasswordModal({ forced, onClose }: Props) {
           />
         </label>
 
-        {err && <div className="text-sm text-red-400 bg-red-950/30 p-2 rounded">{err}</div>}
+        {err && <div className="error-box">{err}</div>}
         {done && (
           <div className="text-sm text-emerald-400 bg-emerald-950/30 p-2 rounded">
             {forced ? t('auth.password_changed_entering') : t('auth.password_changed')}

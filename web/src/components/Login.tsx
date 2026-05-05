@@ -68,7 +68,7 @@ export default function Login() {
           />
         </label>
 
-        {err && <div className="text-sm text-red-400 bg-red-950/30 p-2 rounded">{err}</div>}
+        {err && <div className="error-box">{err}</div>}
 
         <button
           type="submit"
