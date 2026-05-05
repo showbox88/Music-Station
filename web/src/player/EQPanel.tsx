@@ -106,19 +106,36 @@ export default function EQPanel({ open, onClose }: Props) {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => globalEq.setEnabled(!globalEq.enabled)}
-              className={`text-xs px-3 py-1 rounded-full bezel ${
-                globalEq.enabled ? 'glow-text glow-ring' : 'text-zinc-300'
-              }`}
-              title={
-                globalEq.enabled
-                  ? '全局模式开 — 所有歌共用此曲线，关掉则回到每首歌独立'
-                  : '点击开启全局模式：所有歌都用同一条曲线，忽略每首独立的 EQ'
-              }
+            {/* Mode pill: 独立 ↔ 全局. Independent of On/Off — switching
+                modes loads the corresponding curve into the panel; the
+                On/Off button below decides whether it's audible. */}
+            <div
+              className="inline-flex rounded-full overflow-hidden text-xs"
+              style={{ border: '1px solid #050506' }}
             >
-              {globalEq.enabled ? '全局' : '独立'}
-            </button>
+              <button
+                onClick={() => globalEq.setEnabled(false)}
+                className={`px-3 py-1 ${
+                  !globalEq.enabled
+                    ? 'glow-text glow-ring'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+                title="每首歌独立保存自己的 EQ 曲线"
+              >
+                独立
+              </button>
+              <button
+                onClick={() => globalEq.setEnabled(true)}
+                className={`px-3 py-1 ${
+                  globalEq.enabled
+                    ? 'glow-text glow-ring'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+                title="所有歌共用一条全局 EQ 曲线"
+              >
+                全局
+              </button>
+            </div>
             <button
               onClick={() => eq.setBypass(!eq.bypass)}
               className={`text-xs px-3 py-1 rounded-full bezel ${
@@ -144,16 +161,6 @@ export default function EQPanel({ open, onClose }: Props) {
             </button>
           </div>
         </div>
-
-        {!globalEq.enabled && (
-          <button
-            onClick={globalEq.promoteCurrent}
-            className="mb-4 text-[11px] px-3 py-1 rounded-full bezel text-zinc-400 hover:text-white"
-            title="把当前曲线保存为全局曲线并切换到全局模式"
-          >
-            ↑ 把当前曲线设为全局
-          </button>
-        )}
 
         {/* dB scale + faders row */}
         <div className="flex items-stretch gap-1 mb-4" style={{ opacity: eq.bypass ? 0.4 : 1 }}>

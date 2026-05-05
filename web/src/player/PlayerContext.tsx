@@ -72,12 +72,10 @@ export interface SpatialController {
 
 export interface GlobalEQController {
   /** When true, all tracks use the same global EQ curve, ignoring
-   *  per-track entries. */
+   *  per-track entries. The EQ panel toggles between this mode and
+   *  per-track mode independently of the EQ on/off bypass. */
   enabled: boolean;
   setEnabled: (b: boolean) => void;
-  /** Snapshot the currently-displayed EQ state as the global curve,
-   *  enable global mode, and apply immediately. */
-  promoteCurrent: () => void;
 }
 
 interface EQState {
@@ -272,16 +270,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // audio graph. Source-of-truth depends on mode:
   //   global mode:  prefs.global_eq
   //   per-track:    trackEqMap[currentTrackId] || flat
-  // Local state lets the panel re-render snappily; we sync changes back to
-  // PrefsContext (debounced) which sends them to the server.
+  //
+  // Local state lets the panel re-render snappily. Saves do NOT happen
+  // through a useEffect on this state — that loops because PrefsContext
+  // returns new object references after each save. Instead, the EQ
+  // controller methods below explicitly write to the right destination
+  // (global vs per-track) at the moment the user changes something.
   const [eqGains, setEqGains] = useState<number[]>(defaultEQState().gains);
   const [eqPreamp, setEqPreampState] = useState<number>(defaultEQState().preamp);
   const [eqBypass, setEqBypassState] = useState<boolean>(defaultEQState().bypass);
   const activeEQTrackIdRef = useRef<number | null>(null);
-  // True while we're programmatically syncing eq state from prefs/track-map
-  // into local state — prevents the apply-effect from looping back and
-  // re-saving what we just loaded.
-  const eqSyncingRef = useRef(false);
+  // Refs mirror state for use inside controller methods that need the
+  // *current* values to assemble a snapshot for save (closures over state
+  // would capture stale values when multiple setters fire in a row).
+  const eqGainsRef = useRef(eqGains);
+  const eqPreampRef = useRef(eqPreamp);
+  const eqBypassRef = useRef(eqBypass);
+  useEffect(() => { eqGainsRef.current = eqGains; }, [eqGains]);
+  useEffect(() => { eqPreampRef.current = eqPreamp; }, [eqPreamp]);
+  useEffect(() => { eqBypassRef.current = eqBypass; }, [eqBypass]);
 
   // Apply current spatial preset whenever it changes (or once the graph
   // exists). Generates and caches the IR on first use of each preset.
@@ -315,10 +322,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     bass.gain.linearRampToValueAtTime(cfg.bassDb, t0 + 0.06);
   }, [spatialPreset]);
 
-  // Apply EQ state to filter nodes whenever it changes (only if graph exists),
-  // and persist via PrefsContext under the right destination:
-  //   - global mode → prefs.global_eq (replaces the global curve)
-  //   - per-track   → user_track_eq for the active track id
+  // Apply current EQ state to the audio graph whenever it changes (also
+  // re-runs when the graph is created, since filters start empty). Save
+  // happens elsewhere — in the controller methods below — so this effect
+  // is one-way (state → graph) and can never feed back into save.
   useEffect(() => {
     const filters = eqFiltersRef.current;
     if (filters.length > 0) {
@@ -329,15 +336,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (preampNodeRef.current) {
       preampNodeRef.current.gain.value = dbToLinear(eqBypass ? 0 : eqPreamp);
     }
-    if (eqSyncingRef.current) return;  // we just loaded these — don't echo back
-    const snapshot: EQState = { gains: eqGains, preamp: eqPreamp, bypass: eqBypass };
-    if (globalEqEnabled) {
-      setPref('global_eq', snapshot);
-    } else {
-      const id = activeEQTrackIdRef.current;
-      if (id != null) setTrackEq(id, snapshot);
-    }
-  }, [eqGains, eqPreamp, eqBypass, globalEqEnabled, setPref, setTrackEq]);
+  }, [eqGains, eqPreamp, eqBypass]);
+
+  /**
+   * Save the current EQ state to the right destination based on mode.
+   * Called by the controller setters below — never by an effect, so we
+   * don't accidentally echo loads back to the server.
+   */
+  const saveActiveEqState = useCallback(
+    (state: EQState) => {
+      if (globalEqEnabled) {
+        setPref('global_eq', state);
+      } else {
+        const id = activeEQTrackIdRef.current;
+        if (id != null) setTrackEq(id, state);
+      }
+    },
+    [globalEqEnabled, setPref, setTrackEq],
+  );
 
   function ensureAudioGraph() {
     if (audioCtxRef.current) {
@@ -492,8 +508,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // Load EQ when the playing track changes OR when we toggle global mode.
   //   - global mode: always show the prefs.global_eq curve
   //   - per-track:   load trackEqMap[id] || flat
-  // We set the eqSyncing flag so the apply-effect doesn't bounce these
-  // loaded values right back to the server.
+  // No save flag needed — saves are explicit in the controller setters,
+  // not in the apply effect, so loading here can't loop.
   useEffect(() => {
     const id = current?.id ?? null;
     activeEQTrackIdRef.current = id;
@@ -503,14 +519,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     } else {
       next = (id != null && trackEqMap[id]) || defaultEQState();
     }
-    eqSyncingRef.current = true;
     setEqGains(next.gains);
     setEqPreampState(next.preamp);
     setEqBypassState(next.bypass);
-    // Release the sync flag after React flushes — use a microtask.
-    Promise.resolve().then(() => {
-      eqSyncingRef.current = false;
-    });
   }, [current?.id, globalEqEnabled, globalEqState, trackEqMap]);
 
   // Volume binding
@@ -708,17 +719,50 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     bypass: eqBypass,
     setGain: (i, db) => {
       const v = clampDb(db, EQ_GAIN_MIN, EQ_GAIN_MAX);
-      setEqGains((prev) => prev.map((g, j) => (j === i ? v : g)));
+      const next = eqGainsRef.current.map((g, j) => (j === i ? v : g));
+      setEqGains(next);
+      saveActiveEqState({
+        gains: next,
+        preamp: eqPreampRef.current,
+        bypass: eqBypassRef.current,
+      });
     },
     setGains: (db) => {
       if (!Array.isArray(db) || db.length !== EQ_FREQUENCIES.length) return;
-      setEqGains(db.map((d) => clampDb(d, EQ_GAIN_MIN, EQ_GAIN_MAX)));
+      const next = db.map((d) => clampDb(d, EQ_GAIN_MIN, EQ_GAIN_MAX));
+      setEqGains(next);
+      saveActiveEqState({
+        gains: next,
+        preamp: eqPreampRef.current,
+        bypass: eqBypassRef.current,
+      });
     },
-    setPreamp: (db) => setEqPreampState(clampDb(db, EQ_PREAMP_MIN, EQ_PREAMP_MAX)),
-    setBypass: setEqBypassState,
+    setPreamp: (db) => {
+      const v = clampDb(db, EQ_PREAMP_MIN, EQ_PREAMP_MAX);
+      setEqPreampState(v);
+      saveActiveEqState({
+        gains: eqGainsRef.current,
+        preamp: v,
+        bypass: eqBypassRef.current,
+      });
+    },
+    setBypass: (b) => {
+      setEqBypassState(b);
+      saveActiveEqState({
+        gains: eqGainsRef.current,
+        preamp: eqPreampRef.current,
+        bypass: b,
+      });
+    },
     reset: () => {
-      setEqGains(new Array(EQ_FREQUENCIES.length).fill(0));
+      const flat = new Array(EQ_FREQUENCIES.length).fill(0);
+      setEqGains(flat);
       setEqPreampState(0);
+      saveActiveEqState({
+        gains: flat,
+        preamp: 0,
+        bypass: eqBypassRef.current,
+      });
     },
   };
 
@@ -758,12 +802,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     globalEq: {
       enabled: globalEqEnabled,
       setEnabled: (b: boolean) => setPref('global_eq_enabled', b),
-      promoteCurrent: () => {
-        // Snapshot current EQ panel state, save as global, switch on global mode.
-        const snapshot: EQState = { gains: eqGains, preamp: eqPreamp, bypass: eqBypass };
-        setPref('global_eq', snapshot);
-        setPref('global_eq_enabled', true);
-      },
     },
   };
 
