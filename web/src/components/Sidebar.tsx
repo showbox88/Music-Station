@@ -34,10 +34,11 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [favShareOpen, setFavShareOpen] = useState(false);
-  // Favorites section default-expanded so users discover the sub-tree.
-  // (Persisting this across reloads would just be more clutter — re-clicking
-  // is cheap.)
-  const [favExpanded, setFavExpanded] = useState(true);
+  // Favorites section is auto-collapsed when the active view leaves it,
+  // so the sidebar doesn't keep dangling "still highlighted" state after
+  // the user navigates elsewhere. Manual click on the header still
+  // toggles freely.
+  const [favExpanded, setFavExpanded] = useState(false);
   const player = usePlayer();
   const { user } = useAuth();
 
@@ -52,6 +53,14 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
       .catch(() => setFavOwners([]));
   }
   useEffect(load, [refreshKey]);
+
+  // Auto-collapse the Favorites group when the active view leaves it.
+  // Auto-expand when something inside it becomes the view (e.g. via a
+  // deep link or programmatic navigation).
+  useEffect(() => {
+    const inside = view.kind === 'favorites' || view.kind === 'user-favorites';
+    setFavExpanded(inside);
+  }, [view.kind]);
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
