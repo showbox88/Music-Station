@@ -2,7 +2,7 @@
  * Left sidebar — pick "All Tracks" or one of the playlists.
  * Manages playlist creation, rename, delete.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import type { FavoritesOwner, Playlist } from '../types';
 import { usePlayer } from '../player/PlayerContext';
@@ -42,6 +42,23 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
   // Favorites is equivalent to "go to My Favorites" — that's what fires
   // both the highlight and the auto-expansion below.
   const favExpanded = view.kind === 'favorites' || view.kind === 'user-favorites';
+  const playlistsActive = view.kind === 'playlist';
+
+  // Group playlists by visibility relationship for the sidebar. Order:
+  //   1. mine            — playlists I own
+  //   2. shared with me  — explicit per-user shares
+  //   3. public          — public from someone else (not shared directly)
+  const playlistGroups = useMemo(() => {
+    const mine: typeof playlists = [];
+    const shared: typeof playlists = [];
+    const pub: typeof playlists = [];
+    for (const p of playlists) {
+      if (p.is_owner) mine.push(p);
+      else if (p.shared_with_me) shared.push(p);
+      else if (p.is_public) pub.push(p);
+    }
+    return { mine, shared, pub };
+  }, [playlists]);
 
   function load() {
     api
@@ -247,8 +264,15 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
       </div>
 
       <div className="flex-1 overflow-auto p-2 space-y-0.5">
-        <div className="text-xs uppercase text-zinc-500 px-2 py-1 flex items-center justify-between">
-          <span>Playlists</span>
+        {/* Playlists header — same highlight rule as the main items
+            (lights up when any playlist is the active view). */}
+        <div
+          className={`flex items-center px-3 py-2 rounded-lg text-sm ${
+            playlistsActive ? 'bezel glow-text' : 'text-zinc-300'
+          }`}
+        >
+          <span className="inline-block w-5 text-center mr-1">{'▤'}</span>
+          <span className="flex-1">Playlists</span>
           <button
             onClick={() => setCreating((c) => !c)}
             className="w-6 h-6 rounded-full bezel text-zinc-300 hover:text-white flex items-center justify-center"
@@ -272,92 +296,64 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           </form>
         )}
 
-        {playlists.map((pl) => {
-          const selected = view.kind === 'playlist' && view.id === pl.id;
-          // Sharing badge — show only for non-owned playlists.
-          const ownerLabel = pl.owner_display_name || pl.owner_username || '';
-          const badge = pl.is_owner
-            ? pl.is_public
-              ? { text: '公开', cls: 'text-emerald-300/80', title: '所有用户可见' }
-              : null
-            : pl.shared_with_me
-              ? {
-                  text: `← ${ownerLabel}`,
-                  cls: 'text-pink-300/80',
-                  title: `${ownerLabel} 把这个列表分享给了你`,
-                }
-              : pl.is_public
-                ? {
-                    text: `公开 · ${ownerLabel}`,
-                    cls: 'text-zinc-400/80',
-                    title: `${ownerLabel} 把这个列表设为公开`,
-                  }
-                : null;
-          return (
-            <div
-              key={pl.id}
-              className={`group flex items-center px-2 py-1.5 rounded-lg text-sm cursor-pointer ${
-                selected ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
-              }`}
-              onClick={() => setView({ kind: 'playlist', id: pl.id })}
-            >
-              <span className="mr-2 opacity-70">▤</span>
-              <span className="flex-1 min-w-0 truncate">
-                <span className="truncate align-middle">{pl.name}</span>
-                {badge && (
-                  <span
-                    className={`ml-1.5 text-[9px] uppercase ${badge.cls}`}
-                    title={badge.title}
-                  >
-                    {badge.text}
-                  </span>
-                )}
-              </span>
-              <span className="text-xs text-zinc-500 ml-2 tabular-nums">{pl.track_count}</span>
-              <span className="ml-2 opacity-0 group-hover:opacity-100 flex gap-1">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onPlayPlaylist(pl);
-                  }}
-                  className="text-xs px-1 glow-text disabled:opacity-30"
-                  title="Play playlist"
-                  disabled={pl.track_count === 0}
-                >
-                  ▶
-                </button>
-                {pl.is_owner && (
-                  <>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRename(pl);
-                      }}
-                      className="text-xs px-1 text-zinc-400 hover:text-white"
-                      title="Rename"
-                    >
-                      ✎
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(pl);
-                      }}
-                      className="text-xs px-1 text-zinc-400 hover:text-red-400"
-                      title="Delete"
-                    >
-                      ✕
-                    </button>
-                  </>
-                )}
-              </span>
-            </div>
-          );
-        })}
+        {/* Group sub-headers + rows. Each group only renders if non-empty
+            so the divider doesn't dangle over thin air. */}
+        <div className="ml-3 pl-2 border-l border-black/60 space-y-0.5">
+          {playlistGroups.mine.length > 0 && (
+            <>
+              <div className="text-[10px] uppercase text-zinc-600 px-3 pt-1.5 pb-0.5">
+                我的
+              </div>
+              {playlistGroups.mine.map((pl) => (
+                <PlaylistRow
+                  key={pl.id}
+                  pl={pl}
+                  selected={view.kind === 'playlist' && view.id === pl.id}
+                  onSelect={() => setView({ kind: 'playlist', id: pl.id })}
+                  onPlay={() => onPlayPlaylist(pl)}
+                  onRename={() => onRename(pl)}
+                  onDelete={() => onDelete(pl)}
+                />
+              ))}
+            </>
+          )}
+          {playlistGroups.shared.length > 0 && (
+            <>
+              <div className="text-[10px] uppercase text-zinc-600 px-3 pt-2 pb-0.5">
+                分享给我的
+              </div>
+              {playlistGroups.shared.map((pl) => (
+                <PlaylistRow
+                  key={pl.id}
+                  pl={pl}
+                  selected={view.kind === 'playlist' && view.id === pl.id}
+                  onSelect={() => setView({ kind: 'playlist', id: pl.id })}
+                  onPlay={() => onPlayPlaylist(pl)}
+                />
+              ))}
+            </>
+          )}
+          {playlistGroups.pub.length > 0 && (
+            <>
+              <div className="text-[10px] uppercase text-zinc-600 px-3 pt-2 pb-0.5">
+                公开
+              </div>
+              {playlistGroups.pub.map((pl) => (
+                <PlaylistRow
+                  key={pl.id}
+                  pl={pl}
+                  selected={view.kind === 'playlist' && view.id === pl.id}
+                  onSelect={() => setView({ kind: 'playlist', id: pl.id })}
+                  onPlay={() => onPlayPlaylist(pl)}
+                />
+              ))}
+            </>
+          )}
 
-        {playlists.length === 0 && !creating && (
-          <div className="text-xs text-zinc-600 px-2 py-3">No playlists yet.</div>
-        )}
+          {playlists.length === 0 && !creating && (
+            <div className="text-xs text-zinc-600 px-2 py-3">No playlists yet.</div>
+          )}
+        </div>
 
         {err && <div className="text-xs text-red-400 px-2 py-1">{err}</div>}
       </div>
@@ -368,5 +364,93 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
         />
       )}
     </aside>
+  );
+}
+
+/**
+ * Single playlist row in the sidebar. Used inside each visibility group
+ * (mine / shared / public). Owner-only row controls (rename, delete) are
+ * gated by passing handlers — non-owners pass undefined and they don't
+ * render. The selection style matches the Favorites sub-items: pink text
+ * + faint bg tint, deliberately weaker than the top-level pill so the
+ * hierarchy reads cleanly.
+ */
+function PlaylistRow({
+  pl,
+  selected,
+  onSelect,
+  onPlay,
+  onRename,
+  onDelete,
+}: {
+  pl: Playlist;
+  selected: boolean;
+  onSelect: () => void;
+  onPlay: () => void;
+  onRename?: () => void;
+  onDelete?: () => void;
+}) {
+  const ownerLabel = pl.owner_display_name || pl.owner_username || '';
+  // Side-marker badge is only useful inside the "shared" / "public" groups
+  // (showing the source). The group header already says which group, so
+  // we keep just the owner name as a small dim hint.
+  const ownerHint = !pl.is_owner ? ownerLabel : '';
+  return (
+    <div
+      className={`group flex items-center px-3 py-1.5 rounded-lg text-sm cursor-pointer ${
+        selected
+          ? 'text-pink-300 bg-white/[0.04]'
+          : 'text-zinc-300 hover:bg-white/5'
+      }`}
+      onClick={onSelect}
+    >
+      <span className="mr-2 opacity-70">▤</span>
+      <span className="flex-1 min-w-0 truncate">
+        <span className="truncate align-middle">{pl.name}</span>
+        {ownerHint && (
+          <span className="ml-1.5 text-[9px] uppercase text-zinc-500">
+            {ownerHint}
+          </span>
+        )}
+      </span>
+      <span className="text-xs text-zinc-500 ml-2 tabular-nums">{pl.track_count}</span>
+      <span className="ml-2 opacity-0 group-hover:opacity-100 flex gap-1">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onPlay();
+          }}
+          className="text-xs px-1 glow-text disabled:opacity-30"
+          title="Play playlist"
+          disabled={pl.track_count === 0}
+        >
+          ▶
+        </button>
+        {onRename && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRename();
+            }}
+            className="text-xs px-1 text-zinc-400 hover:text-white"
+            title="Rename"
+          >
+            ✎
+          </button>
+        )}
+        {onDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="text-xs px-1 text-zinc-400 hover:text-red-400"
+            title="Delete"
+          >
+            ✕
+          </button>
+        )}
+      </span>
+    </div>
   );
 }
