@@ -515,7 +515,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     activeEQTrackIdRef.current = id;
     let next: EQState;
     if (globalEqEnabled) {
-      next = globalEqState;
+      // Global mode is always engaged — bypass=false is locked in until
+      // the user switches back to per-track mode. The Off button in the
+      // panel is also disabled to reflect this.
+      next = { ...globalEqState, bypass: false };
     } else {
       next = (id != null && trackEqMap[id]) || defaultEQState();
     }
@@ -747,6 +750,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       });
     },
     setBypass: (b) => {
+      // Global mode is always engaged — refuse to bypass while in it.
+      // The panel's Off button is also disabled, but defend in depth.
+      if (globalEqEnabled && b) return;
       setEqBypassState(b);
       saveActiveEqState({
         gains: eqGainsRef.current,

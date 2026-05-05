@@ -94,17 +94,7 @@ export default function EQPanel({ open, onClose }: Props) {
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
-          <div>
-            <h2 className="text-lg font-semibold tracking-wide glow-text">Equalizer</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              10-band · ±12 dB ·{' '}
-              {globalEq.enabled ? (
-                <span className="text-emerald-400">全局模式（所有歌曲共用此曲线）</span>
-              ) : (
-                <span>每首歌独立保存</span>
-              )}
-            </p>
-          </div>
+          <h2 className="text-lg font-semibold tracking-wide glow-text">Equalizer</h2>
           <div className="flex items-center gap-2">
             {/* Mode pill: 独立 ↔ 全局. Independent of On/Off — switching
                 modes loads the corresponding curve into the panel; the
@@ -138,10 +128,17 @@ export default function EQPanel({ open, onClose }: Props) {
             </div>
             <button
               onClick={() => eq.setBypass(!eq.bypass)}
-              className={`text-xs px-3 py-1 rounded-full bezel ${
+              disabled={globalEq.enabled}
+              className={`text-xs px-3 py-1 rounded-full bezel disabled:opacity-50 disabled:cursor-not-allowed ${
                 eq.bypass ? 'text-zinc-300' : 'glow-text glow-ring'
               }`}
-              title={eq.bypass ? 'EQ off — click to engage' : 'EQ engaged — click to bypass'}
+              title={
+                globalEq.enabled
+                  ? '全局模式下 EQ 始终开启；切换到「独立」才能关闭'
+                  : eq.bypass
+                    ? 'EQ off — click to engage'
+                    : 'EQ engaged — click to bypass'
+              }
             >
               {eq.bypass ? 'Off' : 'On'}
             </button>
