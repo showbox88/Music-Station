@@ -56,10 +56,7 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div
-        className="px-6 py-3 border-b border-black/60 flex flex-wrap items-center justify-between gap-2"
-        style={{ background: 'linear-gradient(180deg, #1c1c1e 0%, #18181a 100%)' }}
-      >
+      <div className="px-6 py-3 border-b border-black/60 flex flex-wrap items-center justify-between gap-2 surface-raised">
         {data ? (
           <>
             <div className="min-w-0">

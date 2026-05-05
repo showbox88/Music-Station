@@ -91,8 +91,7 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="px-3 md:px-6 py-3 border-b border-black/60 flex flex-wrap items-center gap-2 md:gap-3"
-        style={{ background: 'linear-gradient(180deg, #1c1c1e 0%, #18181a 100%)' }}>
+      <div className="px-3 md:px-6 py-3 border-b border-black/60 flex flex-wrap items-center gap-2 md:gap-3 surface-raised">
         <input
           type="search"
           value={q}
