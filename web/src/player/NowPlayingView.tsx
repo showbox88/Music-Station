@@ -271,19 +271,21 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
         </div>
 
         {/* Vinyl + tonearm together (sized container so tonearm is positioned
-            relative to the disc, not the page). On mobile the disc is
-            slightly smaller and pushed down so the tonearm doesn't
-            collide with the EQ / DOLBY buttons in the top bar; tapping
-            the disc closes the view (replaces the back arrow).
-            Hidden when lyricsExpanded, freeing all vertical space for
-            the lyrics column. */}
+            relative to the disc, not the page). The tonearm SVG extends
+            ~20% above the disc top, so we reserve top padding to keep
+            the counterweight from punching into the EQ / DOLBY / mic
+            buttons in the header bar. Mobile and desktop both need this
+            (desktop was previously pt-0 and bumped into the buttons on
+            short or letterbox displays). Tapping the disc closes the
+            view (replaces the back arrow on mobile). Hidden when
+            lyricsExpanded, freeing all vertical space for the lyrics. */}
         {!lyricsExpanded && (
-          <div className="flex-1 flex items-start md:items-center justify-center min-h-0 pt-14 md:pt-0">
+          <div className="flex-1 flex items-start md:items-center justify-center min-h-0 pt-14 md:pt-16">
             <button
               onClick={onClose}
               title="Back to library"
               className="relative md:cursor-default md:pointer-events-none"
-              style={{ width: 'min(56vw, 320px)', aspectRatio: '1 / 1' }}
+              style={{ width: 'min(50vw, 300px)', aspectRatio: '1 / 1' }}
             >
               <Vinyl coverUrl={t.cover_url} spinning={p.isPlaying} />
               <Tonearm playing={p.isPlaying} />
