@@ -180,7 +180,7 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                     {isPlaying && player.isPlaying ? '♪' : '▶'}
                   </button>
                 </td>
-                <td className="py-1 pl-3 pr-2 md:pl-0">
+                <td className="py-1 pl-3 pr-2 md:pl-4">
                   <button
                     onClick={() => {
                       if (isPlaying) {

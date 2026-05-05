@@ -183,7 +183,7 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
                     {isPlaying && player.isPlaying ? '♪' : '▶'}
                   </button>
                 </td>
-                <td className="py-1 pl-3 pr-2 md:pl-0">
+                <td className="py-1 pl-3 pr-2 md:pl-4">
                   {/* Mobile: cover with translucent play overlay; tap
                       anywhere on the cover to start playback. */}
                   <button
