@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import type { Track, TrackListResponse } from '../types';
+import { useT } from '../i18n/useT';
 
 const KBD_CLS =
   'inline-block px-1.5 py-0.5 mx-0.5 rounded bg-zinc-800 border border-zinc-700 text-[10px] font-mono text-zinc-300';
@@ -59,6 +60,7 @@ function stripTimestamps(raw: string): string {
 }
 
 export default function LyricsEditor() {
+  const t = useT();
   const [stage, setStage] = useState<Stage>('pick');
   const [picked, setPicked] = useState<Track | null>(null);
   const [pasteText, setPasteText] = useState('');
@@ -77,7 +79,7 @@ export default function LyricsEditor() {
       .filter((s) => s.length > 0)
       .map((text) => ({ text, ms: -1 }));
     if (parsed.length === 0) {
-      alert('请先粘贴歌词文本');
+      alert(t('lyrics_editor.no_text_alert'));
       return;
     }
     setLines(parsed);
@@ -88,7 +90,7 @@ export default function LyricsEditor() {
     if (
       stage === 'tag' &&
       lines.some((l) => l.ms >= 0) &&
-      !confirm('返回会丢失当前打的时间戳，确定？')
+      !confirm(t('lyrics_editor.leave_warn_tag'))
     )
       return;
     setPicked(null);
@@ -98,7 +100,7 @@ export default function LyricsEditor() {
   }
 
   function backToPaste() {
-    if (lines.some((l) => l.ms >= 0) && !confirm('返回会丢失当前打的时间戳，确定？')) return;
+    if (lines.some((l) => l.ms >= 0) && !confirm(t('lyrics_editor.leave_warn_tag'))) return;
     setLines([]);
     setStage('paste');
   }
@@ -106,11 +108,11 @@ export default function LyricsEditor() {
   return (
     <main className="flex-1 min-w-0 flex flex-col h-full">
       <div className="px-5 py-3 border-b border-black/60 flex items-center gap-3 shrink-0">
-        <h1 className="text-base font-semibold">🎤 歌词编辑器</h1>
+        <h1 className="text-base font-semibold">🎤 {t('lyrics_editor.title')}</h1>
         <span className="text-xs text-zinc-500">
-          {stage === 'pick' && '步骤 1 / 3 · 选择歌曲'}
-          {stage === 'paste' && '步骤 2 / 3 · 粘贴歌词文本'}
-          {stage === 'tag' && '步骤 3 / 3 · 播放并按空格打点'}
+          {stage === 'pick' && t('lyrics_editor.step1')}
+          {stage === 'paste' && t('lyrics_editor.step2')}
+          {stage === 'tag' && t('lyrics_editor.step3')}
         </span>
         {picked && (
           <span className="text-xs text-zinc-400 ml-auto truncate max-w-md">
@@ -146,6 +148,7 @@ export default function LyricsEditor() {
 /* ------------------------------- pick ------------------------------- */
 
 function PickStage({ onPick }: { onPick: (t: Track, prefill: string) => void }) {
+  const t = useT();
   const [q, setQ] = useState('');
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
@@ -174,17 +177,17 @@ function PickStage({ onPick }: { onPick: (t: Track, prefill: string) => void }) 
     };
   }, [q]);
 
-  async function handlePick(t: Track) {
+  async function handlePick(track: Track) {
     try {
-      const r = await api.getLyrics(t.id);
+      const r = await api.getLyrics(track.id);
       if (r.found && r.synced) {
-        setDialog({ track: t, existing: r.synced });
+        setDialog({ track, existing: r.synced });
         return;
       }
     } catch {
       /* network error → treat as no existing lyrics */
     }
-    onPick(t, '');
+    onPick(track, '');
   }
 
   return (
@@ -195,34 +198,34 @@ function PickStage({ onPick }: { onPick: (t: Track, prefill: string) => void }) 
           autoFocus
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="搜索曲目（标题 / 艺人 / 专辑）"
+          placeholder={t('lyrics_editor.search_placeholder')}
           className="input w-full max-w-lg"
         />
       </div>
       <div className="flex-1 overflow-auto px-4 pb-4">
         {loading ? (
-          <div className="text-sm text-zinc-500 px-2">加载中…</div>
+          <div className="text-sm text-zinc-500 px-2">{t('lyrics_editor.loading')}</div>
         ) : tracks.length === 0 ? (
-          <div className="text-sm text-zinc-500 px-2">没有结果</div>
+          <div className="text-sm text-zinc-500 px-2">{t('lyrics_editor.no_results')}</div>
         ) : (
           <ul className="space-y-1 max-w-3xl">
-            {tracks.map((t) => (
+            {tracks.map((track) => (
               <li
-                key={t.id}
-                onClick={() => handlePick(t)}
+                key={track.id}
+                onClick={() => handlePick(track)}
                 className="px-3 py-2 rounded-lg hover:bg-white/5 cursor-pointer flex items-center gap-3"
               >
                 <span className="text-zinc-500 text-xs tabular-nums w-10 text-right shrink-0">
-                  #{t.id}
+                  #{track.id}
                 </span>
                 <span className="flex-1 min-w-0 truncate text-sm">
-                  {t.title || t.rel_path}
+                  {track.title || track.rel_path}
                 </span>
                 <span className="text-xs text-zinc-500 truncate max-w-xs">
-                  {t.artist || ''}
+                  {track.artist || ''}
                 </span>
                 <span className="text-xs text-zinc-600 tabular-nums shrink-0">
-                  {fmtClock(t.duration_sec ?? 0)}
+                  {fmtClock(track.duration_sec ?? 0)}
                 </span>
               </li>
             ))}
@@ -237,15 +240,15 @@ function PickStage({ onPick }: { onPick: (t: Track, prefill: string) => void }) 
         <ExistingLyricsDialog
           track={dialog.track}
           onLoad={() => {
-            const t = dialog.track;
+            const tr = dialog.track;
             const existing = dialog.existing;
             setDialog(null);
-            onPick(t, stripTimestamps(existing));
+            onPick(tr, stripTimestamps(existing));
           }}
           onBlank={() => {
-            const t = dialog.track;
+            const tr = dialog.track;
             setDialog(null);
-            onPick(t, '');
+            onPick(tr, '');
           }}
           onCancel={() => setDialog(null)}
         />
@@ -265,6 +268,7 @@ function ExistingLyricsDialog({
   onBlank: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   // Esc cancels — same affordance as the X button.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -289,35 +293,32 @@ function ExistingLyricsDialog({
         }}
       >
         <div>
-          <h2 className="text-base font-semibold">这首歌已有歌词</h2>
+          <h2 className="text-base font-semibold">{t('lyrics_editor.existing_lyrics')}</h2>
           <p className="text-xs text-zinc-500 mt-1 truncate">
             {track.title || track.rel_path}
           </p>
         </div>
-        <p className="text-sm text-zinc-300 leading-relaxed">
-          要载入现有歌词文本（去掉时间戳，仅保留文字）后重新打节拍，还是从空白开始？
-        </p>
         <div className="flex flex-col gap-2 pt-1">
           <button
             type="button"
             onClick={onLoad}
             className="px-4 py-2 rounded-full bezel glow-text glow-ring text-sm text-left"
           >
-            载入现有歌词（去时间戳）
+            {t('lyrics_editor.existing_load')}
           </button>
           <button
             type="button"
             onClick={onBlank}
             className="px-4 py-2 rounded-full bezel text-sm text-zinc-200 hover:text-white text-left"
           >
-            从空白开始
+            {t('lyrics_editor.existing_blank')}
           </button>
           <button
             type="button"
             onClick={onCancel}
             className="px-4 py-2 rounded-full bezel text-sm text-zinc-400 hover:text-white text-left"
           >
-            取消，重新选歌
+            {t('lyrics_editor.existing_cancel')}
           </button>
         </div>
       </div>
@@ -340,12 +341,20 @@ function PasteStage({
   onBack: () => void;
   onNext: () => void;
 }) {
+  const t = useT();
   const lineCount = text.split(/\r?\n/).filter((s) => s.trim().length > 0).length;
+  // The intro string includes a {bold} placeholder we replace with a styled
+  // span. Split on it manually so we keep the styling.
+  const introTemplate = t('lyrics_editor.paste_intro', {
+    bold: '__BOLD__',
+  });
+  const introParts = introTemplate.split('__BOLD__');
   return (
     <div className="flex-1 min-h-0 flex flex-col p-4 gap-3 max-w-3xl">
       <p className="text-xs text-zinc-500">
-        粘贴 <strong className="text-zinc-300">已经分好行</strong>{' '}
-        的歌词文本（一行一句）。空行会自动去掉。下一步进入打点模式后会按行加时间戳。
+        {introParts[0]}
+        <strong className="text-zinc-300">{t('lyrics_editor.paste_already_split')}</strong>
+        {introParts[1] ?? ''}
       </p>
       <textarea
         value={text}
@@ -353,29 +362,31 @@ function PasteStage({
         autoFocus
         className="input flex-1 font-mono text-sm"
         style={{ minHeight: 280, resize: 'vertical' }}
-        placeholder={`粘贴歌词，例如：\n\nDancing in the moonlight\nEverybody here is feeling alright\n...`}
+        placeholder={`Dancing in the moonlight\nEverybody here is feeling alright\n...`}
       />
       <div className="flex items-center justify-between shrink-0">
-        <span className="text-xs text-zinc-500">{lineCount} 行</span>
+        <span className="text-xs text-zinc-500">
+          {t('lyrics_editor.paste_lines', { count: lineCount })}
+        </span>
         <div className="flex gap-2">
           <button
             onClick={onBack}
             className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
           >
-            ‹ 返回选歌
+            {t('lyrics_editor.back_to_pick')}
           </button>
           <button
             onClick={onNext}
             disabled={lineCount === 0}
             className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
           >
-            开始打点 ›
+            {t('lyrics_editor.start_tagging')}
           </button>
         </div>
       </div>
       {!track.duration_sec && (
         <p className="text-xs text-amber-400">
-          ⚠️ 这首歌的时长未知，进度条可能不准。
+          {t('lyrics_editor.no_duration_warning')}
         </p>
       )}
     </div>
@@ -397,6 +408,7 @@ function TagStage({
   onBackToPaste: () => void;
   onBackToPick: () => void;
 }) {
+  const t = useT();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [position, setPosition] = useState(0); // sec
@@ -561,24 +573,20 @@ function TagStage({
 
   async function handleSave() {
     if (taggedCount === 0) {
-      alert('还没标记任何一行');
+      alert(t('lyrics_editor.no_marks_alert'));
       return;
     }
     if (taggedCount < lines.length) {
       const skipped = lines.length - taggedCount;
-      if (
-        !confirm(
-          `还有 ${skipped} 行未标记时间戳，保存时会被丢弃。继续？`,
-        )
-      )
+      if (!confirm(t('lyrics_editor.save_partial_confirm', { count: skipped })))
         return;
     }
     setSaving(true);
     try {
       await api.setLyrics(track.id, buildLrc());
-      alert(`已保存到这首歌的歌词文件（${taggedCount} 行）`);
+      alert(t('lyrics_editor.save_success', { count: taggedCount }));
     } catch (err: any) {
-      alert(`保存失败：${err?.message ?? err}`);
+      alert(t('lyrics_editor.save_failed', { err: err?.message ?? String(err) }));
     } finally {
       setSaving(false);
     }
@@ -600,7 +608,7 @@ function TagStage({
           <button
             onClick={togglePlay}
             className="w-12 h-12 rounded-full play-btn flex items-center justify-center"
-            title={isPlaying ? 'Pause (Enter)' : 'Play (Enter)'}
+            title={isPlaying ? t('lyrics_editor.tag_pause') : t('lyrics_editor.tag_play')}
           >
             {isPlaying ? (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -616,14 +624,14 @@ function TagStage({
           <button
             onClick={() => seekDelta(-3)}
             className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white"
-            title="后退 3 秒 (←)"
+            title={t('lyrics_editor.tag_back_3s')}
           >
             ‹‹ 3s
           </button>
           <button
             onClick={() => seekDelta(3)}
             className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white"
-            title="前进 3 秒 (→)"
+            title={t('lyrics_editor.tag_forward_3s')}
           >
             3s ››
           </button>
@@ -631,7 +639,10 @@ function TagStage({
             {fmtClock(position)} / {fmtClock(duration)}
           </span>
           <span className="text-xs text-zinc-500 ml-auto">
-            已标记 {taggedCount} / {lines.length} 行
+            {t('lyrics_editor.tag_marked_count', {
+              tagged: taggedCount,
+              total: lines.length,
+            })}
           </span>
           {/* Volume — local to this editor's audio element. Same recessed
               slider visual as PlayerBar / NowPlayingView. */}
@@ -647,7 +658,7 @@ function TagStage({
               value={volume}
               onChange={(e) => setVolume(Number(e.target.value))}
               className="flex-1"
-              title="音量"
+              title={t('lyrics_editor.tag_volume_tooltip')}
               style={{
                 background: `linear-gradient(to right,
                   var(--accent) 0%,
@@ -685,14 +696,8 @@ function TagStage({
           }}
         />
         <div className="flex items-center justify-between text-[11px] text-zinc-500">
-          <span>
-            <kbd className={KBD_CLS}>Space</kbd> 标记 ·{' '}
-            <kbd className={KBD_CLS}>⌫</kbd> 撤销 ·{' '}
-            <kbd className={KBD_CLS}>Enter</kbd> 播放/暂停 ·{' '}
-            <kbd className={KBD_CLS}>←→</kbd> ±3s ·{' '}
-            <kbd className={KBD_CLS}>↑↓</kbd> 上下行
-          </span>
-          <span>点击列表中任一行可跳到那一行；点已标记的时间戳可定位音频</span>
+          <span>{t('lyrics_editor.tag_kbd_help_l')}</span>
+          <span>{t('lyrics_editor.tag_kbd_help_r')}</span>
         </div>
       </div>
 
@@ -728,7 +733,7 @@ function TagStage({
                       ? 'text-pink-400 hover:text-pink-300'
                       : 'text-zinc-700'
                   }`}
-                  title={isTagged ? '点这里跳到该时间' : '未标记'}
+                  title={isTagged ? t('lyrics_editor.tag_jump_to_time') : t('lyrics_editor.tag_unmarked')}
                 >
                   {isTagged ? formatLrcTime(l.ms) : '[--:--.--]'}
                 </button>
@@ -746,7 +751,7 @@ function TagStage({
                 </span>
                 {isCursor && (
                   <span className="text-[10px] text-pink-400 shrink-0 animate-pulse">
-                    ◀ 按空格标记
+                    {t('lyrics_editor.tag_press_space')}
                   </span>
                 )}
               </div>
@@ -761,24 +766,24 @@ function TagStage({
           onClick={onBackToPick}
           className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-400 hover:text-white"
         >
-          ‹‹ 换一首
+          {t('lyrics_editor.tag_back_to_pick_short')}
         </button>
         <button
           onClick={onBackToPaste}
           className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-400 hover:text-white"
         >
-          ‹ 重新粘贴
+          {t('lyrics_editor.tag_back_to_paste')}
         </button>
         <button
           onClick={undoLast}
           className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white"
           disabled={taggedCount === 0}
         >
-          撤销上一个 (⌫)
+          {t('lyrics_editor.tag_undo_last')}
         </button>
         <button
           onClick={() => {
-            if (confirm('清空所有时间戳，从头开始？')) {
+            if (confirm(t('lyrics_editor.tag_clear_all_confirm'))) {
               setLines((prev) => prev.map((l) => ({ ...l, ms: -1 })));
               setCursor(0);
             }
@@ -786,7 +791,7 @@ function TagStage({
           className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-400 hover:text-red-400"
           disabled={taggedCount === 0}
         >
-          全部清空
+          {t('lyrics_editor.tag_clear_all')}
         </button>
         <span className="ml-auto" />
         <button
@@ -794,7 +799,7 @@ function TagStage({
           disabled={saving || taggedCount === 0}
           className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
         >
-          {saving ? '保存中…' : '保存歌词'}
+          {saving ? t('lyrics_editor.tag_saving') : t('lyrics_editor.tag_save')}
         </button>
       </div>
     </div>
