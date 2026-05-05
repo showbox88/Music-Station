@@ -140,11 +140,11 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
               {/* Headers must mirror the body cells' visibility, otherwise
                   the column widths drift and rows leave empty space. */}
               <th className="hidden md:table-cell text-left font-medium py-2 pl-6 w-10">▶</th>
-              <th className="text-left font-medium py-2 w-20 md:w-12"></th>
-              <th className="text-left font-medium py-2 w-full">Title</th>
-              <th className="hidden md:table-cell text-left font-medium py-2">Artist</th>
-              <th className="hidden lg:table-cell text-left font-medium py-2">Album</th>
-              <th className="hidden xl:table-cell text-left font-medium py-2">Genre</th>
+              <th className="text-left font-medium py-2 w-20 md:w-20"></th>
+              <th className="text-left font-medium py-2">Title</th>
+              <th className="hidden md:table-cell text-left font-medium py-2 md:w-44 lg:w-48">Artist</th>
+              <th className="hidden lg:table-cell text-left font-medium py-2 lg:w-48">Album</th>
+              <th className="hidden xl:table-cell text-left font-medium py-2 xl:w-32">Genre</th>
               <th className="hidden xl:table-cell text-left font-medium py-2 w-20">Year</th>
               <th className="hidden md:table-cell text-left font-medium py-2 w-24">Rating</th>
               <th className="hidden md:table-cell text-right font-medium py-2 w-20">Duration</th>
@@ -227,7 +227,7 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
                   </button>
                   {/* Desktop: plain cover next to the dedicated play button column. */}
                   <div className="hidden md:block">
-                    <CoverThumb src={t.cover_url} size={32} />
+                    <CoverThumb src={t.cover_url} size={56} />
                   </div>
                 </td>
                 <td className="py-2 pr-3 font-medium min-w-0 w-full">

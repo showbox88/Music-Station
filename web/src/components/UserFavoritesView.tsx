@@ -175,7 +175,7 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
                       </span>
                     </button>
                     <div className="hidden md:block">
-                      <CoverThumb src={t.cover_url} size={32} />
+                      <CoverThumb src={t.cover_url} size={56} />
                     </div>
                   </td>
                   <td className="py-2 pr-3 font-medium">
