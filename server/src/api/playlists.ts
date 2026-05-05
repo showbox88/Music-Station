@@ -65,6 +65,7 @@ interface TrackRow {
   owner_username?: string | null;
   owner_display_name?: string | null;
   favorited_by_me?: number;
+  my_rating?: number | null;
 }
 
 interface Deps {
@@ -100,7 +101,7 @@ function trackDto(row: TrackRow, publicUrl: string, meId: number) {
     size_bytes: row.size_bytes,
     bitrate: row.bitrate,
     mime: row.mime,
-    rating: row.rating ?? 0,
+    rating: row.my_rating ?? 0,
     favorited: !!row.favorited_by_me,
     added_at: row.added_at,
     modified_at: row.modified_at,
@@ -252,11 +253,13 @@ export function playlistsRouter({ db, publicUrl }: Deps): Router {
         `SELECT t.*,
                 tu.username     AS owner_username,
                 tu.display_name AS owner_display_name,
-                CASE WHEN uf.track_id IS NULL THEN 0 ELSE 1 END AS favorited_by_me
+                CASE WHEN uf.track_id IS NULL THEN 0 ELSE 1 END AS favorited_by_me,
+                utr.rating AS my_rating
          FROM playlist_tracks pt
          JOIN tracks t ON t.id = pt.track_id
          LEFT JOIN users tu ON tu.id = t.owner_id
          LEFT JOIN user_favorites uf ON uf.track_id = t.id AND uf.user_id = @me
+         LEFT JOIN user_track_ratings utr ON utr.track_id = t.id AND utr.user_id = @me
          WHERE pt.playlist_id = @id
          ORDER BY pt.position ASC`,
       )

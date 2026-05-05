@@ -219,6 +219,19 @@ export function openDatabase(dbPath: string): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_user_favorites_track ON user_favorites(track_id);
   `);
 
+  // Per-user star ratings (Slice 7). Replaces the legacy single-tenant
+  // tracks.rating column. Each user rates each track independently.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_track_ratings (
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      track_id   INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+      rating     INTEGER NOT NULL CHECK (rating >= 0 AND rating <= 5),
+      updated_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, track_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_track_ratings_track ON user_track_ratings(track_id);
+  `);
+
   // ---- Slice 6: per-user prefs + per-user-per-track EQ ----
   db.exec(`
     CREATE TABLE IF NOT EXISTS user_prefs (
@@ -299,6 +312,25 @@ export function backfillOwnership(db: Database.Database): void {
     if (moved.changes > 0) {
       console.error(
         `[music-station] backfill: migrated ${moved.changes} legacy favorites to user ${adminId}`,
+      );
+    }
+  }
+
+  // Migrate legacy tracks.rating → user_track_ratings, owned by the
+  // track's current owner (so existing ratings stay attached to the
+  // person who set them, not blanket-assigned to admin).
+  const hasRatingCol = cols.some((c) => c.name === 'rating');
+  if (hasRatingCol) {
+    const moved = db
+      .prepare(
+        `INSERT OR IGNORE INTO user_track_ratings (user_id, track_id, rating)
+         SELECT owner_id, id, rating FROM tracks
+         WHERE rating > 0 AND owner_id IS NOT NULL`,
+      )
+      .run();
+    if (moved.changes > 0) {
+      console.error(
+        `[music-station] backfill: migrated ${moved.changes} legacy ratings to per-user`,
       );
     }
   }

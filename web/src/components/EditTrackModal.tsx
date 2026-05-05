@@ -37,15 +37,21 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
     setSaving(true);
     setErr(null);
     try {
-      const payload: TrackEdit = {
-        title: form.title.trim() || null,
-        artist: form.artist.trim() || null,
-        album: form.album.trim() || null,
-        genre: form.genre.trim() || null,
-        year: form.year.trim() ? Number(form.year) : null,
-        track_no: form.track_no.trim() ? Number(form.track_no) : null,
-        rating: form.rating,
-      };
+      // Owner-only metadata fields are dropped from the payload for
+      // non-owners — the server would 403 the request as a whole if any
+      // owner-only key is present, so we'd lose the rating change too.
+      // rating is always per-user so always sent.
+      const payload: TrackEdit = track.is_owner
+        ? {
+            title: form.title.trim() || null,
+            artist: form.artist.trim() || null,
+            album: form.album.trim() || null,
+            genre: form.genre.trim() || null,
+            year: form.year.trim() ? Number(form.year) : null,
+            track_no: form.track_no.trim() ? Number(form.track_no) : null,
+            rating: form.rating,
+          }
+        : { rating: form.rating };
       const updated = await api.updateTrack(track.id, payload);
       // Cover URL may have been changed by CoverPicker out-of-band; reflect it
       onSaved({ ...updated, cover_url: coverUrl });

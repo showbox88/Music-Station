@@ -31,7 +31,7 @@ interface TrackRow {
   size_bytes: number;
   bitrate: number | null;
   mime: string | null;
-  rating: number | null;
+  rating: number | null;     // legacy, kept for backfill only — DTO uses my_rating
   cover_filename: string | null;
   added_at: string;
   modified_at: string;
@@ -42,6 +42,7 @@ interface TrackRow {
   owner_username?: string | null;
   owner_display_name?: string | null;
   favorited_by_me?: number;
+  my_rating?: number | null;
   shared_with_me?: number;  // 1 if a direct track_share exists
 }
 
@@ -87,7 +88,7 @@ function dto(row: TrackRow, publicUrl: string, meId: number) {
     size_bytes: row.size_bytes,
     bitrate: row.bitrate,
     mime: row.mime,
-    rating: row.rating ?? 0,
+    rating: row.my_rating ?? 0,
     favorited: !!row.favorited_by_me,
     added_at: row.added_at,
     modified_at: row.modified_at,
@@ -151,12 +152,15 @@ function selectTracksPrefix(): string {
            u.username     AS owner_username,
            u.display_name AS owner_display_name,
            CASE WHEN uf.track_id IS NULL THEN 0 ELSE 1 END AS favorited_by_me,
+           utr.rating AS my_rating,
            CASE WHEN ts.track_id IS NULL THEN 0 ELSE 1 END AS shared_with_me
     FROM tracks t
     LEFT JOIN users u
       ON u.id = t.owner_id
     LEFT JOIN user_favorites uf
       ON uf.track_id = t.id AND uf.user_id = @me
+    LEFT JOIN user_track_ratings utr
+      ON utr.track_id = t.id AND utr.user_id = @me
     LEFT JOIN track_shares ts
       ON ts.track_id = t.id AND ts.with_user_id = @me
   `;
@@ -307,6 +311,30 @@ export function tracksRouter({ db, publicUrl, musicDir, coverDir }: Deps): Route
       }
     }
 
+    // Per-user rating: 0 deletes the row (track shows as unrated for me),
+    // 1..5 upserts. Anyone with visibility can rate; ratings are private
+    // — each user sees only their own.
+    if ('rating' in body) {
+      const v = body.rating;
+      const n = v === null || v === undefined || v === '' ? 0 : Number(v);
+      if (!Number.isFinite(n) || n < 0 || n > 5) {
+        res.status(400).json({ error: 'rating must be 0..5' });
+        return;
+      }
+      const r = Math.trunc(n);
+      if (r === 0) {
+        db.prepare('DELETE FROM user_track_ratings WHERE user_id = ? AND track_id = ?').run(me, id);
+      } else {
+        db.prepare(
+          `INSERT INTO user_track_ratings (user_id, track_id, rating, updated_at)
+           VALUES (?, ?, ?, datetime('now'))
+           ON CONFLICT(user_id, track_id) DO UPDATE SET
+             rating = excluded.rating,
+             updated_at = excluded.updated_at`,
+        ).run(me, id, r);
+      }
+    }
+
     // Owner-only metadata
     const ownerFields: Array<keyof TrackRow> = [
       'title',
@@ -315,7 +343,6 @@ export function tracksRouter({ db, publicUrl, musicDir, coverDir }: Deps): Route
       'genre',
       'year',
       'track_no',
-      'rating',
     ];
     const updates: Record<string, any> = {};
     for (const k of ownerFields) {
@@ -326,18 +353,11 @@ export function tracksRouter({ db, publicUrl, musicDir, coverDir }: Deps): Route
       }
       const v = (body as any)[k];
       if (v === null || v === undefined || v === '') {
-        updates[k] = k === 'rating' ? 0 : null;
+        updates[k] = null;
       } else if (k === 'year' || k === 'track_no') {
         const n = Number(v);
         if (!Number.isFinite(n) || n < 0 || n > 99999) {
           res.status(400).json({ error: `${k} must be a non-negative integer` });
-          return;
-        }
-        updates[k] = Math.trunc(n);
-      } else if (k === 'rating') {
-        const n = Number(v);
-        if (!Number.isFinite(n) || n < 0 || n > 5) {
-          res.status(400).json({ error: 'rating must be 0..5' });
           return;
         }
         updates[k] = Math.trunc(n);

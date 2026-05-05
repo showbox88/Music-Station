@@ -50,6 +50,7 @@ interface TrackRow {
   owner_username: string | null;
   owner_display_name: string | null;
   favorited_by_me: number;
+  my_rating: number | null;
 }
 
 function buildAudioUrl(publicUrl: string, relPath: string): string {
@@ -74,7 +75,7 @@ function trackDto(row: TrackRow, publicUrl: string, meId: number) {
     size_bytes: row.size_bytes,
     bitrate: row.bitrate,
     mime: row.mime,
-    rating: row.rating ?? 0,
+    rating: row.my_rating ?? 0,
     favorited: !!row.favorited_by_me,
     added_at: row.added_at,
     modified_at: row.modified_at,
@@ -234,11 +235,13 @@ export function favoritesRouter({ db, publicUrl }: Deps): Router {
         `SELECT t.*,
                 tu.username     AS owner_username,
                 tu.display_name AS owner_display_name,
-                CASE WHEN myf.track_id IS NULL THEN 0 ELSE 1 END AS favorited_by_me
+                CASE WHEN myf.track_id IS NULL THEN 0 ELSE 1 END AS favorited_by_me,
+                utr.rating AS my_rating
          FROM user_favorites uf
          JOIN tracks t ON t.id = uf.track_id
          LEFT JOIN users tu ON tu.id = t.owner_id
          LEFT JOIN user_favorites myf ON myf.track_id = t.id AND myf.user_id = @me
+         LEFT JOIN user_track_ratings utr ON utr.track_id = t.id AND utr.user_id = @me
          WHERE uf.user_id = @uid
          ORDER BY uf.added_at DESC`,
       )
