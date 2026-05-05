@@ -211,7 +211,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
           <button
             type="submit"
             disabled={saving}
-            className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
+            className="btn-primary"
           >
             {saving ? t('common.saving') : t('common.save')}
           </button>

@@ -348,7 +348,7 @@ function CreateUserModal({
           <button
             type="submit"
             disabled={busy || !username || !password}
-            className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
+            className="btn-primary"
           >
             {busy ? t('admin.create.creating') : t('admin.create.create')}
           </button>
@@ -427,7 +427,7 @@ function ResetPasswordModal({
           <button
             type="submit"
             disabled={busy || pw.length < 6}
-            className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
+            className="btn-primary"
           >
             {busy ? t('admin.reset.submitting') : t('admin.reset.submit')}
           </button>

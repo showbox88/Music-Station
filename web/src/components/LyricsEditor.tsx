@@ -365,7 +365,7 @@ function PasteStage({
           <button
             onClick={onNext}
             disabled={lineCount === 0}
-            className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
+            className="btn-primary"
           >
             {t('lyrics_editor.start_tagging')}
           </button>
@@ -784,7 +784,7 @@ function TagStage({
         <button
           onClick={handleSave}
           disabled={saving || taggedCount === 0}
-          className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
+          className="btn-primary"
         >
           {saving ? t('lyrics_editor.tag_saving') : t('lyrics_editor.tag_save')}
         </button>

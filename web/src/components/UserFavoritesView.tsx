@@ -84,7 +84,7 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
               <button
                 onClick={() => data.tracks.length && player.playList(data.tracks, 0)}
                 disabled={data.tracks.length === 0}
-                className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
+                className="btn-primary"
               >
                 ▶ {t('playlist_view.play')}
               </button>

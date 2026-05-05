@@ -73,7 +73,7 @@ export default function Login() {
         <button
           type="submit"
           disabled={busy || !username || !password}
-          className="w-full px-4 py-2 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
+          className="btn-primary w-full py-2"
         >
           {busy ? t('auth.signing_in') : t('auth.sign_in')}
         </button>

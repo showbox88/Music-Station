@@ -133,7 +133,7 @@ export default function ChangePasswordModal({ forced, onClose }: Props) {
           <button
             type="submit"
             disabled={busy || !oldPw || !newPw || !confirmPw}
-            className="flex-1 px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
+            className="btn-primary flex-1"
           >
             {busy ? t('auth.submitting') : t('auth.change_password')}
           </button>
