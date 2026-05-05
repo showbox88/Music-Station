@@ -137,43 +137,43 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           <span className="inline-block w-5 text-center mr-1">{'♪︎'}</span>All Tracks
         </button>
         {/* Favorites collapsible group:
-            - clicking the header toggles expand
-            - "My Favorites" sub-item routes to my own favorites view
-            - "Others Favorites" lists every visible-to-me external favorites
-            - 🔗 share button on the header opens the share modal */}
+            - clicking the header just toggles expand — no selected state
+              ever shown on the header itself, it's pure structure.
+            - "My Favorites" sub-item routes to the favorites view AND
+              hosts the 🔗 share button.
+            - Sub-items use a subtle selected style (left accent bar)
+              that's distinct from the top-level All Tracks pill so the
+              hierarchy stays readable. */}
         <div
-          className="group flex items-center w-full px-3 py-2 rounded-lg text-sm cursor-pointer text-zinc-300 hover:bg-white/5"
+          className="w-full px-3 py-2 rounded-lg text-sm cursor-pointer text-zinc-300 hover:bg-white/5 flex items-center"
           onClick={() => setFavExpanded((v) => !v)}
         >
-          <span className="inline-block w-5 text-center mr-1 text-zinc-500">
-            {favExpanded ? '▾' : '▸'}
-          </span>
           <span className="inline-block w-5 text-center mr-1">{'♥︎'}</span>
           <span className="flex-1">Favorites</span>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setFavShareOpen(true);
-            }}
-            className="opacity-0 group-hover:opacity-100 text-xs px-1 text-zinc-400 hover:text-white"
-            title="分享我的收藏"
-          >
-            🔗
-          </button>
         </div>
         {favExpanded && (
           <div className="ml-3 pl-2 border-l border-black/60 space-y-0.5">
-            <button
+            <div
               onClick={() => setView({ kind: 'favorites' })}
-              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 ${
+              className={`group w-full px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 cursor-pointer ${
                 view.kind === 'favorites'
-                  ? 'bezel glow-text'
+                  ? 'text-pink-300 bg-white/[0.04]'
                   : 'text-zinc-300 hover:bg-white/5'
               }`}
             >
               <span className="inline-block w-4 text-center text-zinc-500">♥</span>
               <span className="flex-1 truncate">My Favorites</span>
-            </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFavShareOpen(true);
+                }}
+                className="opacity-0 group-hover:opacity-100 text-xs px-1 text-zinc-400 hover:text-white"
+                title="分享我的收藏"
+              >
+                🔗
+              </button>
+            </div>
 
             {favOwners.length > 0 && (
               <div className="text-[10px] uppercase text-zinc-600 px-3 pt-2 pb-0.5">
@@ -195,7 +195,9 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
                     })
                   }
                   className={`w-full text-left px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 ${
-                    selected ? 'bezel glow-text' : 'text-zinc-400 hover:bg-white/5'
+                    selected
+                      ? 'text-pink-300 bg-white/[0.04]'
+                      : 'text-zinc-400 hover:bg-white/5'
                   }`}
                   title={
                     o.shared_with_me
