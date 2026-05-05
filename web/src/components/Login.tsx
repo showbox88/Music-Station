@@ -34,15 +34,11 @@ export default function Login() {
 
   return (
     <div className="h-full w-full flex items-center justify-center p-4">
+      {/* Login isn't a modal (no backdrop, sits in the page content area)
+          so it uses the .modal-card class directly without ModalShell. */}
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-sm rounded-xl shadow-2xl p-6 space-y-4"
-        style={{
-          background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
-          border: '1px solid #050506',
-          boxShadow:
-            '0 20px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 30px rgba(255,45,181,0.08)',
-        }}
+        className="w-full max-w-sm rounded-xl shadow-2xl modal-card p-6 space-y-4"
       >
         <div>
           <h1 className="text-xl font-semibold glow-text">Music Station</h1>

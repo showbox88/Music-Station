@@ -11,6 +11,7 @@
 import { useState } from 'react';
 import { useAuth } from '../AuthContext';
 import { useT } from '../i18n/useT';
+import ModalShell from './Modal';
 
 interface Props {
   forced: boolean;
@@ -55,17 +56,14 @@ export default function ChangePasswordModal({ forced, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm rounded-xl shadow-2xl p-6 space-y-4"
-        style={{
-          background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
-          border: '1px solid #050506',
-          boxShadow:
-            '0 20px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 30px rgba(255,45,181,0.08)',
-        }}
-      >
+    <ModalShell
+      as="form"
+      onSubmit={onSubmit}
+      forced={forced}
+      onClose={!forced && onClose ? onClose : undefined}
+      maxWidth="max-w-sm"
+      className="p-6 space-y-4"
+    >
         <div>
           <h2 className="text-base font-semibold">
             {forced ? t('auth.change_password_first_time_title') : t('auth.change_password')}
@@ -150,7 +148,6 @@ export default function ChangePasswordModal({ forced, onClose }: Props) {
             </button>
           )}
         </div>
-      </form>
-    </div>
+    </ModalShell>
   );
 }
