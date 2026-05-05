@@ -10,6 +10,8 @@ interface Props {
   onSaved: (updated: Track) => void;
 }
 
+type ModalTab = 'info' | 'lyrics' | 'share';
+
 export default function EditTrackModal({ track, onClose, onSaved }: Props) {
   const [form, setForm] = useState({
     title: track.title ?? '',
@@ -23,6 +25,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
   const [coverUrl, setCoverUrl] = useState<string | null>(track.cover_url);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [tab, setTab] = useState<ModalTab>('info');
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -71,20 +74,19 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
       <form
         onSubmit={onSave}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-xl shadow-2xl p-6 space-y-4"
+        className="w-full max-w-lg rounded-xl shadow-2xl flex flex-col"
         style={{
           background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
           border: '1px solid #050506',
           boxShadow:
             '0 20px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 30px rgba(255,45,181,0.08)',
+          maxHeight: '90vh',
         }}
       >
-        <div>
+        {/* Header */}
+        <div className="px-6 pt-6 pb-3 shrink-0">
           <h2 className="text-lg font-semibold">Edit track</h2>
           <p className="text-xs text-zinc-500 mt-1 truncate">{track.rel_path}</p>
-          <p className="text-xs text-zinc-600 mt-1">
-            Edits go to the database only — the MP3 file is never modified.
-          </p>
           {!track.is_owner && (
             <p className="text-xs text-amber-400 mt-2">
               这首歌的所有者是{' '}
@@ -94,93 +96,116 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
           )}
         </div>
 
-        {track.is_owner && (
-          <Field label="可见性 / 分享">
-            <VisibilityField track={track} />
-          </Field>
-        )}
-
-        <Field label="Cover">
-          <CoverPicker track={{ ...track, cover_url: coverUrl }} onChanged={setCoverUrl} />
-        </Field>
-
-        <Field label="Lyrics">
-          <LyricsField track={track} />
-        </Field>
-
-        <Field label="Rating">
-          <StarRating
-            value={form.rating}
-            onChange={(v) => setForm({ ...form, rating: v })}
-            size="md"
-          />
-        </Field>
-
-        <Field label="Title">
-          <input
-            type="text"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            className="input"
-            autoFocus
-            disabled={!track.is_owner}
-          />
-        </Field>
-        <Field label="Artist">
-          <input
-            type="text"
-            value={form.artist}
-            onChange={(e) => setForm({ ...form, artist: e.target.value })}
-            className="input"
-            disabled={!track.is_owner}
-          />
-        </Field>
-        <Field label="Album">
-          <input
-            type="text"
-            value={form.album}
-            onChange={(e) => setForm({ ...form, album: e.target.value })}
-            className="input"
-            disabled={!track.is_owner}
-          />
-        </Field>
-        <Field label="Genre">
-          <input
-            type="text"
-            value={form.genre}
-            onChange={(e) => setForm({ ...form, genre: e.target.value })}
-            className="input"
-            disabled={!track.is_owner}
-          />
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Year">
-            <input
-              type="number"
-              min={0}
-              max={9999}
-              value={form.year}
-              onChange={(e) => setForm({ ...form, year: e.target.value })}
-              className="input"
-              disabled={!track.is_owner}
-            />
-          </Field>
-          <Field label="Track #">
-            <input
-              type="number"
-              min={0}
-              max={9999}
-              value={form.track_no}
-              onChange={(e) => setForm({ ...form, track_no: e.target.value })}
-              className="input"
-              disabled={!track.is_owner}
-            />
-          </Field>
+        {/* Tab strip */}
+        <div className="px-6 shrink-0 flex gap-1.5 border-b border-black/60">
+          <ModalTabButton id="info" active={tab} setTab={setTab}>
+            基本信息
+          </ModalTabButton>
+          <ModalTabButton id="lyrics" active={tab} setTab={setTab}>
+            歌词
+          </ModalTabButton>
+          {track.is_owner && (
+            <ModalTabButton id="share" active={tab} setTab={setTab}>
+              分享
+            </ModalTabButton>
+          )}
         </div>
 
-        {err && <div className="text-sm text-red-400 bg-red-950/30 p-2 rounded">{err}</div>}
+        {/* Tab content — scrollable so the modal stays bounded */}
+        <div className="flex-1 min-h-0 overflow-auto px-6 py-4 space-y-4">
+          {tab === 'info' && (
+            <>
+              <Field label="Cover">
+                <CoverPicker
+                  track={{ ...track, cover_url: coverUrl }}
+                  onChanged={setCoverUrl}
+                />
+              </Field>
 
-        <div className="flex justify-end gap-2 pt-2">
+              <Field label="Rating">
+                <StarRating
+                  value={form.rating}
+                  onChange={(v) => setForm({ ...form, rating: v })}
+                  size="md"
+                />
+              </Field>
+
+              <Field label="Title">
+                <input
+                  type="text"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  className="input"
+                  autoFocus
+                  disabled={!track.is_owner}
+                />
+              </Field>
+              <Field label="Artist">
+                <input
+                  type="text"
+                  value={form.artist}
+                  onChange={(e) => setForm({ ...form, artist: e.target.value })}
+                  className="input"
+                  disabled={!track.is_owner}
+                />
+              </Field>
+              <Field label="Album">
+                <input
+                  type="text"
+                  value={form.album}
+                  onChange={(e) => setForm({ ...form, album: e.target.value })}
+                  className="input"
+                  disabled={!track.is_owner}
+                />
+              </Field>
+              <Field label="Genre">
+                <input
+                  type="text"
+                  value={form.genre}
+                  onChange={(e) => setForm({ ...form, genre: e.target.value })}
+                  className="input"
+                  disabled={!track.is_owner}
+                />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Year">
+                  <input
+                    type="number"
+                    min={0}
+                    max={9999}
+                    value={form.year}
+                    onChange={(e) => setForm({ ...form, year: e.target.value })}
+                    className="input"
+                    disabled={!track.is_owner}
+                  />
+                </Field>
+                <Field label="Track #">
+                  <input
+                    type="number"
+                    min={0}
+                    max={9999}
+                    value={form.track_no}
+                    onChange={(e) => setForm({ ...form, track_no: e.target.value })}
+                    className="input"
+                    disabled={!track.is_owner}
+                  />
+                </Field>
+              </div>
+            </>
+          )}
+
+          {tab === 'lyrics' && <LyricsField track={track} />}
+
+          {tab === 'share' && track.is_owner && <VisibilityField track={track} />}
+        </div>
+
+        {/* Footer */}
+        {err && (
+          <div className="px-6 pb-2 shrink-0">
+            <div className="text-sm text-red-400 bg-red-950/30 p-2 rounded">{err}</div>
+          </div>
+        )}
+        <div className="px-6 pb-5 pt-3 shrink-0 flex justify-end gap-2 border-t border-black/60">
           <button
             type="button"
             onClick={onClose}
@@ -198,6 +223,33 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
         </div>
       </form>
     </div>
+  );
+}
+
+function ModalTabButton({
+  id,
+  active,
+  setTab,
+  children,
+}: {
+  id: ModalTab;
+  active: ModalTab;
+  setTab: (t: ModalTab) => void;
+  children: React.ReactNode;
+}) {
+  const isActive = active === id;
+  return (
+    <button
+      type="button"
+      onClick={() => setTab(id)}
+      className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors ${
+        isActive
+          ? 'border-pink-500 glow-text'
+          : 'border-transparent text-zinc-400 hover:text-white'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
