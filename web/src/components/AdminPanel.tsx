@@ -56,7 +56,7 @@ export default function AdminPanel() {
           <h1 className="text-base font-semibold">⚙︎ {t('admin.title')}</h1>
           <button
             onClick={() => setCreating(true)}
-            className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs"
+            className="btn-pill-xs glow-text glow-ring"
           >
             {t('admin.add_user')}
           </button>

@@ -540,7 +540,7 @@ function LyricsField({ track }: { track: Track }) {
             type="button"
             onClick={remove}
             disabled={busy}
-            className="px-3 py-1 rounded-full bezel text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+            className="btn-pill-xs text-red-400 hover:text-red-300 py-1"
           >
             {t('common.delete')}
           </button>
@@ -589,7 +589,7 @@ function LyricsField({ track }: { track: Track }) {
                 type="button"
                 onClick={autoFetch}
                 disabled={busy}
-                className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
+                className="btn-pill-xs glow-text glow-ring"
               >
                 {busy ? t('lyrics.auto.processing') : t('lyrics.auto.fetch_now')}
               </button>
@@ -628,7 +628,7 @@ function LyricsField({ track }: { track: Track }) {
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={busy}
-                className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
+                className="btn-pill-xs glow-text glow-ring"
               >
                 {busy ? t('lyrics.upload.uploading') : t('lyrics.upload.choose_file')}
               </button>
@@ -650,7 +650,7 @@ function LyricsField({ track }: { track: Track }) {
                   type="button"
                   onClick={savePasted}
                   disabled={busy || !pasteText.trim()}
-                  className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
+                  className="btn-pill-xs glow-text glow-ring"
                 >
                   {busy ? t('lyrics.paste.saving') : t('lyrics.paste.save')}
                 </button>
@@ -813,7 +813,7 @@ function SearchPanel({
               <button
                 type="button"
                 onClick={onClosePreview}
-                className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white"
+                className="btn-pill-xs text-zinc-300 hover:text-white"
               >
                 {t('common.close')}
               </button>
@@ -821,7 +821,7 @@ function SearchPanel({
                 type="button"
                 onClick={() => onUse(previewing.cand)}
                 disabled={previewing.loading || !previewing.text}
-                className="px-3 py-1.5 rounded-full bezel glow-text glow-ring text-xs disabled:opacity-50"
+                className="btn-pill-xs glow-text glow-ring"
               >
                 {t('lyrics.search.use_this')}
               </button>

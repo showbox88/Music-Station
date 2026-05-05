@@ -610,14 +610,14 @@ function TagStage({
           </button>
           <button
             onClick={() => seekDelta(-3)}
-            className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white"
+            className="btn-pill-xs text-zinc-300 hover:text-white"
             title={t('lyrics_editor.tag_back_3s')}
           >
             ‹‹ 3s
           </button>
           <button
             onClick={() => seekDelta(3)}
-            className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white"
+            className="btn-pill-xs text-zinc-300 hover:text-white"
             title={t('lyrics_editor.tag_forward_3s')}
           >
             3s ››
@@ -751,19 +751,19 @@ function TagStage({
       <div className="px-5 py-3 border-t border-black/60 shrink-0 flex items-center gap-2">
         <button
           onClick={onBackToPick}
-          className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-400 hover:text-white"
+          className="btn-pill-xs text-zinc-400 hover:text-white"
         >
           {t('lyrics_editor.tag_back_to_pick_short')}
         </button>
         <button
           onClick={onBackToPaste}
-          className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-400 hover:text-white"
+          className="btn-pill-xs text-zinc-400 hover:text-white"
         >
           {t('lyrics_editor.tag_back_to_paste')}
         </button>
         <button
           onClick={undoLast}
-          className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-300 hover:text-white"
+          className="btn-pill-xs text-zinc-300 hover:text-white"
           disabled={taggedCount === 0}
         >
           {t('lyrics_editor.tag_undo_last')}
@@ -775,7 +775,7 @@ function TagStage({
               setCursor(0);
             }
           }}
-          className="px-3 py-1.5 rounded-full bezel text-xs text-zinc-400 hover:text-red-400"
+          className="btn-pill-xs text-zinc-400 hover:text-red-400"
           disabled={taggedCount === 0}
         >
           {t('lyrics_editor.tag_clear_all')}
