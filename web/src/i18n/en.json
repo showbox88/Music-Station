@@ -81,45 +81,55 @@
   },
   "tracks": {
     "search_placeholder": "Search title / artist…",
-    "filter.all": "All",
-    "filter.mine": "Mine",
-    "filter.public": "Public",
-    "filter.shared": "Shared with me",
-    "header.title": "Title",
-    "header.artist": "Artist",
-    "header.album": "Album",
-    "header.genre": "Genre",
-    "header.year": "Year",
-    "header.rating": "Rating",
-    "header.duration": "Duration",
+    "filter": {
+      "all": "All",
+      "mine": "Mine",
+      "public": "Public",
+      "shared": "Shared with me"
+    },
+    "header": {
+      "title": "Title",
+      "artist": "Artist",
+      "album": "Album",
+      "genre": "Genre",
+      "year": "Year",
+      "rating": "Rating",
+      "duration": "Duration"
+    },
     "no_results": "No tracks matching \"{q}\"",
     "no_tracks": "No tracks indexed yet. Drop MP3s into the music dir and click Rescan.",
     "delete_confirm": "Delete \"{name}\"?\n\nThis removes the file from disk and the track from the library.",
     "delete_failed": "Delete failed: {err}",
     "rating_update_failed": "Rating update failed: {err}",
     "delete_only_owner_tooltip": "Only the uploader can delete a track",
-    "badge.public": "PUBLIC",
-    "badge.public_tooltip": "You made this track public — visible to everyone",
-    "badge.shared_from": "Shared by {name}",
-    "badge.shared_tooltip": "{name} shared this track with you",
-    "badge.public_from": "Public · {name}",
-    "badge.public_from_tooltip": "{name} made this track public"
+    "badge": {
+      "public": "PUBLIC",
+      "public_tooltip": "You made this track public — visible to everyone",
+      "shared_from": "Shared by {name}",
+      "shared_tooltip": "{name} shared this track with you",
+      "public_from": "Public · {name}",
+      "public_from_tooltip": "{name} made this track public"
+    }
   },
   "modal_edit": {
     "title": "Edit track",
     "footer_note": "Edits go to the database only — the MP3 file is never modified.",
     "non_owner_warning": "Owned by {name}. You can change your own marks (rating / favorite) but not the metadata or share settings.",
-    "tab.info": "Basic Info",
-    "tab.lyrics": "Lyrics",
-    "tab.share": "Share",
-    "field.cover": "Cover",
-    "field.rating": "Rating",
-    "field.title": "Title",
-    "field.artist": "Artist",
-    "field.album": "Album",
-    "field.genre": "Genre",
-    "field.year": "Year",
-    "field.track_no": "Track #"
+    "tab": {
+      "info": "Basic Info",
+      "lyrics": "Lyrics",
+      "share": "Share"
+    },
+    "field": {
+      "cover": "Cover",
+      "rating": "Rating",
+      "title": "Title",
+      "artist": "Artist",
+      "album": "Album",
+      "genre": "Genre",
+      "year": "Year",
+      "track_no": "Track #"
+    }
   },
   "share": {
     "public_toggle": "Public (visible to all logged-in users)",
@@ -134,54 +144,70 @@
     "save_failed": "Save failed: {err}"
   },
   "lyrics": {
-    "status.loading": "Loading…",
-    "status.absent": "No lyrics",
-    "status.present_synced": "Saved · {source} · synced",
-    "status.present_plain": "Saved · {source} · plain text",
-    "status.error": "Failed to load",
-    "tab.auto": "Auto fetch",
-    "tab.search": "Search & pick",
-    "tab.upload": "Upload .lrc",
-    "tab.paste": "Paste text",
-    "auto.description": "Tries LRCLIB → Netease → QQ → Kugou in order and saves the first match. Good for bulk coverage; for picking a specific version, use Search.",
-    "auto.fetch_now": "Fetch now",
-    "auto.processing": "Working…",
-    "auto.fetched": "Fetched ({source}{ts})",
-    "auto.timestamps_yes": " · synced",
-    "auto.timestamps_no": " · plain text",
-    "auto.no_results": "No source returned a match",
-    "auto.failed": "Fetch failed: {err}",
-    "search.description": "Search 4 sources in parallel and pick the version you want",
-    "search.research": "Search again",
-    "search.searching": "Searching…",
-    "search.no_results": "No results",
-    "search.count_hint": "{count} candidates · ±5s duration mismatch is highlighted",
-    "search.preview": "Preview",
-    "search.use": "Use",
-    "search.use_this": "Use this one",
-    "search.duration_diff": "{diff}s off",
-    "search.duration_match": "exact match",
-    "search.plain_text": "plain text",
-    "search.preview_loading": "Loading…",
-    "search.preview_failed": "Preview failed: {err}",
-    "search.no_source_returned": "No source returned results",
-    "search.search_failed": "Search failed: {err}",
-    "search.fetch_select_failed": "Failed to use that candidate",
-    "select.used": "Using {source} lyrics{ts}",
-    "upload.description": "Pick a .lrc / .txt file (≤256KB). [mm:ss.xx] timestamps auto-detected.",
-    "upload.choose_file": "Choose file",
-    "upload.uploading": "Uploading…",
-    "upload.too_large": "File exceeds 256KB limit",
-    "upload.success": "Uploaded{ts}",
-    "upload.failed": "Upload failed: {err}",
-    "paste.placeholder": "Paste LRC text, e.g.:\n[00:12.34]First line\n[00:18.20]Second line",
-    "paste.save": "Save lyrics",
-    "paste.saving": "Saving…",
-    "paste.success": "Saved{ts}",
-    "paste.failed": "Save failed: {err}",
-    "delete.confirm": "Delete this track's lyric file?",
-    "delete.deleted": "Deleted",
-    "delete.failed": "Delete failed: {err}"
+    "status": {
+      "loading": "Loading…",
+      "absent": "No lyrics",
+      "present_synced": "Saved · {source} · synced",
+      "present_plain": "Saved · {source} · plain text",
+      "error": "Failed to load"
+    },
+    "tab": {
+      "auto": "Auto fetch",
+      "search": "Search & pick",
+      "upload": "Upload .lrc",
+      "paste": "Paste text"
+    },
+    "auto": {
+      "description": "Tries LRCLIB → Netease → QQ → Kugou in order and saves the first match. Good for bulk coverage; for picking a specific version, use Search.",
+      "fetch_now": "Fetch now",
+      "processing": "Working…",
+      "fetched": "Fetched ({source}{ts})",
+      "timestamps_yes": " · synced",
+      "timestamps_no": " · plain text",
+      "no_results": "No source returned a match",
+      "failed": "Fetch failed: {err}"
+    },
+    "search": {
+      "description": "Search 4 sources in parallel and pick the version you want",
+      "research": "Search again",
+      "searching": "Searching…",
+      "no_results": "No results",
+      "count_hint": "{count} candidates · ±5s duration mismatch is highlighted",
+      "preview": "Preview",
+      "use": "Use",
+      "use_this": "Use this one",
+      "duration_diff": "{diff}s off",
+      "duration_match": "exact match",
+      "plain_text": "plain text",
+      "preview_loading": "Loading…",
+      "preview_failed": "Preview failed: {err}",
+      "no_source_returned": "No source returned results",
+      "search_failed": "Search failed: {err}",
+      "fetch_select_failed": "Failed to use that candidate"
+    },
+    "select": {
+      "used": "Using {source} lyrics{ts}"
+    },
+    "upload": {
+      "description": "Pick a .lrc / .txt file (≤256KB). [mm:ss.xx] timestamps auto-detected.",
+      "choose_file": "Choose file",
+      "uploading": "Uploading…",
+      "too_large": "File exceeds 256KB limit",
+      "success": "Uploaded{ts}",
+      "failed": "Upload failed: {err}"
+    },
+    "paste": {
+      "placeholder": "Paste LRC text, e.g.:\n[00:12.34]First line\n[00:18.20]Second line",
+      "save": "Save lyrics",
+      "saving": "Saving…",
+      "success": "Saved{ts}",
+      "failed": "Save failed: {err}"
+    },
+    "delete": {
+      "confirm": "Delete this track's lyric file?",
+      "deleted": "Deleted",
+      "failed": "Delete failed: {err}"
+    }
   },
   "user_menu": {
     "admin_label": "admin",

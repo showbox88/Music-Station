@@ -81,45 +81,55 @@
   },
   "tracks": {
     "search_placeholder": "搜索标题 / 艺人…",
-    "filter.all": "全部",
-    "filter.mine": "我的",
-    "filter.public": "公开",
-    "filter.shared": "分享给我的",
-    "header.title": "标题",
-    "header.artist": "艺人",
-    "header.album": "专辑",
-    "header.genre": "流派",
-    "header.year": "年份",
-    "header.rating": "评分",
-    "header.duration": "时长",
+    "filter": {
+      "all": "全部",
+      "mine": "我的",
+      "public": "公开",
+      "shared": "分享给我的"
+    },
+    "header": {
+      "title": "标题",
+      "artist": "艺人",
+      "album": "专辑",
+      "genre": "流派",
+      "year": "年份",
+      "rating": "评分",
+      "duration": "时长"
+    },
     "no_results": "没有匹配 \"{q}\" 的曲目",
     "no_tracks": "还没有索引曲目。把 MP3 放到音乐目录下然后点 Rescan。",
     "delete_confirm": "删除 \"{name}\"？\n\n这会从磁盘删除文件，并从库中移除该曲目。",
     "delete_failed": "删除失败：{err}",
     "rating_update_failed": "评分更新失败：{err}",
     "delete_only_owner_tooltip": "只能删除自己上传的曲目",
-    "badge.public": "公开",
-    "badge.public_tooltip": "你公开了这首歌，所有用户可见",
-    "badge.shared_from": "分享自 {name}",
-    "badge.shared_tooltip": "{name} 把这首歌分享给了你",
-    "badge.public_from": "公开 · {name}",
-    "badge.public_from_tooltip": "{name} 把这首歌设为公开"
+    "badge": {
+      "public": "公开",
+      "public_tooltip": "你公开了这首歌，所有用户可见",
+      "shared_from": "分享自 {name}",
+      "shared_tooltip": "{name} 把这首歌分享给了你",
+      "public_from": "公开 · {name}",
+      "public_from_tooltip": "{name} 把这首歌设为公开"
+    }
   },
   "modal_edit": {
     "title": "编辑曲目",
     "footer_note": "改动只写入数据库——MP3 文件本身不会被修改。",
     "non_owner_warning": "这首歌的所有者是 {name}。你只能改自己的标记（评分/收藏），不能改元数据或分享设置。",
-    "tab.info": "基本信息",
-    "tab.lyrics": "歌词",
-    "tab.share": "分享",
-    "field.cover": "封面",
-    "field.rating": "评分",
-    "field.title": "标题",
-    "field.artist": "艺人",
-    "field.album": "专辑",
-    "field.genre": "流派",
-    "field.year": "年份",
-    "field.track_no": "曲号"
+    "tab": {
+      "info": "基本信息",
+      "lyrics": "歌词",
+      "share": "分享"
+    },
+    "field": {
+      "cover": "封面",
+      "rating": "评分",
+      "title": "标题",
+      "artist": "艺人",
+      "album": "专辑",
+      "genre": "流派",
+      "year": "年份",
+      "track_no": "曲号"
+    }
   },
   "share": {
     "public_toggle": "公开（所有登录用户都能看到）",
@@ -134,54 +144,70 @@
     "save_failed": "保存失败：{err}"
   },
   "lyrics": {
-    "status.loading": "加载中…",
-    "status.absent": "暂无歌词",
-    "status.present_synced": "已下载 · {source} · 带时间戳",
-    "status.present_plain": "已下载 · {source} · 纯文本",
-    "status.error": "加载失败",
-    "tab.auto": "自动获取",
-    "tab.search": "搜索并选择",
-    "tab.upload": "上传 .lrc",
-    "tab.paste": "粘贴文本",
-    "auto.description": "按 LRCLIB → 网易云 → QQ 音乐 → 酷狗 的顺序自动尝试，挑出第一条匹配的歌词存盘。适合大批量歌曲快速覆盖；要精确挑版本请用「搜索并选择」。",
-    "auto.fetch_now": "现在获取",
-    "auto.processing": "处理中…",
-    "auto.fetched": "已获取（{source}{ts}）",
-    "auto.timestamps_yes": " · 带时间戳",
-    "auto.timestamps_no": " · 纯文本",
-    "auto.no_results": "所有源都没找到匹配的歌词",
-    "auto.failed": "获取失败：{err}",
-    "search.description": "从 4 个源同时搜索，挑你想要的版本",
-    "search.research": "重新搜索",
-    "search.searching": "搜索中…",
-    "search.no_results": "没有结果",
-    "search.count_hint": "共 {count} 条 · 时长偏差超过 ±5 秒会标黄",
-    "search.preview": "预览",
-    "search.use": "使用",
-    "search.use_this": "使用这条",
-    "search.duration_diff": "差 {diff}s",
-    "search.duration_match": "完全匹配",
-    "search.plain_text": "纯文本",
-    "search.preview_loading": "加载中…",
-    "search.preview_failed": "预览失败：{err}",
-    "search.no_source_returned": "没有任何源返回结果",
-    "search.search_failed": "搜索失败：{err}",
-    "search.fetch_select_failed": "该候选项获取失败",
-    "select.used": "已使用 {source} 的歌词{ts}",
-    "upload.description": "选一个 .lrc / .txt 文件（≤256KB）。带 [mm:ss.xx] 时间戳会自动识别。",
-    "upload.choose_file": "选择文件",
-    "upload.uploading": "上传中…",
-    "upload.too_large": "文件超过 256KB 上限",
-    "upload.success": "上传成功{ts}",
-    "upload.failed": "上传失败：{err}",
-    "paste.placeholder": "粘贴 LRC 文本，例如：\n[00:12.34]第一句\n[00:18.20]第二句",
-    "paste.save": "保存歌词",
-    "paste.saving": "保存中…",
-    "paste.success": "保存成功{ts}",
-    "paste.failed": "保存失败：{err}",
-    "delete.confirm": "确认删除这首歌的歌词文件？",
-    "delete.deleted": "已删除",
-    "delete.failed": "删除失败：{err}"
+    "status": {
+      "loading": "加载中…",
+      "absent": "暂无歌词",
+      "present_synced": "已下载 · {source} · 带时间戳",
+      "present_plain": "已下载 · {source} · 纯文本",
+      "error": "加载失败"
+    },
+    "tab": {
+      "auto": "自动获取",
+      "search": "搜索并选择",
+      "upload": "上传 .lrc",
+      "paste": "粘贴文本"
+    },
+    "auto": {
+      "description": "按 LRCLIB → 网易云 → QQ 音乐 → 酷狗 的顺序自动尝试，挑出第一条匹配的歌词存盘。适合大批量歌曲快速覆盖；要精确挑版本请用「搜索并选择」。",
+      "fetch_now": "现在获取",
+      "processing": "处理中…",
+      "fetched": "已获取（{source}{ts}）",
+      "timestamps_yes": " · 带时间戳",
+      "timestamps_no": " · 纯文本",
+      "no_results": "所有源都没找到匹配的歌词",
+      "failed": "获取失败：{err}"
+    },
+    "search": {
+      "description": "从 4 个源同时搜索，挑你想要的版本",
+      "research": "重新搜索",
+      "searching": "搜索中…",
+      "no_results": "没有结果",
+      "count_hint": "共 {count} 条 · 时长偏差超过 ±5 秒会标黄",
+      "preview": "预览",
+      "use": "使用",
+      "use_this": "使用这条",
+      "duration_diff": "差 {diff}s",
+      "duration_match": "完全匹配",
+      "plain_text": "纯文本",
+      "preview_loading": "加载中…",
+      "preview_failed": "预览失败：{err}",
+      "no_source_returned": "没有任何源返回结果",
+      "search_failed": "搜索失败：{err}",
+      "fetch_select_failed": "该候选项获取失败"
+    },
+    "select": {
+      "used": "已使用 {source} 的歌词{ts}"
+    },
+    "upload": {
+      "description": "选一个 .lrc / .txt 文件（≤256KB）。带 [mm:ss.xx] 时间戳会自动识别。",
+      "choose_file": "选择文件",
+      "uploading": "上传中…",
+      "too_large": "文件超过 256KB 上限",
+      "success": "上传成功{ts}",
+      "failed": "上传失败：{err}"
+    },
+    "paste": {
+      "placeholder": "粘贴 LRC 文本，例如：\n[00:12.34]第一句\n[00:18.20]第二句",
+      "save": "保存歌词",
+      "saving": "保存中…",
+      "success": "保存成功{ts}",
+      "failed": "保存失败：{err}"
+    },
+    "delete": {
+      "confirm": "确认删除这首歌的歌词文件？",
+      "deleted": "已删除",
+      "failed": "删除失败：{err}"
+    }
   },
   "user_menu": {
     "admin_label": "管理员",
