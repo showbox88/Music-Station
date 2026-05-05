@@ -358,7 +358,7 @@ function PasteStage({
         <div className="flex gap-2">
           <button
             onClick={onBack}
-            className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
+            className="btn-secondary"
           >
             {t('lyrics_editor.back_to_pick')}
           </button>

@@ -95,7 +95,7 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
                   player.playList(data.tracks, 0);
                 }}
                 disabled={data.tracks.length === 0}
-                className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white disabled:opacity-50"
+                className="btn-secondary disabled:opacity-50"
               >
                 🔀 {t('playlist_view.shuffle')}
               </button>

@@ -125,7 +125,7 @@ export default function ChangePasswordModal({ forced, onClose }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
+              className="btn-secondary"
             >
               {t('common.cancel')}
             </button>
