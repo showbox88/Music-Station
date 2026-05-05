@@ -34,6 +34,10 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [favShareOpen, setFavShareOpen] = useState(false);
+  // Favorites section default-expanded so users discover the sub-tree.
+  // (Persisting this across reloads would just be more clutter — re-clicking
+  // is cheap.)
+  const [favExpanded, setFavExpanded] = useState(true);
   const player = usePlayer();
   const { user } = useAuth();
 
@@ -132,12 +136,18 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
         >
           <span className="inline-block w-5 text-center mr-1">{'♪︎'}</span>All Tracks
         </button>
+        {/* Favorites collapsible group:
+            - clicking the header toggles expand
+            - "My Favorites" sub-item routes to my own favorites view
+            - "Others Favorites" lists every visible-to-me external favorites
+            - 🔗 share button on the header opens the share modal */}
         <div
-          className={`group flex items-center w-full px-3 py-2 rounded-lg text-sm cursor-pointer ${
-            view.kind === 'favorites' ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
-          }`}
-          onClick={() => setView({ kind: 'favorites' })}
+          className="group flex items-center w-full px-3 py-2 rounded-lg text-sm cursor-pointer text-zinc-300 hover:bg-white/5"
+          onClick={() => setFavExpanded((v) => !v)}
         >
+          <span className="inline-block w-5 text-center mr-1 text-zinc-500">
+            {favExpanded ? '▾' : '▸'}
+          </span>
           <span className="inline-block w-5 text-center mr-1">{'♥︎'}</span>
           <span className="flex-1">Favorites</span>
           <button
@@ -151,40 +161,63 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
             🔗
           </button>
         </div>
-        {favOwners.map((o) => {
-          const selected =
-            view.kind === 'user-favorites' && view.userId === o.user.id;
-          const ownerLabel = o.user.display_name || o.user.username;
-          return (
+        {favExpanded && (
+          <div className="ml-3 pl-2 border-l border-black/60 space-y-0.5">
             <button
-              key={o.user.id}
-              onClick={() =>
-                setView({
-                  kind: 'user-favorites',
-                  userId: o.user.id,
-                  ownerName: ownerLabel,
-                })
-              }
+              onClick={() => setView({ kind: 'favorites' })}
               className={`w-full text-left px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 ${
-                selected ? 'bezel glow-text' : 'text-zinc-400 hover:bg-white/5'
+                view.kind === 'favorites'
+                  ? 'bezel glow-text'
+                  : 'text-zinc-300 hover:bg-white/5'
               }`}
-              title={
-                o.shared_with_me
-                  ? `${ownerLabel} 把收藏分享给了你`
-                  : `${ownerLabel} 的收藏是公开的`
-              }
             >
-              <span className="inline-block w-5 text-center text-zinc-500">♥</span>
-              <span className="flex-1 truncate">{ownerLabel} 的收藏</span>
-              {o.shared_with_me ? (
-                <span className="text-[9px] uppercase text-pink-300/70">分享</span>
-              ) : (
-                <span className="text-[9px] uppercase text-zinc-500/70">公开</span>
-              )}
-              <span className="text-[10px] text-zinc-500 tabular-nums ml-1">{o.count}</span>
+              <span className="inline-block w-4 text-center text-zinc-500">♥</span>
+              <span className="flex-1 truncate">My Favorites</span>
             </button>
-          );
-        })}
+
+            {favOwners.length > 0 && (
+              <div className="text-[10px] uppercase text-zinc-600 px-3 pt-2 pb-0.5">
+                Others Favorites
+              </div>
+            )}
+            {favOwners.map((o) => {
+              const selected =
+                view.kind === 'user-favorites' && view.userId === o.user.id;
+              const ownerLabel = o.user.display_name || o.user.username;
+              return (
+                <button
+                  key={o.user.id}
+                  onClick={() =>
+                    setView({
+                      kind: 'user-favorites',
+                      userId: o.user.id,
+                      ownerName: ownerLabel,
+                    })
+                  }
+                  className={`w-full text-left px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 ${
+                    selected ? 'bezel glow-text' : 'text-zinc-400 hover:bg-white/5'
+                  }`}
+                  title={
+                    o.shared_with_me
+                      ? `${ownerLabel} 把收藏分享给了你`
+                      : `${ownerLabel} 的收藏是公开的`
+                  }
+                >
+                  <span className="inline-block w-4 text-center text-zinc-500">♥</span>
+                  <span className="flex-1 truncate">{ownerLabel}</span>
+                  {o.shared_with_me ? (
+                    <span className="text-[9px] uppercase text-pink-300/70">分享</span>
+                  ) : (
+                    <span className="text-[9px] uppercase text-zinc-500/70">公开</span>
+                  )}
+                  <span className="text-[10px] text-zinc-500 tabular-nums ml-1">
+                    {o.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <button
           onClick={() => setView({ kind: 'lyrics-editor' })}
           className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
