@@ -143,6 +143,55 @@ body {
       0 0 48px var(--accent-glow);
   }
 
+  /* ==== Surfaces ====================================================
+   * Reusable card / panel backgrounds that were previously inlined as
+   * style={{ background: 'linear-gradient(...)', border: '...', ... }}
+   * across 8+ modals and 3+ view-header bars. */
+
+  /* Modal card body — gradient + hairline border + dark drop + soft
+     magenta halo. Used by every modal's inner card (Login,
+     ChangePassword, EditTrack, AdminPanel modals, share modals,
+     LyricsEditor's ExistingLyricsDialog). */
+  .modal-card {
+    background: linear-gradient(180deg, #232325 0%, #18181a 100%);
+    border: 1px solid var(--bg-edge);
+    box-shadow:
+      0 20px 60px rgba(0, 0, 0, 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 0 30px rgba(255, 45, 181, 0.08);
+  }
+
+  /* Header / toolbar surface used by view-level chrome (TrackList /
+     PlaylistView / UserFavoritesView header bars). Slightly lighter
+     than the modal card to read as part of the page rather than a
+     floating element. */
+  .surface-raised {
+    background: linear-gradient(180deg, #1c1c1e 0%, #18181a 100%);
+  }
+
+  /* ==== Buttons =====================================================
+   * Two semantic levels — primary (Save / Submit) and secondary
+   * (Cancel / Close), plus a smaller "pill" for inline actions.
+   * Compose existing .bezel / .glow-text / .glow-ring building blocks
+   * via @apply so visual changes there propagate here too. */
+
+  .btn-primary {
+    @apply rounded-full bezel glow-text glow-ring text-sm px-4 py-1.5 disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply rounded-full bezel text-sm px-4 py-1.5 text-zinc-300 hover:text-white;
+  }
+  .btn-pill-xs {
+    @apply rounded-full bezel text-xs px-3 py-1.5 disabled:opacity-50;
+  }
+
+  /* ==== Misc ========================================================*/
+
+  .error-box {
+    @apply text-sm text-red-400 p-2 rounded;
+    background: rgba(127, 29, 29, 0.3);
+  }
+
   /* Input override — recessed look to match knobs */
   .input {
     @apply w-full px-3 py-1.5 rounded text-sm outline-none;
