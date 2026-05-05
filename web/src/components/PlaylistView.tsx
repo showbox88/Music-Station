@@ -13,6 +13,7 @@ import CoverThumb from './CoverThumb';
 import EditTrackModal from './EditTrackModal';
 import { useT } from '../i18n/useT';
 import ModalShell from './Modal';
+import UserSharePanel from './UserSharePanel';
 
 interface Props {
   playlistId: number;
@@ -365,147 +366,36 @@ function PlaylistShareModal({
   onChanged: () => void;
 }) {
   const t = useT();
-  const [isPublic, setIsPublic] = useState(playlist.is_public);
-  const [busy, setBusy] = useState(false);
-  const [candidates, setCandidates] = useState<
-    Array<{ id: number; username: string; display_name: string | null }>
-  >([]);
-  const [shared, setShared] = useState<Set<number>>(new Set());
-  const [origShared, setOrigShared] = useState<Set<number>>(new Set());
-  const [loaded, setLoaded] = useState(false);
-  const [savingShares, setSavingShares] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    Promise.all([api.shareCandidates(), api.getPlaylistShares(playlist.id)])
-      .then(([cands, mine]) => {
-        setCandidates(cands.users);
-        const ids = new Set(mine.shared_with.map((u) => u.id));
-        setShared(ids);
-        setOrigShared(new Set(ids));
-        setLoaded(true);
-      })
-      .catch((e: any) => setMsg(String(e?.message ?? e)));
-  }, [playlist.id]);
-
-  async function togglePublic() {
-    if (busy) return;
-    setBusy(true);
-    setMsg(null);
-    try {
-      const r = await api.setPlaylistVisibility(playlist.id, !isPublic);
-      setIsPublic(r.is_public);
-      onChanged();
-      setMsg(r.is_public ? t('share.now_public') : t('share.now_private'));
-    } catch (e: any) {
-      setMsg(t('share.save_failed', { err: e?.message ?? String(e) }));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function toggleShare(id: number) {
-    setShared((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  const dirty =
-    shared.size !== origShared.size ||
-    [...shared].some((id) => !origShared.has(id));
-
-  async function saveShares() {
-    if (savingShares || !dirty) return;
-    setSavingShares(true);
-    setMsg(null);
-    try {
-      await api.setPlaylistShares(playlist.id, [...shared]);
-      setOrigShared(new Set(shared));
-      onChanged();
-      setMsg(t('share.saved_share_count', { count: shared.size }));
-    } catch (e: any) {
-      setMsg(t('share.save_failed', { err: e?.message ?? String(e) }));
-    } finally {
-      setSavingShares(false);
-    }
-  }
-
   return (
     <ModalShell onClose={onClose} maxWidth="max-w-md" className="p-6 space-y-3">
-        <div>
-          <h2 className="text-base font-semibold">
-            {t('playlist_view.share_modal_title', { name: playlist.name })}
-          </h2>
-          <p className="text-xs text-zinc-500 mt-1">
-            {t('playlist_view.share_modal_intro')}
-          </p>
-        </div>
+      <div>
+        <h2 className="text-base font-semibold">
+          {t('playlist_view.share_modal_title', { name: playlist.name })}
+        </h2>
+        <p className="text-xs text-zinc-500 mt-1">
+          {t('playlist_view.share_modal_intro')}
+        </p>
+      </div>
 
-        <label className="flex items-center gap-2 text-sm text-zinc-200">
-          <input
-            type="checkbox"
-            checked={isPublic}
-            onChange={togglePublic}
-            disabled={busy}
-          />
-          {t('share.public_toggle')}
-        </label>
+      <UserSharePanel
+        loadInitial={async () => {
+          const r = await api.getPlaylistShares(playlist.id);
+          return { is_public: playlist.is_public, shared_with: r.shared_with };
+        }}
+        setVisibility={(pub) => api.setPlaylistVisibility(playlist.id, pub)}
+        setShares={(ids) => api.setPlaylistShares(playlist.id, ids)}
+        onChanged={onChanged}
+      />
 
-        <div className="text-xs text-zinc-500">{t('share.or_share_with_specific')}</div>
-
-        {!loaded ? (
-          <div className="text-xs text-zinc-500">{t('share.loading_users')}</div>
-        ) : candidates.length === 0 ? (
-          <div className="text-xs text-zinc-600">{t('share.no_other_users')}</div>
-        ) : (
-          <div className="max-h-48 overflow-auto rounded border border-zinc-800 bg-black/30 p-1.5 space-y-0.5">
-            {candidates.map((u) => (
-              <label
-                key={u.id}
-                className="flex items-center gap-2 text-sm text-zinc-300 px-1.5 py-1 rounded hover:bg-white/5 cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  checked={shared.has(u.id)}
-                  onChange={() => toggleShare(u.id)}
-                />
-                <span className="truncate">
-                  {u.display_name || u.username}
-                  <span className="text-zinc-600 ml-1">@{u.username}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        )}
-
-        {msg && <div className="text-xs text-zinc-500">{msg}</div>}
-
-        <div className="flex justify-end gap-2 pt-1">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
-          >
-            {t('common.close')}
-          </button>
-          {loaded && candidates.length > 0 && (
-            <button
-              type="button"
-              onClick={saveShares}
-              disabled={!dirty || savingShares}
-              className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-40"
-            >
-              {savingShares
-                ? t('common.saving')
-                : dirty
-                  ? t('share.save_share_list')
-                  : t('share.saved')}
-            </button>
-          )}
-        </div>
+      <div className="flex justify-end gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
+        >
+          {t('common.close')}
+        </button>
+      </div>
     </ModalShell>
   );
 }
