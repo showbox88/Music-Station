@@ -63,7 +63,11 @@ export default function ModalShell({
     ? 'fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4'
     : 'fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4';
 
-  const cardClasses = `w-full ${maxWidth} rounded-xl shadow-2xl modal-card ${className}`.trim();
+  // No `shadow-2xl` — Tailwind's utility shadow would override
+  // .modal-card's box-shadow (utilities sort after components in the
+  // generated CSS), erasing the magenta-glow polish. Let .modal-card
+  // own the shadow.
+  const cardClasses = `w-full ${maxWidth} rounded-xl modal-card ${className}`.trim();
 
   function onBackdropClick() {
     if (forced) return;

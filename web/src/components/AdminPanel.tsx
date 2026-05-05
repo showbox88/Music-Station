@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { api, type AdminUser } from '../api';
 import { useAuth } from '../AuthContext';
 import { useT } from '../i18n/useT';
+import ModalShell from './Modal';
 
 export default function AdminPanel() {
   const { user: me } = useAuth();
@@ -282,19 +283,13 @@ function CreateUserModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
-      onClick={onClose}
+    <ModalShell
+      as="form"
+      onSubmit={submit}
+      onClose={onClose}
+      maxWidth="max-w-sm"
+      className="p-6 space-y-3"
     >
-      <form
-        onSubmit={submit}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-xl shadow-2xl p-6 space-y-3"
-        style={{
-          background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
-          border: '1px solid #050506',
-        }}
-      >
         <h2 className="text-base font-semibold">{t('admin.create.title')}</h2>
         <p className="text-xs text-zinc-500">{t('admin.create.intro')}</p>
 
@@ -358,8 +353,7 @@ function CreateUserModal({
             {busy ? t('admin.create.creating') : t('admin.create.create')}
           </button>
         </div>
-      </form>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -400,19 +394,13 @@ function ResetPasswordModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
-      onClick={onClose}
+    <ModalShell
+      as="form"
+      onSubmit={submit}
+      onClose={onClose}
+      maxWidth="max-w-sm"
+      className="p-6 space-y-3"
     >
-      <form
-        onSubmit={submit}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-xl shadow-2xl p-6 space-y-3"
-        style={{
-          background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
-          border: '1px solid #050506',
-        }}
-      >
         <h2 className="text-base font-semibold">{t('admin.reset.title', { username: user.username })}</h2>
         <p className="text-xs text-zinc-500">{t('admin.reset.intro')}</p>
         <label className="block">
@@ -444,7 +432,6 @@ function ResetPasswordModal({
             {busy ? t('admin.reset.submitting') : t('admin.reset.submit')}
           </button>
         </div>
-      </form>
-    </div>
+    </ModalShell>
   );
 }
