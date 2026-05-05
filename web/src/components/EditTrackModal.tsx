@@ -4,6 +4,7 @@ import type { Track } from '../types';
 import StarRating from './StarRating';
 import CoverPicker from './CoverPicker';
 import { useT } from '../i18n/useT';
+import ModalShell from './Modal';
 
 interface Props {
   track: Track;
@@ -912,18 +913,12 @@ function SearchPanel({
       </ul>
 
       {previewing && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4"
-          onClick={onClosePreview}
+        <ModalShell
+          onClose={onClosePreview}
+          maxWidth="max-w-xl"
+          className="p-4 space-y-3 max-h-[80vh] flex flex-col"
+          backdropClassName="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4"
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xl rounded-xl shadow-2xl p-4 space-y-3 max-h-[80vh] flex flex-col"
-            style={{
-              background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
-              border: '1px solid #050506',
-            }}
-          >
             <div className="flex items-baseline gap-2">
               <span
                 className={`text-[10px] px-1.5 py-0.5 rounded border ${SOURCE_COLOR[previewing.cand.source] ?? ''}`}
@@ -960,8 +955,7 @@ function SearchPanel({
                 {t('lyrics.search.use_this')}
               </button>
             </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

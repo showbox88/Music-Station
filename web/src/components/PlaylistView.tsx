@@ -12,6 +12,7 @@ import StarRating from './StarRating';
 import CoverThumb from './CoverThumb';
 import EditTrackModal from './EditTrackModal';
 import { useT } from '../i18n/useT';
+import ModalShell from './Modal';
 
 interface Props {
   playlistId: number;
@@ -433,18 +434,7 @@ function PlaylistShareModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-xl shadow-2xl p-6 space-y-3"
-        style={{
-          background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
-          border: '1px solid #050506',
-        }}
-      >
+    <ModalShell onClose={onClose} maxWidth="max-w-md" className="p-6 space-y-3">
         <div>
           <h2 className="text-base font-semibold">
             {t('playlist_view.share_modal_title', { name: playlist.name })}
@@ -516,7 +506,6 @@ function PlaylistShareModal({
             </button>
           )}
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

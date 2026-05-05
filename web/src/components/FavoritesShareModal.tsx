@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { ShareUser } from '../types';
 import { useT } from '../i18n/useT';
+import ModalShell from './Modal';
 
 interface Props {
   onClose: () => void;
@@ -86,18 +87,7 @@ export default function FavoritesShareModal({ onClose, onChanged }: Props) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-xl shadow-2xl p-6 space-y-3"
-        style={{
-          background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
-          border: '1px solid #050506',
-        }}
-      >
+    <ModalShell onClose={onClose} maxWidth="max-w-md" className="p-6 space-y-3">
         <div>
           <h2 className="text-base font-semibold">{t('favorites_share.title')}</h2>
           <p className="text-xs text-zinc-500 mt-1">{t('favorites_share.intro')}</p>
@@ -165,7 +155,6 @@ export default function FavoritesShareModal({ onClose, onChanged }: Props) {
             </button>
           )}
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

@@ -47,6 +47,11 @@ interface ModalShellProps {
   /** Higher z-index + denser backdrop, and ignores outside-click for
    *  close. Used for must-change-password and similar blockers. */
   forced?: boolean;
+  /** Backdrop class override — for nested modals that need a custom
+   *  z-index / opacity (e.g. a preview opening on top of an
+   *  already-open modal). When set, replaces the backdrop class
+   *  entirely; `forced` is ignored. */
+  backdropClassName?: string;
   children: ReactNode;
 }
 
@@ -57,11 +62,14 @@ export default function ModalShell({
   as = 'div',
   onSubmit,
   forced = false,
+  backdropClassName,
   children,
 }: ModalShellProps) {
-  const backdropClasses = forced
-    ? 'fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4'
-    : 'fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4';
+  const backdropClasses =
+    backdropClassName ??
+    (forced
+      ? 'fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4'
+      : 'fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4');
 
   // No `shadow-2xl` — Tailwind's utility shadow would override
   // .modal-card's box-shadow (utilities sort after components in the
