@@ -70,22 +70,13 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
-      onClick={onClose}
+    <ModalShell
+      as="form"
+      onSubmit={onSave}
+      onClose={onClose}
+      maxWidth="max-w-lg"
+      className="flex flex-col max-h-[90vh]"
     >
-      <form
-        onSubmit={onSave}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-xl shadow-2xl flex flex-col"
-        style={{
-          background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
-          border: '1px solid #050506',
-          boxShadow:
-            '0 20px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 30px rgba(255,45,181,0.08)',
-          maxHeight: '90vh',
-        }}
-      >
         {/* Header */}
         <div className="px-6 pt-6 pb-3 shrink-0">
           <h2 className="text-lg font-semibold">{t('modal_edit.title')}</h2>
@@ -224,8 +215,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
             {saving ? t('common.saving') : t('common.save')}
           </button>
         </div>
-      </form>
-    </div>
+    </ModalShell>
   );
 }
 

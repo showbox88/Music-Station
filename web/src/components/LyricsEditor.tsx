@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import type { Track, TrackListResponse } from '../types';
 import { useT } from '../i18n/useT';
+import ModalShell from './Modal';
 
 const KBD_CLS =
   'inline-block px-1.5 py-0.5 mx-0.5 rounded bg-zinc-800 border border-zinc-700 text-[10px] font-mono text-zinc-300';
@@ -278,20 +279,7 @@ function ExistingLyricsDialog({
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
-      onClick={onCancel}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-xl shadow-2xl p-6 space-y-4"
-        style={{
-          background: 'linear-gradient(180deg, #232325 0%, #18181a 100%)',
-          border: '1px solid #050506',
-          boxShadow:
-            '0 20px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 30px rgba(255,45,181,0.08)',
-        }}
-      >
+    <ModalShell onClose={onCancel} maxWidth="max-w-md" className="p-6 space-y-4">
         <div>
           <h2 className="text-base font-semibold">{t('lyrics_editor.existing_lyrics')}</h2>
           <p className="text-xs text-zinc-500 mt-1 truncate">
@@ -321,8 +309,7 @@ function ExistingLyricsDialog({
             {t('lyrics_editor.existing_cancel')}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
