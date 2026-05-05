@@ -34,13 +34,14 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [favShareOpen, setFavShareOpen] = useState(false);
-  // Favorites section is auto-collapsed when the active view leaves it,
-  // so the sidebar doesn't keep dangling "still highlighted" state after
-  // the user navigates elsewhere. Manual click on the header still
-  // toggles freely.
-  const [favExpanded, setFavExpanded] = useState(false);
   const player = usePlayer();
   const { user } = useAuth();
+
+  // Top-level highlight is purely a function of the active view: exactly
+  // one main item lights up at a time, the rest go dark. Clicking
+  // Favorites is equivalent to "go to My Favorites" — that's what fires
+  // both the highlight and the auto-expansion below.
+  const favExpanded = view.kind === 'favorites' || view.kind === 'user-favorites';
 
   function load() {
     api
@@ -53,14 +54,6 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
       .catch(() => setFavOwners([]));
   }
   useEffect(load, [refreshKey]);
-
-  // Auto-collapse the Favorites group when the active view leaves it.
-  // Auto-expand when something inside it becomes the view (e.g. via a
-  // deep link or programmatic navigation).
-  useEffect(() => {
-    const inside = view.kind === 'favorites' || view.kind === 'user-favorites';
-    setFavExpanded(inside);
-  }, [view.kind]);
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -157,7 +150,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           className={`w-full px-3 py-2 rounded-lg text-sm cursor-pointer flex items-center ${
             favExpanded ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
           }`}
-          onClick={() => setFavExpanded((v) => !v)}
+          onClick={() => setView({ kind: 'favorites' })}
         >
           <span className="inline-block w-5 text-center mr-1">{'♥︎'}</span>
           <span className="flex-1">Favorites</span>
