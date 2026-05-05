@@ -6,6 +6,7 @@ import AddToPlaylistMenu from './AddToPlaylistMenu';
 import StarRating from './StarRating';
 import CoverThumb from './CoverThumb';
 import { usePlayer } from '../player/PlayerContext';
+import { useT } from '../i18n/useT';
 
 function formatDuration(sec: number | null): string {
   if (sec == null) return '—';
@@ -38,6 +39,7 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
   const [editing, setEditing] = useState<Track | null>(null);
   const [addingTo, setAddingTo] = useState<{ track: Track; x: number; y: number } | null>(null);
   const player = usePlayer();
+  const t = useT();
 
   // Debounce search
   const [debouncedQ, setDebouncedQ] = useState(q);
@@ -73,17 +75,17 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
 
   const showing = useMemo(() => tracks.length, [tracks]);
 
-  async function onDelete(t: Track) {
-    if (!confirm(`Delete "${t.title || t.rel_path}"?\n\nThis removes the file from disk and the track from the library.`)) {
+  async function onDelete(track: Track) {
+    if (!confirm(t('tracks.delete_confirm', { name: track.title || track.rel_path }))) {
       return;
     }
     try {
-      await api.deleteTrack(t.id);
-      setTracks((prev) => prev.filter((x) => x.id !== t.id));
+      await api.deleteTrack(track.id);
+      setTracks((prev) => prev.filter((x) => x.id !== track.id));
       setTotal((n) => n - 1);
       onChanged?.();
     } catch (e: any) {
-      alert(`Delete failed: ${e?.message ?? e}`);
+      alert(t('tracks.delete_failed', { err: e?.message ?? String(e) }));
     }
   }
 
@@ -95,17 +97,17 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search title / artist…"
+          placeholder={t('tracks.search_placeholder')}
           className="input flex-1 max-w-md min-w-0"
         />
         {!favoritedOnly && (
           <div className="flex items-center gap-1 shrink-0">
             {(
               [
-                ['all', '全部'],
-                ['mine', '我的'],
-                ['public', '公开'],
-                ['shared', '分享给我的'],
+                ['all', t('tracks.filter.all')],
+                ['mine', t('tracks.filter.mine')],
+                ['public', t('tracks.filter.public')],
+                ['shared', t('tracks.filter.shared')],
               ] as Array<[SourceFilter, string]>
             ).map(([key, label]) => (
               <button
@@ -141,23 +143,23 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
                   the column widths drift and rows leave empty space. */}
               <th className="hidden md:table-cell text-left font-medium py-2 pl-6 w-10">▶</th>
               <th className="text-left font-medium py-2 w-20 md:w-20"></th>
-              <th className="text-left font-medium py-2">Title</th>
-              <th className="hidden md:table-cell text-left font-medium py-2 md:w-44 lg:w-48">Artist</th>
-              <th className="hidden lg:table-cell text-left font-medium py-2 lg:w-48">Album</th>
-              <th className="hidden xl:table-cell text-left font-medium py-2 xl:w-32">Genre</th>
-              <th className="hidden xl:table-cell text-left font-medium py-2 w-20">Year</th>
-              <th className="hidden md:table-cell text-left font-medium py-2 w-24">Rating</th>
-              <th className="hidden md:table-cell text-right font-medium py-2 w-20">Duration</th>
+              <th className="text-left font-medium py-2">{t('tracks.header.title')}</th>
+              <th className="hidden md:table-cell text-left font-medium py-2 md:w-44 lg:w-48">{t('tracks.header.artist')}</th>
+              <th className="hidden lg:table-cell text-left font-medium py-2 lg:w-48">{t('tracks.header.album')}</th>
+              <th className="hidden xl:table-cell text-left font-medium py-2 xl:w-32">{t('tracks.header.genre')}</th>
+              <th className="hidden xl:table-cell text-left font-medium py-2 w-20">{t('tracks.header.year')}</th>
+              <th className="hidden md:table-cell text-left font-medium py-2 w-24">{t('tracks.header.rating')}</th>
+              <th className="hidden md:table-cell text-right font-medium py-2 w-20">{t('tracks.header.duration')}</th>
               <th className="text-right font-medium py-2 pr-2 md:pr-4 w-20 md:w-32"></th>
             </tr>
           </thead>
           <tbody>
-            {tracks.map((t) => {
-              const isPlaying = player.current?.id === t.id;
+            {tracks.map((track) => {
+              const isPlaying = player.current?.id === track.id;
               return (
               <tr
-                key={t.id}
-                onDoubleClick={() => setEditing(t)}
+                key={track.id}
+                onDoubleClick={() => setEditing(track)}
                 className={`border-b border-black/40 cursor-default select-none ${
                   isPlaying ? '' : 'hover:bg-white/[0.03]'
                 }`}
@@ -168,7 +170,7 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
                 <td className="hidden md:table-cell pl-3 md:pl-6">
                   <button
                     onClick={() => {
-                      const idx = tracks.findIndex((x) => x.id === t.id);
+                      const idx = tracks.findIndex((x) => x.id === track.id);
                       player.playList(tracks, Math.max(0, idx));
                     }}
                     title={
@@ -194,7 +196,7 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
                       if (isPlaying) {
                         player.togglePlay();
                       } else {
-                        const idx = tracks.findIndex((x) => x.id === t.id);
+                        const idx = tracks.findIndex((x) => x.id === track.id);
                         player.playList(tracks, Math.max(0, idx));
                       }
                     }}
@@ -208,7 +210,7 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
                     className="md:hidden relative block rounded overflow-hidden"
                     style={{ width: 56, height: 56 }}
                   >
-                    <CoverThumb src={t.cover_url} size={56} />
+                    <CoverThumb src={track.cover_url} size={56} />
                     <span
                       className="absolute inset-0 flex items-center justify-center pointer-events-none"
                       style={{ color: 'rgba(255,255,255,0.6)' }}
@@ -227,73 +229,73 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
                   </button>
                   {/* Desktop: plain cover next to the dedicated play button column. */}
                   <div className="hidden md:block">
-                    <CoverThumb src={t.cover_url} size={56} />
+                    <CoverThumb src={track.cover_url} size={56} />
                   </div>
                 </td>
                 <td className="py-2 pr-3 font-medium min-w-0 w-full">
-                  {t.last_edited_at && (
+                  {track.last_edited_at && (
                     <span
                       className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 mr-2 align-middle"
-                      title={`Edited ${t.last_edited_at}`}
+                      title={`Edited ${track.last_edited_at}`}
                     />
                   )}
                   <div className="truncate whitespace-nowrap flex items-center gap-1.5">
-                    <span className="truncate">{t.title || '—'}</span>
-                    <SourceBadge track={t} />
+                    <span className="truncate">{track.title || '—'}</span>
+                    <SourceBadge track={track} />
                   </div>
                   {/* Mobile-only second line: artist (truncated, never
                       wraps) on the left, star rating on the right. */}
                   <div className="md:hidden flex items-center justify-between gap-2 mt-0.5">
                     <span className="text-xs text-zinc-500 truncate whitespace-nowrap min-w-0 flex-1">
-                      {t.artist || '—'}
+                      {track.artist || '—'}
                     </span>
                     <span className="shrink-0">
                       <StarRating
-                        value={t.rating}
+                        value={track.rating}
                         onChange={async (v) => {
                           try {
-                            const updated = await api.updateTrack(t.id, { rating: v });
+                            const updated = await api.updateTrack(track.id, { rating: v });
                             setTracks((prev) =>
                               prev.map((x) =>
-                                x.id === t.id ? { ...updated, cover_url: x.cover_url } : x,
+                                x.id === track.id ? { ...updated, cover_url: x.cover_url } : x,
                               ),
                             );
                           } catch (e: any) {
-                            alert(`Rating update failed: ${e?.message ?? e}`);
+                            alert(t("tracks.rating_update_failed", { err: e?.message ?? String(e) }));
                           }
                         }}
                       />
                     </span>
                   </div>
                 </td>
-                <td className="hidden md:table-cell py-2 pr-3 text-zinc-400">{t.artist || '—'}</td>
-                <td className="hidden lg:table-cell py-2 pr-3 text-zinc-400">{t.album || '—'}</td>
-                <td className="hidden xl:table-cell py-2 pr-3 text-zinc-500">{t.genre || '—'}</td>
-                <td className="hidden xl:table-cell py-2 pr-3 text-zinc-500 tabular-nums">{t.year ?? '—'}</td>
+                <td className="hidden md:table-cell py-2 pr-3 text-zinc-400">{track.artist || '—'}</td>
+                <td className="hidden lg:table-cell py-2 pr-3 text-zinc-400">{track.album || '—'}</td>
+                <td className="hidden xl:table-cell py-2 pr-3 text-zinc-500">{track.genre || '—'}</td>
+                <td className="hidden xl:table-cell py-2 pr-3 text-zinc-500 tabular-nums">{track.year ?? '—'}</td>
                 <td className="hidden md:table-cell py-2 pr-3">
                   <StarRating
-                    value={t.rating}
+                    value={track.rating}
                     onChange={async (v) => {
                       try {
-                        const updated = await api.updateTrack(t.id, { rating: v });
+                        const updated = await api.updateTrack(track.id, { rating: v });
                         setTracks((prev) =>
-                          prev.map((x) => (x.id === t.id ? { ...updated, cover_url: x.cover_url } : x)),
+                          prev.map((x) => (x.id === track.id ? { ...updated, cover_url: x.cover_url } : x)),
                         );
                       } catch (e: any) {
-                        alert(`Rating update failed: ${e?.message ?? e}`);
+                        alert(t("tracks.rating_update_failed", { err: e?.message ?? String(e) }));
                       }
                     }}
                   />
                 </td>
                 <td className="hidden md:table-cell py-2 pr-3 text-zinc-500 text-right tabular-nums">
-                  {formatDuration(t.duration_sec)}
+                  {formatDuration(track.duration_sec)}
                 </td>
                 <td className="pr-2 md:pr-4 text-right whitespace-nowrap">
                   <div className="inline-flex items-center gap-1.5 md:gap-2">
                     <button
                       onClick={(e) => {
                         const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        setAddingTo({ track: t, x: r.left, y: r.bottom + 4 });
+                        setAddingTo({ track: track, x: r.left, y: r.bottom + 4 });
                       }}
                       title="Add to playlist"
                       className="w-8 h-8 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-blue-400"
@@ -304,16 +306,16 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
                       </svg>
                     </button>
                     <button
-                      onClick={() => setEditing(t)}
+                      onClick={() => setEditing(track)}
                       title="Edit metadata"
                       className="hidden md:flex w-8 h-8 rounded-full bezel items-center justify-center text-zinc-300 hover:text-white"
                     >
                       ✎
                     </button>
                     <button
-                      onClick={() => onDelete(t)}
-                      title={t.is_owner ? 'Delete (file + DB)' : '只能删除自己上传的曲目'}
-                      disabled={!t.is_owner}
+                      onClick={() => onDelete(track)}
+                      title={track.is_owner ? '' : t('tracks.delete_only_owner_tooltip')}
+                      disabled={!track.is_owner}
                       className="w-8 h-8 rounded-full bezel flex items-center justify-center text-zinc-300 hover:text-red-400 disabled:opacity-30 disabled:hover:text-zinc-300"
                     >
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
@@ -329,7 +331,9 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
             {tracks.length === 0 && !loading && (
               <tr>
                 <td colSpan={10} className="text-center py-12 text-zinc-500">
-                  {debouncedQ ? `No tracks matching "${debouncedQ}"` : 'No tracks indexed yet. Drop MP3s into the music dir and click Rescan.'}
+                  {debouncedQ
+                    ? t('tracks.no_results', { q: debouncedQ })
+                    : t('tracks.no_tracks')}
                 </td>
               </tr>
             )}
@@ -365,27 +369,29 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
  * by default and a "mine" badge would just be noise.
  */
 function SourceBadge({ track }: { track: Track }) {
+  const t = useT();
   if (track.is_owner) {
     if (track.is_public) {
       return (
         <span
           className="text-[9px] uppercase px-1.5 py-0.5 rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 shrink-0"
-          title="你公开了这首歌，所有用户可见"
+          title={t('tracks.badge.public_tooltip')}
         >
-          公开
+          {t('tracks.badge.public')}
         </span>
       );
     }
     return null;
   }
-  const ownerLabel = track.owner_display_name || track.owner_username || '其他用户';
+  const ownerLabel =
+    track.owner_display_name || track.owner_username || t('common.shared');
   if (track.shared_with_me) {
     return (
       <span
         className="text-[9px] uppercase px-1.5 py-0.5 rounded border border-pink-500/30 bg-pink-500/10 text-pink-300 shrink-0"
-        title={`${ownerLabel} 把这首歌分享给了你`}
+        title={t('tracks.badge.shared_tooltip', { name: ownerLabel })}
       >
-        分享自 {ownerLabel}
+        {t('tracks.badge.shared_from', { name: ownerLabel })}
       </span>
     );
   }
@@ -393,9 +399,9 @@ function SourceBadge({ track }: { track: Track }) {
     return (
       <span
         className="text-[9px] uppercase px-1.5 py-0.5 rounded border border-zinc-500/30 bg-zinc-500/10 text-zinc-300 shrink-0"
-        title={`${ownerLabel} 把这首歌设为公开`}
+        title={t('tracks.badge.public_from_tooltip', { name: ownerLabel })}
       >
-        公开 · {ownerLabel}
+        {t('tracks.badge.public_from', { name: ownerLabel })}
       </span>
     );
   }

@@ -7,9 +7,11 @@
  */
 import { useState } from 'react';
 import { useAuth } from '../AuthContext';
+import { useT } from '../i18n/useT';
 
 export default function Login() {
   const { login } = useAuth();
+  const t = useT();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -24,7 +26,7 @@ export default function Login() {
       await login(username.trim(), password);
     } catch (e: any) {
       const msg = String(e?.message ?? e);
-      setErr(msg.includes('401') ? '用户名或密码错误' : msg);
+      setErr(msg.includes('401') ? t('auth.invalid_credentials') : msg);
     } finally {
       setBusy(false);
     }
@@ -44,11 +46,11 @@ export default function Login() {
       >
         <div>
           <h1 className="text-xl font-semibold glow-text">Music Station</h1>
-          <p className="text-xs text-zinc-500 mt-1">登录以继续</p>
+          <p className="text-xs text-zinc-500 mt-1">{t('auth.sign_in_continue')}</p>
         </div>
 
         <label className="block">
-          <span className="text-xs uppercase text-zinc-500 mb-1 block">用户名</span>
+          <span className="text-xs uppercase text-zinc-500 mb-1 block">{t('auth.username')}</span>
           <input
             type="text"
             autoFocus
@@ -60,7 +62,7 @@ export default function Login() {
         </label>
 
         <label className="block">
-          <span className="text-xs uppercase text-zinc-500 mb-1 block">密码</span>
+          <span className="text-xs uppercase text-zinc-500 mb-1 block">{t('auth.password')}</span>
           <input
             type="password"
             autoComplete="current-password"
@@ -77,7 +79,7 @@ export default function Login() {
           disabled={busy || !username || !password}
           className="w-full px-4 py-2 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
         >
-          {busy ? '登录中…' : '登录'}
+          {busy ? t('auth.signing_in') : t('auth.sign_in')}
         </button>
       </form>
     </div>

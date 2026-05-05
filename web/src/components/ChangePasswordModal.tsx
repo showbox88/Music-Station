@@ -10,6 +10,7 @@
  */
 import { useState } from 'react';
 import { useAuth } from '../AuthContext';
+import { useT } from '../i18n/useT';
 
 interface Props {
   forced: boolean;
@@ -18,6 +19,7 @@ interface Props {
 
 export default function ChangePasswordModal({ forced, onClose }: Props) {
   const { changePassword, logout } = useAuth();
+  const t = useT();
   const [oldPw, setOldPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -30,25 +32,23 @@ export default function ChangePasswordModal({ forced, onClose }: Props) {
     if (busy) return;
     setErr(null);
     if (newPw.length < 6) {
-      setErr('新密码至少 6 位');
+      setErr(t('auth.new_password_too_short'));
       return;
     }
     if (newPw !== confirmPw) {
-      setErr('两次输入的新密码不一致');
+      setErr(t('auth.passwords_dont_match'));
       return;
     }
     setBusy(true);
     try {
       await changePassword(oldPw, newPw);
       setDone(true);
-      // For voluntary changes, close after success. Forced changes have
-      // no close — the modal unmounts automatically when must_change=0.
       if (!forced && onClose) {
         setTimeout(onClose, 800);
       }
     } catch (e: any) {
       const msg = String(e?.message ?? e);
-      setErr(msg.includes('401') ? '当前密码错误' : msg);
+      setErr(msg.includes('401') ? t('auth.old_password_wrong') : msg);
     } finally {
       setBusy(false);
     }
@@ -68,17 +68,17 @@ export default function ChangePasswordModal({ forced, onClose }: Props) {
       >
         <div>
           <h2 className="text-base font-semibold">
-            {forced ? '首次登录请修改密码' : '修改密码'}
+            {forced ? t('auth.change_password_first_time_title') : t('auth.change_password')}
           </h2>
           {forced && (
-            <p className="text-xs text-zinc-500 mt-1">
-              为了账户安全，请把默认密码改成只有你知道的。
-            </p>
+            <p className="text-xs text-zinc-500 mt-1">{t('auth.change_password_intro')}</p>
           )}
         </div>
 
         <label className="block">
-          <span className="text-xs uppercase text-zinc-500 mb-1 block">当前密码</span>
+          <span className="text-xs uppercase text-zinc-500 mb-1 block">
+            {t('auth.current_password')}
+          </span>
           <input
             type="password"
             autoFocus
@@ -90,7 +90,9 @@ export default function ChangePasswordModal({ forced, onClose }: Props) {
         </label>
 
         <label className="block">
-          <span className="text-xs uppercase text-zinc-500 mb-1 block">新密码（≥ 6 位）</span>
+          <span className="text-xs uppercase text-zinc-500 mb-1 block">
+            {t('auth.new_password')}
+          </span>
           <input
             type="password"
             autoComplete="new-password"
@@ -101,7 +103,9 @@ export default function ChangePasswordModal({ forced, onClose }: Props) {
         </label>
 
         <label className="block">
-          <span className="text-xs uppercase text-zinc-500 mb-1 block">再次输入新密码</span>
+          <span className="text-xs uppercase text-zinc-500 mb-1 block">
+            {t('auth.confirm_new_password')}
+          </span>
           <input
             type="password"
             autoComplete="new-password"
@@ -114,7 +118,7 @@ export default function ChangePasswordModal({ forced, onClose }: Props) {
         {err && <div className="text-sm text-red-400 bg-red-950/30 p-2 rounded">{err}</div>}
         {done && (
           <div className="text-sm text-emerald-400 bg-emerald-950/30 p-2 rounded">
-            密码已修改{forced ? '，正在进入应用…' : ''}
+            {forced ? t('auth.password_changed_entering') : t('auth.password_changed')}
           </div>
         )}
 
@@ -125,7 +129,7 @@ export default function ChangePasswordModal({ forced, onClose }: Props) {
               onClick={onClose}
               className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
             >
-              取消
+              {t('common.cancel')}
             </button>
           )}
           <button
@@ -133,16 +137,16 @@ export default function ChangePasswordModal({ forced, onClose }: Props) {
             disabled={busy || !oldPw || !newPw || !confirmPw}
             className="flex-1 px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
           >
-            {busy ? '提交中…' : '修改密码'}
+            {busy ? t('auth.submitting') : t('auth.change_password')}
           </button>
           {forced && (
             <button
               type="button"
               onClick={() => logout()}
               className="px-3 py-1.5 rounded-full bezel text-sm text-zinc-400 hover:text-red-400"
-              title="退出登录"
+              title={t('auth.logout')}
             >
-              退出
+              {t('auth.logout')}
             </button>
           )}
         </div>

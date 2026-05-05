@@ -34,6 +34,7 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import { api } from './api';
+import { translate, detectBrowserLanguage, isLanguage, type Language } from './i18n';
 
 /* ----------------------------- types ----------------------------- */
 
@@ -235,9 +236,12 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   if (!loaded) {
+    // Can't use the useT hook here (we're the provider), look up
+    // directly using the same detection useT does.
+    const lang: Language = isLanguage(prefs.language) ? prefs.language : detectBrowserLanguage();
     return (
       <div className="h-full w-full flex items-center justify-center text-sm text-zinc-500">
-        加载偏好…
+        {translate(lang, 'common.loading_prefs')}
       </div>
     );
   }
@@ -253,8 +257,20 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Empty stub returned when usePrefs() is called outside a Provider —
+ * pre-auth screens (Login) need to read prefs.language for i18n without
+ * crashing. Setters are no-ops; the user has nothing to save anyway.
+ */
+const PREFS_STUB: PrefsContextValue = {
+  prefs: {},
+  setPref: () => {},
+  trackEqMap: {},
+  setTrackEq: () => {},
+  clearTrackEq: () => {},
+};
+
 export function usePrefs(): PrefsContextValue {
   const v = useContext(Ctx);
-  if (!v) throw new Error('usePrefs must be used inside <PrefsProvider>');
-  return v;
+  return v ?? PREFS_STUB;
 }

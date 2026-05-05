@@ -5,6 +5,9 @@ import UploadZone from './UploadZone';
 import DiskBar from './DiskBar';
 import { useAuth } from '../AuthContext';
 import ChangePasswordModal from './ChangePasswordModal';
+import { useT, useLanguage } from '../i18n/useT';
+import { LANGUAGES, type Language } from '../i18n';
+import { usePrefs } from '../PrefsContext';
 
 interface HeaderProps {
   onRescanned?: () => void;
@@ -114,6 +117,9 @@ export default function Header({ onRescanned, onUploaded, onOpenSidebar }: Heade
  */
 function UserMenu() {
   const { user, logout } = useAuth();
+  const t = useT();
+  const lang = useLanguage();
+  const { setPref } = usePrefs();
   const [open, setOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -160,7 +166,32 @@ function UserMenu() {
             </div>
             <div className="text-[10px] text-zinc-500 truncate">
               @{user.username}
-              {!!user.is_admin && <span className="ml-1 text-amber-400">· admin</span>}
+              {!!user.is_admin && (
+                <span className="ml-1 text-amber-400">· {t('user_menu.admin_label')}</span>
+              )}
+            </div>
+          </div>
+          {/* Language switcher — small two-segment pill, picks the one
+              matching prefs.language (or browser default before set). */}
+          <div className="px-3 py-2 border-b border-black/60">
+            <div className="text-[10px] uppercase text-zinc-500 mb-1">
+              {t('language.label')}
+            </div>
+            <div className="inline-flex rounded-full overflow-hidden text-xs"
+                 style={{ border: '1px solid #050506' }}>
+              {LANGUAGES.map((l) => (
+                <button
+                  key={l.code}
+                  onClick={() => setPref('language', l.code as Language)}
+                  className={`px-3 py-1 ${
+                    lang === l.code
+                      ? 'glow-text glow-ring'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {l.label}
+                </button>
+              ))}
             </div>
           </div>
           <button
@@ -170,7 +201,7 @@ function UserMenu() {
             }}
             className="w-full text-left px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/5 hover:text-white"
           >
-            修改密码
+            {t('user_menu.change_password')}
           </button>
           <button
             onClick={() => {
@@ -179,7 +210,7 @@ function UserMenu() {
             }}
             className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-white/5 hover:text-red-300"
           >
-            退出登录
+            {t('user_menu.logout')}
           </button>
         </div>
       )}

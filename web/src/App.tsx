@@ -13,6 +13,7 @@ import PlayerBar from './player/PlayerBar';
 import NowPlayingView from './player/NowPlayingView';
 import { AuthProvider, useAuth } from './AuthContext';
 import { PrefsProvider } from './PrefsContext';
+import { useT } from './i18n/useT';
 import { api } from './api';
 
 export default function App() {
@@ -35,10 +36,11 @@ export default function App() {
  */
 function AuthGate() {
   const { user, loading } = useAuth();
+  const t = useT();
   if (loading) {
     return (
       <div className="h-full w-full flex items-center justify-center text-sm text-zinc-500">
-        加载中…
+        {t('common.loading')}
       </div>
     );
   }

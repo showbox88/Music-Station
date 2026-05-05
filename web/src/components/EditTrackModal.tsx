@@ -3,6 +3,7 @@ import { api, type LyricCandidate, type TrackEdit } from '../api';
 import type { Track } from '../types';
 import StarRating from './StarRating';
 import CoverPicker from './CoverPicker';
+import { useT } from '../i18n/useT';
 
 interface Props {
   track: Track;
@@ -26,6 +27,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<ModalTab>('info');
+  const t = useT();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -85,13 +87,13 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
       >
         {/* Header */}
         <div className="px-6 pt-6 pb-3 shrink-0">
-          <h2 className="text-lg font-semibold">Edit track</h2>
+          <h2 className="text-lg font-semibold">{t('modal_edit.title')}</h2>
           <p className="text-xs text-zinc-500 mt-1 truncate">{track.rel_path}</p>
           {!track.is_owner && (
             <p className="text-xs text-amber-400 mt-2">
-              这首歌的所有者是{' '}
-              {track.owner_display_name || track.owner_username || '其他用户'}。
-              你只能改自己的标记（评分/收藏），不能改元数据或分享设置。
+              {t('modal_edit.non_owner_warning', {
+                name: track.owner_display_name || track.owner_username || '',
+              })}
             </p>
           )}
         </div>
@@ -99,14 +101,14 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
         {/* Tab strip */}
         <div className="px-6 shrink-0 flex gap-1.5 border-b border-black/60">
           <ModalTabButton id="info" active={tab} setTab={setTab}>
-            基本信息
+            {t('modal_edit.tab.info')}
           </ModalTabButton>
           <ModalTabButton id="lyrics" active={tab} setTab={setTab}>
-            歌词
+            {t('modal_edit.tab.lyrics')}
           </ModalTabButton>
           {track.is_owner && (
             <ModalTabButton id="share" active={tab} setTab={setTab}>
-              分享
+              {t('modal_edit.tab.share')}
             </ModalTabButton>
           )}
         </div>
@@ -115,14 +117,14 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
         <div className="flex-1 min-h-0 overflow-auto px-6 py-4 space-y-4">
           {tab === 'info' && (
             <>
-              <Field label="Cover">
+              <Field label={t("modal_edit.field.cover")}>
                 <CoverPicker
                   track={{ ...track, cover_url: coverUrl }}
                   onChanged={setCoverUrl}
                 />
               </Field>
 
-              <Field label="Rating">
+              <Field label={t("modal_edit.field.rating")}>
                 <StarRating
                   value={form.rating}
                   onChange={(v) => setForm({ ...form, rating: v })}
@@ -130,7 +132,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
                 />
               </Field>
 
-              <Field label="Title">
+              <Field label={t("modal_edit.field.title")}>
                 <input
                   type="text"
                   value={form.title}
@@ -140,7 +142,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
                   disabled={!track.is_owner}
                 />
               </Field>
-              <Field label="Artist">
+              <Field label={t("modal_edit.field.artist")}>
                 <input
                   type="text"
                   value={form.artist}
@@ -149,7 +151,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
                   disabled={!track.is_owner}
                 />
               </Field>
-              <Field label="Album">
+              <Field label={t("modal_edit.field.album")}>
                 <input
                   type="text"
                   value={form.album}
@@ -158,7 +160,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
                   disabled={!track.is_owner}
                 />
               </Field>
-              <Field label="Genre">
+              <Field label={t("modal_edit.field.genre")}>
                 <input
                   type="text"
                   value={form.genre}
@@ -168,7 +170,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
                 />
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Year">
+                <Field label={t("modal_edit.field.year")}>
                   <input
                     type="number"
                     min={0}
@@ -179,7 +181,7 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
                     disabled={!track.is_owner}
                   />
                 </Field>
-                <Field label="Track #">
+                <Field label={t("modal_edit.field.track_no")}>
                   <input
                     type="number"
                     min={0}
@@ -211,14 +213,14 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
             onClick={onClose}
             className="px-4 py-1.5 rounded-full bezel text-sm text-zinc-300 hover:text-white"
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             type="submit"
             disabled={saving}
             className="px-4 py-1.5 rounded-full bezel glow-text glow-ring text-sm disabled:opacity-50"
           >
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('common.saving') : t('common.save')}
           </button>
         </div>
       </form>
@@ -417,6 +419,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 type LyricTab = 'auto' | 'search' | 'upload' | 'paste';
 
 function LyricsField({ track }: { track: Track }) {
+  const t = useT();
   const trackId = track.id;
   const [status, setStatus] = useState<'loading' | 'absent' | 'present' | 'error'>('loading');
   const [source, setSource] = useState<string | null>(null);
@@ -612,35 +615,37 @@ function LyricsField({ track }: { track: Track }) {
 
   const statusLine =
     status === 'loading'
-      ? '加载中…'
+      ? t('lyrics.status.loading')
       : status === 'present'
-        ? `已下载 · ${source ?? 'unknown'} · ${hasTs ? '带时间戳' : '纯文本'}`
+        ? hasTs
+          ? t('lyrics.status.present_synced', { source: source ?? 'unknown' })
+          : t('lyrics.status.present_plain', { source: source ?? 'unknown' })
         : status === 'absent'
-          ? '暂无歌词'
-          : '加载失败';
+          ? t('lyrics.status.absent')
+          : t('lyrics.status.error');
 
-  function pickTab(t: LyricTab) {
-    if (tab === t) {
+  function pickTab(tabId: LyricTab) {
+    if (tab === tabId) {
       setTab(null);
       return;
     }
-    setTab(t);
+    setTab(tabId);
     setMsg(null);
-    if (t === 'search' && candidates.length === 0) {
+    if (tabId === 'search' && candidates.length === 0) {
       // Auto-fire search when first opening the tab so the user sees
       // candidates immediately.
       runSearch();
     }
-    if (t === 'upload') {
+    if (tabId === 'upload') {
       // Trigger file picker right away — most users come to this tab
       // already wanting to pick a file.
       setTimeout(() => fileRef.current?.click(), 0);
     }
   }
 
-  const tabBtnClass = (t: LyricTab) =>
+  const tabBtnClass = (tabId: LyricTab) =>
     `px-3 py-1.5 rounded-full bezel text-xs disabled:opacity-50 ${
-      tab === t ? 'glow-text glow-ring' : 'text-zinc-300 hover:text-white'
+      tab === tabId ? 'glow-text glow-ring' : 'text-zinc-300 hover:text-white'
     }`;
 
   return (
@@ -654,7 +659,7 @@ function LyricsField({ track }: { track: Track }) {
             disabled={busy}
             className="px-3 py-1 rounded-full bezel text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
           >
-            删除
+            {t('common.delete')}
           </button>
         )}
       </div>
@@ -665,16 +670,16 @@ function LyricsField({ track }: { track: Track }) {
           never gets pushed off-screen. */}
       <div className="flex flex-wrap gap-1.5">
         <button type="button" onClick={() => pickTab('auto')} disabled={busy} className={tabBtnClass('auto')}>
-          自动获取
+          {t('lyrics.tab.auto')}
         </button>
         <button type="button" onClick={() => pickTab('search')} disabled={busy} className={tabBtnClass('search')}>
-          搜索并选择
+          {t('lyrics.tab.search')}
         </button>
         <button type="button" onClick={() => pickTab('upload')} disabled={busy} className={tabBtnClass('upload')}>
-          上传 .lrc
+          {t('lyrics.tab.upload')}
         </button>
         <button type="button" onClick={() => pickTab('paste')} disabled={busy} className={tabBtnClass('paste')}>
-          粘贴文本
+          {t('lyrics.tab.paste')}
         </button>
       </div>
 

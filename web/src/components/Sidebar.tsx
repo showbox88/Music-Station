@@ -7,6 +7,7 @@ import { api } from '../api';
 import type { FavoritesOwner, Playlist } from '../types';
 import { usePlayer } from '../player/PlayerContext';
 import { useAuth } from '../AuthContext';
+import { useT } from '../i18n/useT';
 import FavoritesShareModal from './FavoritesShareModal';
 
 export type View =
@@ -36,6 +37,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
   const [favShareOpen, setFavShareOpen] = useState(false);
   const player = usePlayer();
   const { user } = useAuth();
+  const t = useT();
 
   // Top-level highlight is purely a function of the active view: exactly
   // one main item lights up at a time, the rest go dark. Clicking
@@ -153,7 +155,8 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
             view.kind === 'all' ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
           }`}
         >
-          <span className="inline-block w-5 text-center mr-1">{'♪︎'}</span>All Tracks
+          <span className="inline-block w-5 text-center mr-1">{'♪︎'}</span>
+          {t('sidebar.all_tracks')}
         </button>
         {/* Favorites collapsible group:
             - clicking the header just toggles expand — no selected state
@@ -170,7 +173,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           onClick={() => setView({ kind: 'favorites' })}
         >
           <span className="inline-block w-5 text-center mr-1">{'♥︎'}</span>
-          <span className="flex-1">Favorites</span>
+          <span className="flex-1">{t('sidebar.favorites')}</span>
         </div>
         {favExpanded && (
           <div className="ml-3 pl-2 border-l border-black/60 space-y-0.5">
@@ -183,14 +186,14 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
               }`}
             >
               <span className="inline-block w-4 text-center text-zinc-500">♥</span>
-              <span className="flex-1 truncate">My Favorites</span>
+              <span className="flex-1 truncate">{t('sidebar.my_favorites')}</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setFavShareOpen(true);
                 }}
                 className="opacity-0 group-hover:opacity-100 text-xs px-1 text-zinc-400 hover:text-white"
-                title="分享我的收藏"
+                title={t('sidebar.share_favorites_tooltip')}
               >
                 🔗
               </button>
@@ -198,7 +201,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
 
             {favOwners.length > 0 && (
               <div className="text-[10px] uppercase text-zinc-600 px-3 pt-2 pb-0.5">
-                Others Favorites
+                {t('sidebar.others_favorites')}
               </div>
             )}
             {favOwners.map((o) => {
@@ -222,16 +225,20 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
                   }`}
                   title={
                     o.shared_with_me
-                      ? `${ownerLabel} 把收藏分享给了你`
-                      : `${ownerLabel} 的收藏是公开的`
+                      ? t('sidebar.shared_with_you_tooltip', { name: ownerLabel })
+                      : t('sidebar.user_favorites_public_tooltip', { name: ownerLabel })
                   }
                 >
                   <span className="inline-block w-4 text-center text-zinc-500">♥</span>
                   <span className="flex-1 truncate">{ownerLabel}</span>
                   {o.shared_with_me ? (
-                    <span className="text-[9px] uppercase text-pink-300/70">分享</span>
+                    <span className="text-[9px] uppercase text-pink-300/70">
+                      {t('sidebar.shared_short')}
+                    </span>
                   ) : (
-                    <span className="text-[9px] uppercase text-zinc-500/70">公开</span>
+                    <span className="text-[9px] uppercase text-zinc-500/70">
+                      {t('sidebar.public_short')}
+                    </span>
                   )}
                   <span className="text-[10px] text-zinc-500 tabular-nums ml-1">
                     {o.count}
@@ -246,9 +253,10 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
             view.kind === 'lyrics-editor' ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
           }`}
-          title="边听边按空格打时间戳，制作 LRC 同步歌词"
+          title={t('sidebar.lyrics_editor_tooltip')}
         >
-          <span className="inline-block w-5 text-center mr-1">{'✎︎'}</span>Lyrics Editor
+          <span className="inline-block w-5 text-center mr-1">{'✎︎'}</span>
+          {t('sidebar.lyrics_editor')}
         </button>
         {!!user?.is_admin && (
           <button
@@ -256,9 +264,10 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
             className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
               view.kind === 'admin' ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
             }`}
-            title="用户管理（仅管理员）"
+            title={t('sidebar.admin_tooltip')}
           >
-            <span className="inline-block w-5 text-center mr-1">{'⚙︎'}</span>Admin
+            <span className="inline-block w-5 text-center mr-1">{'⚙︎'}</span>
+            {t('sidebar.admin')}
           </button>
         )}
       </div>
@@ -272,11 +281,11 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           }`}
         >
           <span className="inline-block w-5 text-center mr-1">{'▤'}</span>
-          <span className="flex-1">Playlists</span>
+          <span className="flex-1">{t('sidebar.playlists')}</span>
           <button
             onClick={() => setCreating((c) => !c)}
             className="w-6 h-6 rounded-full bezel text-zinc-300 hover:text-white flex items-center justify-center"
-            title="New playlist"
+            title={t('sidebar.new_playlist')}
           >
             +
           </button>
@@ -288,7 +297,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Playlist name"
+              placeholder={t('sidebar.playlist_name_placeholder')}
               autoFocus
               onBlur={() => !newName && setCreating(false)}
               className="input text-xs"
@@ -302,7 +311,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           {playlistGroups.mine.length > 0 && (
             <>
               <div className="text-[10px] uppercase text-zinc-600 px-3 pt-1.5 pb-0.5">
-                我的
+                {t('sidebar.group_mine')}
               </div>
               {playlistGroups.mine.map((pl) => (
                 <PlaylistRow
@@ -320,7 +329,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           {playlistGroups.shared.length > 0 && (
             <>
               <div className="text-[10px] uppercase text-zinc-600 px-3 pt-2 pb-0.5">
-                分享给我的
+                {t('sidebar.group_shared')}
               </div>
               {playlistGroups.shared.map((pl) => (
                 <PlaylistRow
@@ -336,7 +345,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           {playlistGroups.pub.length > 0 && (
             <>
               <div className="text-[10px] uppercase text-zinc-600 px-3 pt-2 pb-0.5">
-                公开
+                {t('sidebar.group_public')}
               </div>
               {playlistGroups.pub.map((pl) => (
                 <PlaylistRow
@@ -351,7 +360,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           )}
 
           {playlists.length === 0 && !creating && (
-            <div className="text-xs text-zinc-600 px-2 py-3">No playlists yet.</div>
+            <div className="text-xs text-zinc-600 px-2 py-3">{t('sidebar.no_playlists')}</div>
           )}
         </div>
 
