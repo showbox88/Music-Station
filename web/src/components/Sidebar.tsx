@@ -146,9 +146,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
               hierarchy stays readable. */}
         <div
           className={`w-full px-3 py-2 rounded-lg text-sm cursor-pointer flex items-center ${
-            view.kind === 'favorites' || view.kind === 'user-favorites'
-              ? 'bezel glow-text'
-              : 'text-zinc-300 hover:bg-white/5'
+            favExpanded ? 'bezel glow-text' : 'text-zinc-300 hover:bg-white/5'
           }`}
           onClick={() => setFavExpanded((v) => !v)}
         >
