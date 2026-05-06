@@ -426,7 +426,7 @@ function PlaylistRow({
         selected
           ? 'text-pink-300 bg-white/[0.04]'
           : nowPlaying
-            ? 'text-emerald-400 bg-white/[0.03]'
+            ? 'text-fuchsia-400 bg-white/[0.03]'
             : 'text-zinc-300 hover:bg-white/5'
       }`}
       onClick={onSelect}
