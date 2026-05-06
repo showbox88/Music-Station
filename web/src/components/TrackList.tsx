@@ -3,6 +3,7 @@ import { api } from '../api';
 import type { Track } from '../types';
 import EditTrackModal from './EditTrackModal';
 import AddToPlaylistMenu from './AddToPlaylistMenu';
+import TrackContextMenu from './TrackContextMenu';
 import StarRating from './StarRating';
 import CoverThumb from './CoverThumb';
 import { usePlayer } from '../player/PlayerContext';
@@ -38,6 +39,7 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
   const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState<Track | null>(null);
   const [addingTo, setAddingTo] = useState<{ track: Track; x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ track: Track; x: number; y: number } | null>(null);
   const player = usePlayer();
   const t = useT();
 
@@ -158,7 +160,14 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
               return (
               <tr
                 key={track.id}
-                onDoubleClick={() => setEditing(track)}
+                onDoubleClick={() => {
+                  const idx = tracks.findIndex((x) => x.id === track.id);
+                  player.playList(tracks, Math.max(0, idx));
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setContextMenu({ track, x: e.clientX, y: e.clientY });
+                }}
                 className={`border-b border-black/40 cursor-default select-none ${
                   isPlaying ? '' : 'hover:bg-white/[0.03]'
                 }`}
@@ -356,6 +365,24 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
           anchor={{ x: addingTo.x, y: addingTo.y }}
           onClose={() => setAddingTo(null)}
           onAdded={() => onChanged?.()}
+        />
+      )}
+
+      {contextMenu && (
+        <TrackContextMenu
+          anchor={{ x: contextMenu.x, y: contextMenu.y }}
+          onClose={() => setContextMenu(null)}
+          onPlay={() => {
+            const idx = tracks.findIndex((x) => x.id === contextMenu.track.id);
+            player.playList(tracks, Math.max(0, idx));
+          }}
+          onEdit={() => setEditing(contextMenu.track)}
+          onAddToPlaylist={() =>
+            setAddingTo({ track: contextMenu.track, x: contextMenu.x, y: contextMenu.y })
+          }
+          onDelete={
+            contextMenu.track.is_owner ? () => onDelete(contextMenu.track) : undefined
+          }
         />
       )}
     </div>

@@ -19,6 +19,7 @@ import { usePlayer } from '../player/PlayerContext';
 import StarRating from './StarRating';
 import CoverThumb from './CoverThumb';
 import EditTrackModal from './EditTrackModal';
+import TrackContextMenu from './TrackContextMenu';
 import { useT } from '../i18n/useT';
 
 interface Props {
@@ -40,6 +41,7 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [editing, setEditing] = useState<Track | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ track: Track; idx: number; x: number; y: number } | null>(null);
   const player = usePlayer();
   const t = useT();
 
@@ -132,7 +134,11 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
               return (
                 <tr
                   key={track.id}
-                  onDoubleClick={() => setEditing(track)}
+                  onDoubleClick={() => data && player.playList(data.tracks, idx)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setContextMenu({ track, idx, x: e.clientX, y: e.clientY });
+                  }}
                   className={`border-b border-black/40 cursor-default select-none ${
                     isPlaying ? '' : 'hover:bg-white/[0.03]'
                   }`}
@@ -228,6 +234,15 @@ export default function UserFavoritesView({ userId, ownerName, refreshKey, onCha
             );
             onChanged();
           }}
+        />
+      )}
+
+      {contextMenu && (
+        <TrackContextMenu
+          anchor={{ x: contextMenu.x, y: contextMenu.y }}
+          onClose={() => setContextMenu(null)}
+          onPlay={() => data && player.playList(data.tracks, contextMenu.idx)}
+          onEdit={() => setEditing(contextMenu.track)}
         />
       )}
     </div>
