@@ -107,7 +107,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
     if (p.track_count === 0) return;
     try {
       const detail = await api.getPlaylist(p.id);
-      player.playList(detail.tracks, 0);
+      player.playList(detail.tracks, 0, p.id);
     } catch (e: any) {
       alert(`Failed to start playlist: ${e?.message ?? e}`);
     }
@@ -329,6 +329,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
                   key={pl.id}
                   pl={pl}
                   selected={view.kind === 'playlist' && view.id === pl.id}
+                  nowPlaying={player.currentPlaylistId === pl.id}
                   onSelect={() => setView({ kind: 'playlist', id: pl.id })}
                   onPlay={() => onPlayPlaylist(pl)}
                   onRename={() => onRename(pl)}
@@ -347,6 +348,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
                   key={pl.id}
                   pl={pl}
                   selected={view.kind === 'playlist' && view.id === pl.id}
+                  nowPlaying={player.currentPlaylistId === pl.id}
                   onSelect={() => setView({ kind: 'playlist', id: pl.id })}
                   onPlay={() => onPlayPlaylist(pl)}
                 />
@@ -363,6 +365,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
                   key={pl.id}
                   pl={pl}
                   selected={view.kind === 'playlist' && view.id === pl.id}
+                  nowPlaying={player.currentPlaylistId === pl.id}
                   onSelect={() => setView({ kind: 'playlist', id: pl.id })}
                   onPlay={() => onPlayPlaylist(pl)}
                 />
@@ -398,6 +401,7 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
 function PlaylistRow({
   pl,
   selected,
+  nowPlaying,
   onSelect,
   onPlay,
   onRename,
@@ -405,6 +409,7 @@ function PlaylistRow({
 }: {
   pl: Playlist;
   selected: boolean;
+  nowPlaying: boolean;
   onSelect: () => void;
   onPlay: () => void;
   onRename?: () => void;
@@ -420,11 +425,13 @@ function PlaylistRow({
       className={`group flex items-center px-3 py-1.5 rounded-lg text-sm cursor-pointer ${
         selected
           ? 'text-pink-300 bg-white/[0.04]'
-          : 'text-zinc-300 hover:bg-white/5'
+          : nowPlaying
+            ? 'text-emerald-400 bg-white/[0.03]'
+            : 'text-zinc-300 hover:bg-white/5'
       }`}
       onClick={onSelect}
     >
-      <span className="mr-2 opacity-70">▤</span>
+      <span className="mr-2 opacity-70">{nowPlaying ? '♪' : '▤'}</span>
       <span className="flex-1 min-w-0 truncate">
         <span className="truncate align-middle">{pl.name}</span>
         {ownerHint && (

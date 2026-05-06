@@ -177,11 +177,12 @@ interface PlayerState {
   volume: number;            // 0..1
   shuffle: boolean;
   repeat: RepeatMode;
+  currentPlaylistId: number | null;
 }
 
 interface PlayerActions {
   /** Replace queue and start at the given index. */
-  playList: (tracks: Track[], startIndex?: number) => void;
+  playList: (tracks: Track[], startIndex?: number, playlistId?: number) => void;
   /** Replace queue with a single track. */
   playOne: (track: Track) => void;
   /** Append to current queue (does not change current playback). */
@@ -451,6 +452,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<Track[]>([]);
   const [cursor, setCursor] = useState(-1);
   const [shuffledOrder, setShuffledOrder] = useState<number[]>([]);
+  const [currentPlaylistId, setCurrentPlaylistId] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -565,10 +567,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const handleEndedRef = useRef<(() => void) | null>(null);
 
   const playList = useCallback(
-    (tracks: Track[], startIndex = 0) => {
+    (tracks: Track[], startIndex = 0, playlistId?: number) => {
       if (tracks.length === 0) return;
       const safeStart = Math.max(0, Math.min(startIndex, tracks.length - 1));
       setQueue(tracks);
+      setCurrentPlaylistId(playlistId ?? null);
       if (shuffle) {
         // Build new shuffled order; place safeStart first so user hears that one
         const others = Array.from({ length: tracks.length }, (_, i) => i).filter(
@@ -588,6 +591,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setQueue([track]);
     setShuffledOrder([]);
     setCursor(0);
+    setCurrentPlaylistId(null);
   }, []);
 
   const enqueue = useCallback(
@@ -783,6 +787,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     shuffle,
     repeat,
     current,
+    currentPlaylistId,
     playList,
     playOne,
     enqueue,

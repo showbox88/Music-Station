@@ -118,7 +118,7 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => data.tracks.length && player.playList(data.tracks, 0)}
+                onClick={() => data.tracks.length && player.playList(data.tracks, 0, data.id)}
                 disabled={data.tracks.length === 0}
                 className="btn-primary"
               >
@@ -128,7 +128,7 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                 onClick={() => {
                   if (data.tracks.length === 0) return;
                   if (!player.shuffle) player.toggleShuffle();
-                  player.playList(data.tracks, 0);
+                  player.playList(data.tracks, 0, data.id);
                 }}
                 disabled={data.tracks.length === 0}
                 className="btn-secondary disabled:opacity-50"
@@ -181,7 +181,7 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                 <td className="hidden md:table-cell pl-6 text-zinc-500 tabular-nums">{idx + 1}</td>
                 <td className="hidden md:table-cell">
                   <button
-                    onClick={() => data && player.playList(data.tracks, idx)}
+                    onClick={() => data && player.playList(data.tracks, idx, data.id)}
                     title={
                       isPlaying && player.isPlaying
                         ? 'Now playing'
@@ -200,7 +200,7 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                       if (isPlaying) {
                         player.togglePlay();
                       } else if (data) {
-                        player.playList(data.tracks, idx);
+                        player.playList(data.tracks, idx, data.id);
                       }
                     }}
                     title={
