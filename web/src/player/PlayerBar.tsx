@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { usePlayer } from './PlayerContext';
 import CoverThumb from '../components/CoverThumb';
 import AddToPlaylistMenu from '../components/AddToPlaylistMenu';
+import QueuePanel from './QueuePanel';
 import { RepeatIcon, RepeatOneIcon, ShuffleIcon } from '../components/Icons';
 import { api } from '../api';
 
@@ -61,6 +62,7 @@ export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
   // reset whenever the playing track changes.
   const [favOpt, setFavOpt] = useState<boolean | null>(null);
   const [addingTo, setAddingTo] = useState<{ x: number; y: number } | null>(null);
+  const [queueAnchor, setQueueAnchor] = useState<{ x: number; y: number } | null>(null);
   useEffect(() => {
     setFavOpt(null);
   }, [p.current?.id]);
@@ -91,6 +93,11 @@ export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
     // Anchor above the button so the popover doesn't land off-screen on
     // a short viewport — AddToPlaylistMenu opens upward from this point.
     setAddingTo({ x: r.left, y: r.top - 8 });
+  }
+
+  function openQueue(e: React.MouseEvent<HTMLButtonElement>) {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setQueueAnchor((prev) => (prev ? null : { x: r.left, y: r.top - 8 }));
   }
 
   const pct = p.duration > 0 ? (p.position / p.duration) * 100 : 0;
@@ -203,6 +210,9 @@ export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
               <ModeBtn active={p.repeat !== 'off'} onClick={p.cycleRepeat} title={`Repeat: ${p.repeat}`}>
                 {p.repeat === 'one' ? <RepeatOneIcon /> : <RepeatIcon />}
               </ModeBtn>
+              <ModeBtn active={queueAnchor !== null} onClick={openQueue} title="Queue">
+                <QueueIcon />
+              </ModeBtn>
             </div>
           </div>
         </div>
@@ -305,6 +315,9 @@ export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
         <ModeBtn active={p.repeat !== 'off'} onClick={p.cycleRepeat} title={`Repeat: ${p.repeat}`}>
           {p.repeat === 'one' ? <RepeatOneIcon /> : <RepeatIcon />}
         </ModeBtn>
+        <ModeBtn active={queueAnchor !== null} onClick={openQueue} title="Queue">
+          <QueueIcon />
+        </ModeBtn>
       </div>
 
       {/* Volume — recessed track (desktop only; mobile uses device volume) */}
@@ -359,6 +372,15 @@ export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
           anchor={addingTo}
           onClose={() => setAddingTo(null)}
           onAdded={() => onLibraryChange?.()}
+        />
+      )}
+
+      {/* Queue panel — shows all tracks in the current queue and lets the
+          user jump to any track by clicking its row. */}
+      {queueAnchor && (
+        <QueuePanel
+          anchor={queueAnchor}
+          onClose={() => setQueueAnchor(null)}
         />
       )}
     </div>
@@ -422,6 +444,17 @@ function ModeBtn({
     >
       {children}
     </button>
+  );
+}
+
+function QueueIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="15" y2="18" />
+      <polygon points="17,15 17,21 22,18" fill="currentColor" stroke="none" />
+    </svg>
   );
 }
 
