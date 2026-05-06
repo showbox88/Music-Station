@@ -65,6 +65,9 @@ export default function VisualizerLab() {
   );
   const customs = prefs.viz_custom ?? [];
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editTarget = editingId ? (customs.find((c) => c.id === editingId) ?? null) : null;
+
   // Each tile registers a (heights, peaks, rot, ribbon) → void callback
   // here. The shared RAF iterates and calls them all every frame.
   const drawersRef = useRef<Map<string, (s: SharedState) => void>>(new Map());
@@ -115,14 +118,21 @@ export default function VisualizerLab() {
     if (!confirm(t('viz_lab.delete_confirm'))) return;
     const next = (prefs.viz_custom ?? []).filter((c) => c.id !== id);
     setPref('viz_custom', next);
-    // If the user was actively using this custom, reset to first built-in.
     if (prefs.viz_style === id) setPref('viz_style', STYLES[0]);
+    if (editingId === id) setEditingId(null);
   }
 
-  function saveCustom(name: string, code: string) {
-    const id = `custom_${Date.now().toString(36)}`;
-    const next: VizCustom[] = [...(prefs.viz_custom ?? []), { id, name, code }];
-    setPref('viz_custom', next);
+  function saveOrUpdate(name: string, code: string) {
+    if (editingId) {
+      const next = (prefs.viz_custom ?? []).map((c) =>
+        c.id === editingId ? { ...c, name, code } : c,
+      );
+      setPref('viz_custom', next);
+      setEditingId(null);
+    } else {
+      const id = `custom_${Date.now().toString(36)}`;
+      setPref('viz_custom', [...(prefs.viz_custom ?? []), { id, name, code }]);
+    }
   }
 
   return (
@@ -167,6 +177,8 @@ export default function VisualizerLab() {
                 <CustomTile
                   key={c.id}
                   custom={c}
+                  isEditing={editingId === c.id}
+                  onEdit={() => setEditingId(c.id)}
                   onDelete={() => deleteCustom(c.id)}
                   drawersRef={drawersRef}
                 />
@@ -175,12 +187,17 @@ export default function VisualizerLab() {
           )}
         </section>
 
-        {/* Add new */}
+        {/* Add new / Edit */}
         <section>
           <div className="text-xs uppercase tracking-wide text-zinc-500 mb-2">
-            {t('viz_lab.add_new')}
+            {editTarget ? t('viz_lab.edit_title') : t('viz_lab.add_new')}
           </div>
-          <CodePlayground onSave={saveCustom} drawersRef={drawersRef} />
+          <CodePlayground
+            onSave={saveOrUpdate}
+            drawersRef={drawersRef}
+            editTarget={editTarget}
+            onCancelEdit={() => setEditingId(null)}
+          />
         </section>
       </div>
     </main>
@@ -297,10 +314,14 @@ function BuiltinTile({
 
 function CustomTile({
   custom,
+  isEditing,
+  onEdit,
   onDelete,
   drawersRef,
 }: {
   custom: VizCustom;
+  isEditing: boolean;
+  onEdit: () => void;
   onDelete: () => void;
   drawersRef: DrawersRef;
 }) {
@@ -335,7 +356,7 @@ function CustomTile({
 
   return (
     <div
-      className="rounded-xl overflow-hidden border border-black/60"
+      className={`rounded-xl overflow-hidden border ${isEditing ? 'border-fuchsia-500/60' : 'border-black/60'}`}
       style={{ background: 'linear-gradient(180deg, #1c1c1e 0%, #18181a 100%)' }}
     >
       <TileCanvas tileId={`custom:${custom.id}`} draw={draw} drawersRef={drawersRef} />
@@ -349,6 +370,13 @@ function CustomTile({
         <span className="text-[10px] text-fuchsia-400 uppercase">
           {t('viz_lab.custom_badge')}
         </span>
+        <button
+          onClick={onEdit}
+          className="text-xs px-3 py-1 rounded-full bezel text-zinc-300 hover:text-white"
+          title={t('viz_lab.edit_tooltip')}
+        >
+          ✎
+        </button>
         <button
           onClick={onDelete}
           className="text-xs px-3 py-1 rounded-full bezel text-zinc-300 hover:text-red-400"
@@ -379,15 +407,34 @@ for (let i = 0; i < bars; i++) {
 function CodePlayground({
   onSave,
   drawersRef,
+  editTarget,
+  onCancelEdit,
 }: {
   onSave: (name: string, code: string) => void;
   drawersRef: DrawersRef;
+  editTarget?: VizCustom | null;
+  onCancelEdit?: () => void;
 }) {
   const t = useT();
   const [name, setName] = useState('');
   const [code, setCode] = useState(STARTER_CODE);
   const [previewCode, setPreviewCode] = useState(STARTER_CODE);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (editTarget) {
+      setName(editTarget.name);
+      setCode(editTarget.code);
+      setPreviewCode(editTarget.code);
+      setErr(null);
+    } else {
+      setName('');
+      setCode(STARTER_CODE);
+      setPreviewCode(STARTER_CODE);
+      setErr(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTarget?.id]);
 
   const fnRef = useRef<CustomDrawFn | null>(null);
   useEffect(() => {
@@ -457,8 +504,13 @@ function CodePlayground({
             {t('viz_lab.preview')}
           </button>
           <button onClick={handleSave} className="btn-primary">
-            {t('viz_lab.save')}
+            {editTarget ? t('viz_lab.update') : t('viz_lab.save')}
           </button>
+          {editTarget && (
+            <button onClick={onCancelEdit} className="btn-secondary">
+              {t('viz_lab.cancel_edit')}
+            </button>
+          )}
         </div>
         <p className="text-[11px] text-zinc-500 leading-snug">
           {t('viz_lab.signature_hint')}
