@@ -55,6 +55,8 @@ export interface PrefsBlob {
   viz_custom?: import('./player/viz').VizCustom[];
   global_eq_enabled?: boolean;
   global_eq?: EQState;
+  /** Selected player skin id. See `Player Skin/skin-NN-*.md` and player/skins/registry.ts. */
+  player_skin?: 'cream' | 'cosmic' | 'aurora' | 'abyss';
   [k: string]: unknown;
 }
 

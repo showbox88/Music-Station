@@ -1,0 +1,270 @@
+/* ============================================================
+   Player skin variable scopes. See `Player Skin/skin-NN-*.md`
+   for the design source of truth behind each block.
+   ============================================================ */
+
+/* ---------------------- shared keyframes ---------------------- */
+@keyframes skin-spin    { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes skin-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes skin-pulse-orange {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,157,77,0.7), 0 0 14px rgba(255,157,77,0.35); }
+  50%      { box-shadow: 0 0 12px rgba(255,157,77,0.95), 0 0 22px rgba(255,157,77,0.6); }
+}
+
+/* shared root reset for skin slider thumbs */
+.skin input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; }
+.skin input[type="range"]::-moz-range-thumb     { border: none; }
+
+/* ============================================================
+   Skin 01 — cream (Cream / Coral Daylight)
+   ============================================================ */
+.skin-cream {
+  --bg-base:           #F4EFE8;
+  --bg-raised:         #FFFFFF;
+  --bg-recessed:       #EAE3D9;
+  --surface-tint-warm: #FFD9C2;
+  --accent:            #FF7A45;
+  --accent-strong:     #FF6125;
+  --accent-soft:       #FFC9A8;
+  --accent-glow:       rgba(255, 122, 69, 0.30);
+  --text:              #1F1A17;
+  --text-muted:        #7A6E64;
+  --text-faint:        #B5A99C;
+  --hairline:          rgba(31, 26, 23, 0.06);
+  --heart-active:      #FF4D5E;
+
+  background: var(--bg-base);
+  color: var(--text);
+}
+.skin-cream .play-main {
+  background: linear-gradient(135deg, #FF8B5A 0%, #FF6125 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.45) inset,
+    0 -2px 6px rgba(255, 97, 37, 0.35) inset,
+    0 12px 24px -6px rgba(255, 97, 37, 0.55),
+    0 4px 8px -2px rgba(255, 97, 37, 0.25);
+  transition: transform 100ms ease, box-shadow 200ms ease;
+}
+.skin-cream .play-main:hover  { box-shadow: 0 1px 0 rgba(255,255,255,0.45) inset, 0 -2px 6px rgba(255,97,37,0.35) inset, 0 16px 32px -6px rgba(255,97,37,0.6), 0 6px 10px -2px rgba(255,97,37,0.28); }
+.skin-cream .play-main:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(255,255,255,0.4) inset, 0 6px 14px rgba(255,97,37,0.45); }
+.skin-cream .progress-track   { background: var(--bg-recessed); }
+.skin-cream .progress-fill    { background: linear-gradient(90deg, var(--accent-soft) 0%, var(--accent) 100%); }
+.skin-cream .progress-thumb   { background: #FFFFFF; border: 1px solid var(--accent); box-shadow: 0 2px 6px rgba(255,97,37,0.35); }
+.skin-cream .icon-btn         { color: var(--text); }
+.skin-cream .icon-btn:hover   { color: var(--accent); }
+.skin-cream .icon-btn-muted   { color: var(--text-muted); }
+.skin-cream .row-active       { background: var(--surface-tint-warm); }
+
+/* ============================================================
+   Skin 02 — cosmic (Cosmic Neon)
+   ============================================================ */
+.skin-cosmic {
+  --bg-base:           #11121C;
+  --bg-panel:          #1A1B2A;
+  --bg-card:           #1F2033;
+  --accent-magenta:    #E040C8;
+  --accent-violet:     #7C3AED;
+  --accent-pink:       #FF6FB5;
+  --accent-orange-dot: #FF9D4D;
+  --text:              #EDEDF7;
+  --text-muted:        #9B9CC4;
+  --text-faint:        #5C5E80;
+  --hairline:          rgba(255, 255, 255, 0.06);
+
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 60%, rgba(124,58,237,0.18) 0%, transparent 70%),
+    var(--bg-base);
+  color: var(--text);
+}
+.skin-cosmic .play-main {
+  background: #181927;
+  position: relative;
+  box-shadow:
+    0 0 0 1px rgba(124,58,237,0.4) inset,
+    0 0 12px 1px rgba(224,64,200,0.55),
+    0 0 32px 4px rgba(124,58,237,0.35),
+    0 8px 24px -4px rgba(224,64,200,0.5);
+  transition: box-shadow 200ms ease, background 150ms ease;
+}
+.skin-cosmic .play-main::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(135deg, #7C3AED, #E040C8);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+}
+.skin-cosmic .play-main:active { background: #0E0F1A; box-shadow: 0 0 0 1px rgba(124,58,237,0.5) inset, 0 0 16px 1px rgba(224,64,200,0.7), 0 0 40px 6px rgba(124,58,237,0.45), 0 8px 24px -4px rgba(224,64,200,0.55); }
+.skin-cosmic .ring-progress-dot {
+  background: var(--accent-orange-dot);
+  box-shadow: 0 0 8px rgba(255,157,77,0.8), 0 0 16px rgba(255,157,77,0.4);
+  animation: skin-pulse-orange 2.4s ease-in-out infinite;
+}
+.skin-cosmic .icon-btn       { color: var(--text-muted); transition: color 150ms ease, filter 150ms ease; }
+.skin-cosmic .icon-btn:hover { color: var(--accent-pink); filter: drop-shadow(0 0 4px var(--accent-pink)); }
+.skin-cosmic .icon-btn-active{ color: var(--accent-violet); filter: drop-shadow(0 0 4px var(--accent-violet)); }
+.skin-cosmic .row-active     { background: linear-gradient(135deg, #2D1F4A 0%, #4A1F4A 100%); }
+.skin-cosmic .row-play-pause-active {
+  background: linear-gradient(135deg, var(--accent-violet) 0%, var(--accent-magenta) 100%);
+  box-shadow: 0 0 16px rgba(224,64,200,0.5), 0 4px 12px rgba(0,0,0,0.4);
+}
+.skin-cosmic .row-play-inactive { border: 1.5px solid rgba(255,255,255,0.18); transition: border-color 150ms ease; }
+.skin-cosmic .row-play-inactive:hover { border-color: var(--accent-pink); }
+
+/* ============================================================
+   Skin 03 — aurora (Aurora Glass)
+   ============================================================ */
+.skin-aurora {
+  --bg-base:        #0F0A1F;
+  --accent:         #9B6BFF;
+  --accent-soft:    #C7A8FF;
+  --accent-glow:    rgba(155,107,255,0.45);
+  --glass-fill:     rgba(255, 255, 255, 0.06);
+  --glass-border:   rgba(255, 255, 255, 0.10);
+  --glass-highlight:rgba(255, 255, 255, 0.18);
+  --text:           #F2EEFF;
+  --text-muted:     #B6AAD6;
+  --text-faint:     #7A6FA0;
+  --lyric-current:  #FFFFFF;
+  --lyric-other:    rgba(242,238,255,0.38);
+
+  background: var(--bg-base);
+  color: var(--text);
+}
+.skin-aurora .play-main {
+  background: linear-gradient(135deg, #B68EFF 0%, #7A4DFF 100%);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.35) inset,
+    0 0 24px 2px rgba(155,107,255,0.55),
+    0 12px 32px -8px rgba(122,77,255,0.6),
+    0 6px 12px -2px rgba(0,0,0,0.45);
+  transition: transform 100ms ease;
+}
+.skin-aurora .play-main:active { transform: scale(0.97); }
+.skin-aurora .glass-btn {
+  position: relative;
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+          backdrop-filter: blur(12px) saturate(1.2);
+  color: var(--text);
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.skin-aurora .glass-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, var(--glass-highlight) 0%, transparent 30%);
+  pointer-events: none;
+  opacity: 0.6;
+}
+.skin-aurora .glass-btn:hover  { background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.18); }
+.skin-aurora .glass-btn-active { color: var(--accent-soft); filter: drop-shadow(0 0 6px var(--accent-glow)); }
+.skin-aurora .progress-track   { background: rgba(255,255,255,0.10); }
+.skin-aurora .progress-fill    { background: var(--accent-soft); }
+.skin-aurora .progress-thumb   { background: #FFFFFF; box-shadow: 0 0 10px var(--accent-glow); }
+.skin-aurora .glass-bar {
+  background: rgba(255,255,255,0.04);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+          backdrop-filter: blur(20px) saturate(1.3);
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ============================================================
+   Skin 04 — abyss (Apple-Music Dark Blue)
+   ============================================================ */
+.skin-abyss {
+  --bg-base:           #0A1525;
+  --bg-tint:           #0E2240;
+  --bg-bottom:         #05080F;
+  --bg-card:           #16223A;
+  --accent-blue:       #5AA8FF;
+  --accent-mute:       #3D5878;
+  --accent-play-bg:    #FFFFFF;
+  --accent-play-icon:  #0A1525;
+  --shuffle-blue:      #4A6CFF;
+  --play-green:        #1FD86E;
+  --text:              #FFFFFF;
+  --text-muted:        #8FA3BD;
+  --text-faint:        #506580;
+  --hairline:          rgba(255,255,255,0.08);
+
+  background:
+    radial-gradient(ellipse 100% 50% at 50% 0%, rgba(90,168,255,0.10), transparent 70%),
+    linear-gradient(180deg, var(--bg-tint) 0%, var(--bg-base) 35%, var(--bg-bottom) 100%);
+  color: var(--text);
+}
+.skin-abyss .play-main {
+  background: var(--accent-play-bg);
+  color: var(--accent-play-icon);
+  box-shadow:
+    0 2px 6px rgba(0,0,0,0.30),
+    0 8px 20px -4px rgba(255,255,255,0.10);
+  transition: background 100ms ease, box-shadow 150ms ease;
+}
+.skin-abyss .play-main:hover  { box-shadow: 0 2px 8px rgba(0,0,0,0.35), 0 10px 24px -4px rgba(255,255,255,0.12); }
+.skin-abyss .play-main:active { background: #E8E8E8; box-shadow: 0 1px 3px rgba(0,0,0,0.30), 0 4px 10px -4px rgba(255,255,255,0.08); }
+.skin-abyss .icon-btn         { color: var(--text); }
+.skin-abyss .icon-btn-muted   { color: var(--text-muted); }
+.skin-abyss .icon-btn-muted:hover { color: var(--text); }
+.skin-abyss .icon-btn-active  { color: var(--accent-blue); }
+.skin-abyss .progress-track   { background: rgba(255,255,255,0.12); }
+.skin-abyss .progress-fill    { background: #FFFFFF; }
+.skin-abyss .progress-thumb   { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+.skin-abyss .underline-active::after {
+  content: '';
+  display: block;
+  margin: 4px auto 0;
+  width: 24px;
+  height: 2px;
+  border-radius: 1px;
+  background: #FFFFFF;
+}
+.skin-abyss .album-shadow {
+  box-shadow:
+    0 4px 8px rgba(0,0,0,0.30),
+    0 32px 64px -16px rgba(0,0,0,0.60),
+    0 0 80px -20px rgba(90,168,255,0.20);
+}
+
+/* ============================================================
+   Shared range-input styling — each skin sets background via
+   inline style (gradient stops on `value`). The thumb sizes
+   and colors come from the per-skin selectors above via
+   ::-webkit-slider-thumb / ::-moz-range-thumb.
+   ============================================================ */
+.skin-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  outline: none;
+  margin: 0;
+}
+.skin-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  cursor: pointer;
+}
+.skin-range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: #FFFFFF;
+  cursor: pointer;
+}
+
+/* skin-range fixed-height tracks */
+.skin-range.h-2 { height: 2px; border-radius: 2px; }
+.skin-range.h-3 { height: 3px; border-radius: 2px; }
+.skin-range.h-4 { height: 4px; border-radius: 2px; }
