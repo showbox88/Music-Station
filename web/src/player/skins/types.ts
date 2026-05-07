@@ -9,7 +9,7 @@
 import type { Track } from '../../types';
 import type { ParsedLyrics } from '../LyricsPanel';
 
-export type SkinId = 'cream' | 'cosmic' | 'aurora' | 'abyss';
+export type SkinId = 'vinyl' | 'cream' | 'cosmic' | 'aurora' | 'abyss';
 
 export interface SkinManifest {
   id: SkinId;

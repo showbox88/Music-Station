@@ -6,6 +6,12 @@ import type { SkinId, SkinManifest } from './types';
  */
 export const SKINS: SkinManifest[] = [
   {
+    id: 'vinyl',
+    name: 'Vinyl',
+    tagline: 'The original — magenta glow + spinning record.',
+    swatch: { bg: '#0d0d0e', accent: '#FF2DB5' },
+  },
+  {
     id: 'abyss',
     name: 'Abyss',
     tagline: 'Apple-Music dark blue. Premium minimal.',
@@ -31,10 +37,11 @@ export const SKINS: SkinManifest[] = [
   },
 ];
 
-export const DEFAULT_SKIN: SkinId = 'abyss';
+export const DEFAULT_SKIN: SkinId = 'vinyl';
 
 export function isSkinId(value: unknown): value is SkinId {
   return (
+    value === 'vinyl' ||
     value === 'cream' ||
     value === 'cosmic' ||
     value === 'aurora' ||

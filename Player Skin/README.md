@@ -1,6 +1,6 @@
 # Player Skins — Visual Spec Library
 
-This folder is the **source of truth** for the 4 skin styles available on the Music-Station fullscreen "Now Playing" view. Each `skin-NN-<codename>.md` file is a self-contained design spec used to drive (and audit) the UI implementation in `web/src/player/skins/<codename>.tsx`.
+This folder is the **source of truth** for the 5 skin styles available on the Music-Station fullscreen "Now Playing" view. Each `skin-NN-<codename>.md` file is a self-contained design spec used to drive (and audit) the UI implementation in `web/src/player/skins/<Codename>.tsx`.
 
 When upgrading or extending player UI later, **read the spec first**, then update the code. If a spec change is needed, edit the spec file and propagate.
 
@@ -8,14 +8,15 @@ When upgrading or extending player UI later, **read the spec first**, then updat
 
 ## Skin Roster
 
-| # | Codename | Mood | Source image | Spec file |
+| # | Codename | Mood | Source | Spec file |
 |---|---|---|---|---|
 | 1 | **`cream`**  | Warm daylight, soft coral, rounded tiles    | `{25A9E6F1-...}.png` | [skin-01-cream.md](./skin-01-cream.md) |
 | 2 | **`cosmic`** | Deep-space neon, gradient waveform, ring UI | `{2B7BE580-...}.png` | [skin-02-cosmic.md](./skin-02-cosmic.md) |
 | 3 | **`aurora`** | Glassmorphism violet, blurred-cover stage   | `{3A0B600D-...}.png` | [skin-03-aurora.md](./skin-03-aurora.md) |
 | 4 | **`abyss`**  | Apple-Music dark blue, premium minimal      | `{EE9E90E1-...}.png` | [skin-04-abyss.md](./skin-04-abyss.md) |
+| 5 | **`vinyl`**  | The original — magenta glow + spinning vinyl | (codebase, commit `5a4575f`) | [skin-05-vinyl.md](./skin-05-vinyl.md) |
 
-Default skin: **`abyss`** (closest to the existing Music-Station dark vibe).
+Default skin: **`vinyl`** (the original Music-Station look — preserved as the canonical option).
 
 ---
 

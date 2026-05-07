@@ -20,6 +20,7 @@ import AddToPlaylistMenu from '../components/AddToPlaylistMenu';
 import './skins/skins.css';
 import { DEFAULT_SKIN, isSkinId } from './skins/registry';
 import type { SkinId, SkinProps } from './skins/types';
+import VinylSkin from './skins/Vinyl';
 import CreamSkin from './skins/Cream';
 import CosmicSkin from './skins/Cosmic';
 import AuroraSkin from './skins/Aurora';
@@ -193,13 +194,15 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
   };
 
   const SkinComponent =
-    currentSkinId === 'cream'
-      ? CreamSkin
-      : currentSkinId === 'cosmic'
-        ? CosmicSkin
-        : currentSkinId === 'aurora'
-          ? AuroraSkin
-          : AbyssSkin;
+    currentSkinId === 'vinyl'
+      ? VinylSkin
+      : currentSkinId === 'cream'
+        ? CreamSkin
+        : currentSkinId === 'cosmic'
+          ? CosmicSkin
+          : currentSkinId === 'aurora'
+            ? AuroraSkin
+            : AbyssSkin;
 
   return (
     <>
