@@ -12,5 +12,8 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Local Claude Code per-machine settings
-.claude/settings.local.json
+# Local Claude Code session state (worktrees, local settings)
+.claude/
+
+# Player Skin mockups (local-only design screenshots)
+Player Skin/*.png
