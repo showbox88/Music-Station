@@ -893,6 +893,75 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Math.round(position)]);
 
+  // -----------------------------------------------------------------
+  // Host-side command execution: consume remote.lastCommand and apply
+  // it to the local player. Skipped when we are the remote ourselves.
+  // -----------------------------------------------------------------
+  const lastCmdSeqRef = useRef(0);
+
+  const applyTrackIdsAction = useCallback(
+    async (action: 'playList' | 'playOne' | 'enqueue', a: Record<string, unknown>) => {
+      const ids: number[] = action === 'playOne'
+        ? [Number(a.trackId)]
+        : (Array.isArray(a.trackIds) ? (a.trackIds as number[]) : []);
+      if (ids.length === 0) return;
+      const known = new Map<number, Track>();
+      for (const t of queue) known.set(t.id, t);
+      // No bulk-by-ids endpoint yet. We rely on the host already having
+      // the tracks in its current queue (the common case for "tap track
+      // in queue" commands). Cross-library jumps are a documented
+      // follow-up — see plan §"Known limitation".
+      const resolved = ids.map((id) => known.get(id)).filter(Boolean) as Track[];
+      if (resolved.length === 0) return;
+      if (action === 'playList') {
+        playList(resolved, Number(a.startIndex) || 0, a.playlistId as number | undefined);
+      } else if (action === 'playOne') {
+        playOne(resolved[0]);
+      } else {
+        enqueue(resolved);
+      }
+    },
+    [queue, playList, playOne, enqueue],
+  );
+
+  useEffect(() => {
+    if (remote.isRemote) return; // we're a remote ourselves — don't apply
+    const ev = remote.lastCommand;
+    if (!ev) return;
+    if (ev.seq === lastCmdSeqRef.current) return;
+    lastCmdSeqRef.current = ev.seq;
+
+    const { action, args } = ev.payload;
+    const a = (args ?? {}) as Record<string, unknown>;
+    switch (action) {
+      case 'togglePlay': togglePlay(); break;
+      case 'next': next(); break;
+      case 'prev': prev(); break;
+      case 'seek':
+        if (typeof a.sec === 'number') seek(a.sec);
+        break;
+      case 'setVolume':
+        if (typeof a.v === 'number') setVolume(a.v);
+        break;
+      case 'jumpTo':
+        if (typeof a.queueIndex === 'number') jumpTo(a.queueIndex);
+        break;
+      case 'toggleShuffle': toggleShuffle(); break;
+      case 'cycleRepeat': cycleRepeat(); break;
+      case 'clearQueue': clearQueue(); break;
+      case 'playList':
+      case 'playOne':
+      case 'enqueue':
+        applyTrackIdsAction(action, a);
+        break;
+    }
+  }, [
+    remote.lastCommand,
+    remote.isRemote,
+    togglePlay, next, prev, seek, setVolume, jumpTo,
+    toggleShuffle, cycleRepeat, clearQueue, applyTrackIdsAction,
+  ]);
+
   // Ticker to make the proxy progress bar live-update.
   const [proxyTick, setProxyTick] = useState(0);
   useEffect(() => {
