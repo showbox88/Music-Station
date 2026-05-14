@@ -25,6 +25,9 @@ import CreamSkin from './skins/Cream';
 import CosmicSkin from './skins/Cosmic';
 import AuroraSkin from './skins/Aurora';
 import AbyssSkin from './skins/Abyss';
+import { useRemote } from '../remote/RemoteContext';
+import RemoteHostPicker from '../remote/RemoteHostPicker';
+import type { RestoreLocalSnapshot } from './PlayerContext';
 
 type LyricsState =
   | { status: 'idle' }
@@ -44,11 +47,24 @@ interface Props {
 export default function NowPlayingView({ open, onClose, onLibraryChange }: Props) {
   const p = usePlayer();
   const { prefs, setPref } = usePrefs();
+  const remote = useRemote();
 
   const [eqOpen, setEqOpen] = useState(false);
   const [lyricsFull, setLyricsFull] = useState(false);
   const [lyrics, setLyrics] = useState<LyricsState>({ status: 'idle' });
   const [fetchingLyrics, setFetchingLyrics] = useState(false);
+  const [hostPickerOpen, setHostPickerOpen] = useState(false);
+
+  async function toggleRemote() {
+    if (remote.isRemote) {
+      const restore = await remote.disable();
+      if (restore) {
+        p.restoreLocalPlayback(restore as unknown as RestoreLocalSnapshot);
+      }
+    } else {
+      setHostPickerOpen(true);
+    }
+  }
 
   // Optimistic favorite state — track object is shared so we mirror locally
   // for instant feedback and reset whenever the playing track changes.
@@ -175,7 +191,7 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
     onToggleFavorite: toggleFavorite,
 
     onClose,
-    onOpenEq: () => setEqOpen(true),
+    onOpenEq: remote.isRemote ? () => {} : () => setEqOpen(true),
     onOpenAddToPlaylist: setAddingTo,
     onCycleSpatial: () => p.spatial.cycle(),
     spatialPreset: p.spatial.preset,
@@ -206,6 +222,41 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
 
   return (
     <>
+      <button
+        type="button"
+        onClick={toggleRemote}
+        className={`md:hidden fixed top-3 right-14 z-40 rounded-full px-3 py-1.5 text-xs font-medium backdrop-blur ${
+          remote.isRemote
+            ? 'bg-fuchsia-600/90 text-white'
+            : 'bg-zinc-900/60 text-zinc-200 hover:bg-zinc-800/80'
+        }`}
+        aria-label={remote.isRemote ? '退出遥控器' : '开启遥控器'}
+      >
+        {remote.isRemote ? `📱 → ${remote.hostName ?? '?'}` : '📱 遥控器'}
+      </button>
+
+      {remote.isRemote && remote.hostOffline && (
+        <div className="md:hidden fixed top-14 left-3 right-3 z-40 rounded-lg bg-rose-700/95 text-white text-xs px-3 py-2 flex items-center justify-between gap-2">
+          <span>host 已离线</span>
+          <div className="flex gap-2">
+            <button
+              className="px-2 py-1 rounded bg-rose-900/60 hover:bg-rose-900"
+              onClick={() => setHostPickerOpen(true)}
+            >
+              换一个
+            </button>
+            <button
+              className="px-2 py-1 rounded bg-rose-900/60 hover:bg-rose-900"
+              onClick={toggleRemote}
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      )}
+
+      <RemoteHostPicker open={hostPickerOpen} onClose={() => setHostPickerOpen(false)} />
+
       <SkinComponent {...skinProps} />
 
       {/* Modals layered above the skin, identical across skins. */}
@@ -218,7 +269,9 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
         />
       )}
 
-      <EQPanel open={eqOpen} onClose={() => setEqOpen(false)} />
+      {!remote.isRemote && (
+        <EQPanel open={eqOpen} onClose={() => setEqOpen(false)} />
+      )}
 
       {lyricsFull && lyrics.status === 'present' && (
         <FullscreenLyrics
