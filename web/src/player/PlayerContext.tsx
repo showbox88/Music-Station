@@ -503,6 +503,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // otherwise we hit a TDZ during render.
   const remote = useRemote();
 
+  // Optimistic volume while in remote mode. A controlled <input type=range>
+  // whose `value` only updates after a host round-trip can't follow the
+  // user's finger during a drag — the thumb sticks at the snapshot's
+  // current value and the user gives up. We mirror their drag locally,
+  // fire the RPC, and clear the override once a fresh host snapshot
+  // arrives (any change to snap.volume signals the round-trip closed).
+  const [remoteVolumeOpt, setRemoteVolumeOpt] = useState<number | null>(null);
+  useEffect(() => {
+    setRemoteVolumeOpt(null);
+  }, [remote.hostSnapshot?.volume]);
+
   // Sync <audio> src whenever current track changes
   useEffect(() => {
     const audio = audioRef.current;
@@ -1019,9 +1030,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       position: livePosition,
       duration: snap?.duration_sec ?? 0,
       // Reflect the host's volume so the slider on the phone matches
-      // what's actually playing. Falls back to local volume only if the
-      // host hasn't pushed a snapshot with this field yet.
-      volume: typeof snap?.volume === 'number' ? snap.volume : volume,
+      // what's actually playing. The optimistic override wins while a
+      // drag is in flight (see remoteVolumeOpt above); otherwise we
+      // trust the host snapshot, falling back to local volume only if
+      // the host hasn't pushed a snapshot with this field yet.
+      volume:
+        remoteVolumeOpt != null
+          ? remoteVolumeOpt
+          : typeof snap?.volume === 'number'
+            ? snap.volume
+            : volume,
       shuffle: !!snap?.shuffle,
       repeat: snap?.repeat ?? 'off',
       current: remoteTrack,
@@ -1039,7 +1057,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       prev: () => rpc('prev'),
       jumpTo: (queueIndex) => rpc('jumpTo', { queueIndex }),
       seek: (sec) => rpc('seek', { sec }),
-      setVolume: (v) => rpc('setVolume', { v }),
+      setVolume: (v) => {
+        // Stash the local override first so the slider thumb moves in
+        // the same frame as the drag — the RPC then catches up.
+        setRemoteVolumeOpt(Math.max(0, Math.min(1, v)));
+        return rpc('setVolume', { v });
+      },
       toggleShuffle: () => rpc('toggleShuffle'),
       cycleRepeat: () => rpc('cycleRepeat'),
       clearQueue: () => rpc('clearQueue'),

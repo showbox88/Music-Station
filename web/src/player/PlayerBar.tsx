@@ -13,6 +13,7 @@ import QueuePanel from './QueuePanel';
 import { RepeatIcon, RepeatOneIcon, ShuffleIcon } from '../components/Icons';
 import { api } from '../api';
 import { useRemote } from '../remote/RemoteContext';
+import RemoteBadge from '../remote/RemoteBadge';
 
 interface Props {
   onExpand?: () => void;
@@ -208,6 +209,7 @@ export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
             </div>
             {/* Modes hugged to the right edge of the row. */}
             <div className="flex items-center gap-2 ml-auto shrink-0">
+              <RemoteBadge mini />
               <ModeBtn active={p.shuffle} onClick={p.toggleShuffle} title="Shuffle">
                 <ShuffleIcon />
               </ModeBtn>
@@ -302,6 +304,7 @@ export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
           across the row so add / favorite / shuffle / repeat read as one
           control cluster. */}
       <div className="hidden md:flex items-center gap-2 shrink-0">
+        <RemoteBadge />
         <ModeBtn onClick={openAddToPlaylist} title="Add to playlist">
           <PlusIcon />
         </ModeBtn>

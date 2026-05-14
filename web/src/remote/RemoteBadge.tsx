@@ -1,39 +1,57 @@
 import { useRemote } from './RemoteContext';
 
-/**
- * Host-side indicator showing "a phone is remoting this page".
- *
- * Design intent (per user feedback): passive and subtle, NOT a CTA. It
- * must stay visible the whole time a follower is connected — earlier
- * versions had a click-to-dismiss pill that the user could not bring back
- * without a page reload, which they didn't want. So no dismiss, no
- * pointer events, no hover interaction. The host can ignore it visually,
- * but always knows at a glance that the phone is in control.
- */
-export default function RemoteBadge() {
-  const remote = useRemote();
+interface Props {
+  /** Mobile variant — 28px circle to match MiniBtn in PlayerBar. */
+  mini?: boolean;
+}
 
+/**
+ * Host-side inline indicator that a phone is remoting this player.
+ *
+ * Lives in PlayerBar's action cluster so it sits next to the other
+ * circular bezel buttons (shuffle/repeat/queue). Matches their
+ * design language: bezel base, glow ring + glow text when active.
+ *
+ * Non-interactive on purpose — the user complained that the previous
+ * dismissable pill disappeared on the first click. This one stays
+ * visible the whole time a follower is connected and goes away on
+ * its own once the follower disconnects.
+ */
+export default function RemoteBadge({ mini = false }: Props) {
+  const remote = useRemote();
   if (remote.followerCount === 0) return null;
-  // Don't show on the remote/phone itself — only on the host being remoted.
+  // Don't show on the phone itself — only on the host being remoted.
   if (remote.isRemote) return null;
+
+  const size = mini ? 'w-7 h-7' : 'w-8 h-8';
+  const label =
+    remote.followerCount > 1
+      ? `${remote.followerCount} 部手机正在遥控`
+      : '手机正在遥控';
 
   return (
     <div
-      className="fixed top-2 left-2 z-30 pointer-events-none flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide select-none"
-      style={{
-        background: 'rgba(20, 6, 18, 0.55)',
-        color: '#ff66cc',
-        border: '1px solid rgba(255, 45, 181, 0.35)',
-        boxShadow: '0 0 6px rgba(255, 45, 181, 0.25)',
-        backdropFilter: 'blur(4px)',
-      }}
-      title="phone-remote-active"
-      aria-label="A phone is remote-controlling this player"
+      className={`${size} rounded-full bezel glow-text glow-ring flex items-center justify-center select-none pointer-events-none`}
+      title={label}
+      aria-label={label}
     >
-      <span aria-hidden className="text-[12px] leading-none">📱</span>
-      <span className="leading-none">REMOTE</span>
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="7" y="2" width="10" height="20" rx="2" />
+        <line x1="11" y1="18" x2="13" y2="18" />
+      </svg>
       {remote.followerCount > 1 && (
-        <span className="leading-none opacity-80">·{remote.followerCount}</span>
+        <span className="ml-0.5 text-[9px] font-semibold tabular-nums leading-none">
+          {remote.followerCount}
+        </span>
       )}
     </div>
   );
