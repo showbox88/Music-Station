@@ -91,7 +91,10 @@ export function RemoteProvider({ children }: { children: ReactNode }) {
       .catch(() => {/* non-fatal */})
       .then(() => {
         if (cancelled) return;
-        sseRef.current = openRemoteStream(deviceId, '/api', (ev) => {
+        // Use the same base prefix as api.ts so SSE goes through the
+        // /app→backend Tailscale-serve rule, not the /→port-3001 fallback.
+        const apiBase = `${import.meta.env.BASE_URL}api`;
+        sseRef.current = openRemoteStream(deviceId, apiBase, (ev) => {
           switch (ev.type) {
             case 'presence':
               setDevices(ev.data.devices);
