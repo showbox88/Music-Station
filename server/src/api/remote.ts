@@ -157,6 +157,126 @@ function broadcastPresence(userId: UserId): void {
 
 export function remoteRouter(_deps: { db: Database }): Router {
   const r = Router();
-  // (endpoints added in later tasks)
+
+  // POST /api/me/remote/register
+  // Body: { device_id, name? }
+  // Creates or refreshes a slot under the caller's user. The slot is
+  // *unconnected* until /stream is opened; that's OK — the picker can
+  // still list it as offline.
+  r.post('/register', (req, res) => {
+    const userId = (req as any).user!.id as number;
+    const deviceId = String(req.body?.device_id ?? '').trim();
+    if (!deviceId || deviceId.length > 64) {
+      res.status(400).json({ error: 'device_id required' });
+      return;
+    }
+    const name = String(req.body?.name ?? '').trim()
+      || deriveName(String(req.headers['user-agent'] ?? ''));
+    const m = getUserMap(userId);
+    let slot = m.get(deviceId);
+    if (!slot) {
+      slot = {
+        device_id: deviceId,
+        user_id: userId,
+        name,
+        user_agent: String(req.headers['user-agent'] ?? '').slice(0, 200),
+        sse: null,
+        last_state: null,
+        following: null,
+        last_seen_ms: Date.now(),
+        grace_timer: null,
+      };
+      m.set(deviceId, slot);
+    } else {
+      slot.name = name;
+      slot.last_seen_ms = Date.now();
+    }
+    broadcastPresence(userId);
+    res.json({ ok: true, device_id: deviceId, name: slot.name });
+  });
+
+  // GET /api/me/remote/stream?device_id=<uuid>
+  // Long-lived SSE channel. One per tab.
+  r.get('/stream', (req, res) => {
+    const userId = (req as any).user!.id as number;
+    const deviceId = String(req.query.device_id ?? '').trim();
+    if (!deviceId) {
+      res.status(400).json({ error: 'device_id required' });
+      return;
+    }
+    const m = getUserMap(userId);
+    let slot = m.get(deviceId);
+    if (!slot) {
+      // Auto-create on connect (clients usually POST /register first, but
+      // race conditions during reload can flip the order).
+      slot = {
+        device_id: deviceId,
+        user_id: userId,
+        name: deriveName(String(req.headers['user-agent'] ?? '')),
+        user_agent: String(req.headers['user-agent'] ?? '').slice(0, 200),
+        sse: null,
+        last_state: null,
+        following: null,
+        last_seen_ms: Date.now(),
+        grace_timer: null,
+      };
+      m.set(deviceId, slot);
+    }
+
+    // If a grace timer was running (reconnect within 30 s), cancel it.
+    if (slot.grace_timer) {
+      clearTimeout(slot.grace_timer);
+      slot.grace_timer = null;
+    }
+
+    res.set({
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    res.flushHeaders();
+
+    slot.sse = res;
+    slot.last_seen_ms = Date.now();
+
+    sseSend(res, 'welcome', { device_id: deviceId, user_id: userId });
+    broadcastPresence(userId);
+
+    const keepalive = setInterval(() => {
+      try {
+        res.write(': ping\n\n');
+      } catch {
+        /* connection gone; 'close' below handles cleanup */
+      }
+    }, KEEPALIVE_MS);
+
+    req.on('close', () => {
+      clearInterval(keepalive);
+      if (slot!.sse === res) {
+        slot!.sse = null;
+        // Schedule grace deletion. Reconnect within 30 s reuses the slot.
+        slot!.grace_timer = setTimeout(() => {
+          const cur = m.get(deviceId);
+          if (cur && cur.sse === null) {
+            // Notify any followers that the host went away.
+            const userMap = registry.get(userId);
+            if (userMap) {
+              for (const other of userMap.values()) {
+                if (other.following === deviceId && other.sse) {
+                  sseSend(other.sse, 'host-offline', { host: deviceId });
+                  other.following = null;
+                }
+              }
+            }
+            m.delete(deviceId);
+            broadcastPresence(userId);
+          }
+        }, GRACE_MS);
+        broadcastPresence(userId);
+      }
+    });
+  });
+
   return r;
 }
