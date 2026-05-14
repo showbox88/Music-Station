@@ -182,6 +182,17 @@ interface PlayerState {
   currentPlaylistId: number | null;
 }
 
+export interface RestoreLocalSnapshot {
+  queue: Track[];
+  cursor: number;
+  shuffledOrder: number[];
+  position_sec: number;
+  was_playing: boolean;
+  shuffle: boolean;
+  repeat: RepeatMode;
+  current_playlist_id: number | null;
+}
+
 interface PlayerActions {
   /** Replace queue and start at the given index. */
   playList: (tracks: Track[], startIndex?: number, playlistId?: number) => void;
@@ -199,6 +210,7 @@ interface PlayerActions {
   toggleShuffle: () => void;
   cycleRepeat: () => void;
   clearQueue: () => void;
+  restoreLocalPlayback: (snap: RestoreLocalSnapshot) => void;
 }
 
 interface PlayerContextValue extends PlayerState, PlayerActions {
@@ -490,6 +502,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    if (remote.isRemote) {
+      audio.pause();
+      return;
+    }
     if (current) {
       if (audio.src !== current.url) {
         audio.src = current.url;
@@ -507,7 +523,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       audio.removeAttribute('src');
       audio.load();
     }
-  }, [current]);
+  }, [current, remote.isRemote]);
 
   // Load EQ when the playing track changes OR when we toggle global mode.
   //   - global mode: always show the prefs.global_eq curve
@@ -778,6 +794,29 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     },
   };
 
+  const restoreLocalPlayback = useCallback(
+    (snap: RestoreLocalSnapshot) => {
+      setQueue(snap.queue);
+      setCursor(snap.cursor);
+      setShuffledOrder(snap.shuffledOrder);
+      setShuffle(snap.shuffle);
+      setRepeat(snap.repeat);
+      setCurrentPlaylistId(snap.current_playlist_id);
+      const audio = audioRef.current;
+      if (audio && snap.queue.length > 0 && snap.cursor >= 0) {
+        const handler = () => {
+          audio.currentTime = snap.position_sec;
+          if (snap.was_playing) {
+            audio.play().catch(() => {/* autoplay blocked */});
+          }
+          audio.removeEventListener('loadedmetadata', handler);
+        };
+        audio.addEventListener('loadedmetadata', handler);
+      }
+    },
+    [],
+  );
+
   // -----------------------------------------------------------------
   // Remote control: publish state for followers + listen for commands.
   // -----------------------------------------------------------------
@@ -854,7 +893,92 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Math.round(position)]);
 
-  const value: PlayerContextValue = {
+  // Ticker to make the proxy progress bar live-update.
+  const [proxyTick, setProxyTick] = useState(0);
+  useEffect(() => {
+    if (!remote.isRemote) return;
+    if (!remote.hostSnapshot?.is_playing) return;
+    const t = window.setInterval(() => setProxyTick((x) => x + 1), 250);
+    return () => window.clearInterval(t);
+  }, [remote.isRemote, remote.hostSnapshot?.is_playing]);
+  void proxyTick;
+
+  function buildRemoteValue(): PlayerContextValue {
+    const snap = remote.hostSnapshot;
+    const t = snap?.current_track ?? null;
+    const remoteTrack: Track | null = t
+      ? ({
+          id: t.id,
+          title: t.title,
+          artist: t.artist,
+          album: t.album,
+          cover_url: t.cover_url,
+          url: t.url,
+          duration_sec: snap?.duration_sec ?? 0,
+          rel_path: '',
+          rating: 0,
+          favorited: false,
+        } as unknown as Track)
+      : null;
+    const remoteQueue: Track[] = (snap?.queue_ids ?? []).map((id) =>
+      id === t?.id && remoteTrack ? remoteTrack : ({ id } as Track),
+    );
+    const livePosition = snap
+      ? snap.position_sec + (snap.is_playing
+          ? Math.max(0, (Date.now() - snap.position_at_server_ms) / 1000)
+          : 0)
+      : 0;
+    const rpc = (action: RemoteAction, args: unknown = null) =>
+      remote.sendCommand(action, args);
+
+    return {
+      queue: remoteQueue,
+      cursor: snap?.cursor ?? -1,
+      shuffledOrder: [],
+      isPlaying: !!snap?.is_playing,
+      position: livePosition,
+      duration: snap?.duration_sec ?? 0,
+      volume,
+      shuffle: !!snap?.shuffle,
+      repeat: snap?.repeat ?? 'off',
+      current: remoteTrack,
+      currentPlaylistId: snap?.current_playlist_id ?? null,
+      playList: (tracks, startIndex, playlistId) =>
+        rpc('playList', {
+          trackIds: tracks.map((x) => x.id),
+          startIndex: startIndex ?? 0,
+          playlistId,
+        }),
+      playOne: (track) => rpc('playOne', { trackId: track.id }),
+      enqueue: (tracks) => rpc('enqueue', { trackIds: tracks.map((x) => x.id) }),
+      togglePlay: () => rpc('togglePlay'),
+      next: () => rpc('next'),
+      prev: () => rpc('prev'),
+      jumpTo: (queueIndex) => rpc('jumpTo', { queueIndex }),
+      seek: (sec) => rpc('seek', { sec }),
+      setVolume: (v) => rpc('setVolume', { v }),
+      toggleShuffle: () => rpc('toggleShuffle'),
+      cycleRepeat: () => rpc('cycleRepeat'),
+      clearQueue: () => rpc('clearQueue'),
+      restoreLocalPlayback,
+      getAnalyser: () => null,
+      eq: eqController,
+      spatial: {
+        preset: spatialPreset,
+        setPreset: setSpatialPreset,
+        cycle: () => {
+          const i = SPATIAL_PRESETS.indexOf(spatialPreset);
+          setSpatialPreset(SPATIAL_PRESETS[(i + 1) % SPATIAL_PRESETS.length]);
+        },
+      },
+      globalEq: {
+        enabled: globalEqEnabled,
+        setEnabled: (b: boolean) => setPref('global_eq_enabled', b),
+      },
+    };
+  }
+
+  const localValue: PlayerContextValue = {
     queue,
     cursor,
     shuffledOrder,
@@ -878,6 +1002,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     toggleShuffle,
     cycleRepeat,
     clearQueue,
+    restoreLocalPlayback,
     getAnalyser: () => analyserRef.current,
     eq: eqController,
     spatial: {
@@ -893,6 +1018,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setEnabled: (b: boolean) => setPref('global_eq_enabled', b),
     },
   };
+
+  const value: PlayerContextValue = remote.isRemote ? buildRemoteValue() : localValue;
 
   return (
     <PlayerContext.Provider value={value}>
