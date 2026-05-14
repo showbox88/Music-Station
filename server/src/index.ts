@@ -27,6 +27,7 @@ import { adminRouter } from './api/admin.js';
 import { usersRouter } from './api/users.js';
 import { favoritesRouter } from './api/favorites.js';
 import { prefsRouter } from './api/prefs.js';
+import { remoteRouter } from './api/remote.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // .env lives at repo root (../../ from server/dist/ or server/src/)
@@ -93,6 +94,7 @@ app.use('/api/admin', requireAdmin(db), adminRouter({ db }));
 app.use('/api/users', usersRouter({ db }));
 app.use('/api/favorites', favoritesRouter({ db, publicUrl: PUBLIC_URL }));
 app.use('/api/me', prefsRouter({ db }));
+app.use('/api/me/remote', remoteRouter({ db }));
 
 // API routes
 app.use('/api/tracks', tracksRouter({ db, publicUrl: PUBLIC_URL, musicDir: MUSIC_DIR, coverDir: COVER_DIR }));
