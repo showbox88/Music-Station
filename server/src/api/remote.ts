@@ -101,6 +101,56 @@ function deriveName(userAgent: string): string {
   return `${browser} / ${os}`;
 }
 
+interface ValidatedArgs {
+  args: unknown;
+  error?: string;
+}
+
+function validateArgs(action: RemoteAction, raw: unknown): ValidatedArgs {
+  const o = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
+  switch (action) {
+    case 'togglePlay':
+    case 'next':
+    case 'prev':
+    case 'toggleShuffle':
+    case 'cycleRepeat':
+    case 'clearQueue':
+      return { args: null };
+    case 'seek': {
+      const sec = Number(o.sec);
+      if (!Number.isFinite(sec) || sec < 0) return { args: null, error: 'bad seek.sec' };
+      return { args: { sec } };
+    }
+    case 'setVolume': {
+      const v = Number(o.v);
+      if (!Number.isFinite(v)) return { args: null, error: 'bad setVolume.v' };
+      return { args: { v: Math.max(0, Math.min(1, v)) } };
+    }
+    case 'jumpTo': {
+      const queueIndex = Number(o.queueIndex);
+      if (!Number.isInteger(queueIndex) || queueIndex < 0) return { args: null, error: 'bad jumpTo.queueIndex' };
+      return { args: { queueIndex } };
+    }
+    case 'playList': {
+      const trackIds = Array.isArray(o.trackIds) ? o.trackIds.map(Number).filter(Number.isInteger) : null;
+      if (!trackIds || trackIds.length === 0) return { args: null, error: 'bad playList.trackIds' };
+      const startIndex = Number.isInteger(o.startIndex) ? o.startIndex as number : 0;
+      const playlistId = Number.isInteger(o.playlistId) ? o.playlistId as number : null;
+      return { args: { trackIds, startIndex, playlistId } };
+    }
+    case 'playOne': {
+      const trackId = Number(o.trackId);
+      if (!Number.isInteger(trackId)) return { args: null, error: 'bad playOne.trackId' };
+      return { args: { trackId } };
+    }
+    case 'enqueue': {
+      const trackIds = Array.isArray(o.trackIds) ? o.trackIds.map(Number).filter(Number.isInteger) : null;
+      if (!trackIds || trackIds.length === 0) return { args: null, error: 'bad enqueue.trackIds' };
+      return { args: { trackIds } };
+    }
+  }
+}
+
 interface DeviceListEntry {
   device_id: string;
   name: string;
@@ -285,6 +335,106 @@ export function remoteRouter(_deps: { db: Database }): Router {
     const userId = (req as any).user!.id as number;
     const self = String(req.query.self ?? '') || null;
     res.json({ devices: listDevices(userId, self) });
+  });
+
+  // POST /api/me/remote/command
+  // Body: { from?, to, action, args? }
+  r.post('/command', (req, res) => {
+    const userId = (req as any).user!.id as number;
+    const to = String(req.body?.to ?? '').trim();
+    const action = String(req.body?.action ?? '').trim();
+    const args = req.body?.args ?? null;
+    const from = String(req.body?.from ?? '').trim() || null;
+
+    if (!to || !action) {
+      res.status(400).json({ error: 'to and action required' });
+      return;
+    }
+    if (!ALLOWED_ACTIONS.has(action as RemoteAction)) {
+      res.status(400).json({ error: 'action not allowed' });
+      return;
+    }
+    const validated = validateArgs(action as RemoteAction, args);
+    if (validated.error) {
+      res.status(400).json({ error: validated.error });
+      return;
+    }
+    const m = registry.get(userId);
+    const target = m?.get(to);
+    if (!target) {
+      res.status(404).json({ error: 'unknown device' });
+      return;
+    }
+    if (!target.sse) {
+      res.status(409).json({ error: 'host-offline' });
+      return;
+    }
+    sseSend(target.sse, 'command', { from, action, args: validated.args });
+    res.json({ ok: true });
+  });
+
+  // POST /api/me/remote/state
+  // Body: { device_id, snapshot }
+  r.post('/state', (req, res) => {
+    const userId = (req as any).user!.id as number;
+    const deviceId = String(req.body?.device_id ?? '').trim();
+    const snapshot = req.body?.snapshot;
+    if (!deviceId || !snapshot || typeof snapshot !== 'object') {
+      res.status(400).json({ error: 'device_id and snapshot required' });
+      return;
+    }
+    const m = registry.get(userId);
+    const slot = m?.get(deviceId);
+    if (!slot) {
+      res.status(404).json({ error: 'unknown device' });
+      return;
+    }
+    slot.last_state = snapshot as Snapshot;
+    slot.last_seen_ms = Date.now();
+    if (m) {
+      for (const other of m.values()) {
+        if (other.following === deviceId && other.sse) {
+          sseSend(other.sse, 'state', snapshot);
+        }
+      }
+    }
+    res.json({ ok: true });
+  });
+
+  // POST /api/me/remote/follow
+  // Body: { device_id, host }
+  r.post('/follow', (req, res) => {
+    const userId = (req as any).user!.id as number;
+    const selfId = String(req.body?.device_id ?? '').trim();
+    const hostId = String(req.body?.host ?? '').trim();
+    if (!selfId || !hostId) {
+      res.status(400).json({ error: 'device_id and host required' });
+      return;
+    }
+    const m = registry.get(userId);
+    const me = m?.get(selfId);
+    const host = m?.get(hostId);
+    if (!me || !host) {
+      res.status(404).json({ error: 'unknown device' });
+      return;
+    }
+    me.following = hostId;
+    res.json({ ok: true, snapshot: host.last_state });
+  });
+
+  // POST /api/me/remote/unfollow
+  // Body: { device_id }
+  r.post('/unfollow', (req, res) => {
+    const userId = (req as any).user!.id as number;
+    const selfId = String(req.body?.device_id ?? '').trim();
+    if (!selfId) {
+      res.status(400).json({ error: 'device_id required' });
+      return;
+    }
+    const m = registry.get(userId);
+    const me = m?.get(selfId);
+    if (me) me.following = null;
+    res.json({ ok: true });
   });
 
   return r;
