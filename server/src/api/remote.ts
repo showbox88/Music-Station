@@ -25,6 +25,8 @@ export interface Snapshot {
   repeat: 'off' | 'one' | 'all';
   position_sec: number;
   position_at_server_ms: number;
+  /** Host's audio volume, 0..1. Optional for back-compat with older clients. */
+  volume?: number;
 }
 
 export interface TrackSummary {

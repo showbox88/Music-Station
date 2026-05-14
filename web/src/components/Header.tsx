@@ -8,6 +8,8 @@ import ChangePasswordModal from './ChangePasswordModal';
 import { useT, useLanguage } from '../i18n/useT';
 import { LANGUAGES, type Language } from '../i18n';
 import { usePrefs } from '../PrefsContext';
+import RemoteQRDisplay from '../remote/RemoteQRDisplay';
+import { useRemote } from '../remote/RemoteContext';
 
 interface HeaderProps {
   onRescanned?: () => void;
@@ -25,6 +27,8 @@ export default function Header({ onRescanned, onUploaded, onOpenSidebar }: Heade
   const [lastResult, setLastResult] = useState<RescanStats | null>(null);
   // Bumped whenever something changes the library so DiskBar refetches.
   const [diskRefresh, setDiskRefresh] = useState(0);
+  const [qrOpen, setQrOpen] = useState(false);
+  const remote = useRemote();
 
   const load = () => {
     api.status().then(setStatus).catch((e) => setErr(String(e)));
@@ -104,8 +108,30 @@ export default function Header({ onRescanned, onUploaded, onOpenSidebar }: Heade
         >
           {scanning ? 'Scanning…' : 'Rescan + Covers'}
         </button>
+        {/* QR pair button — only useful on the host side (we never want
+            to display a "use this as host" QR while we are already a
+            follower of someone else). Shown on every viewport so phones
+            can also display a QR for tablets / laptops. */}
+        {!remote.isRemote && (
+          <button
+            onClick={() => setQrOpen(true)}
+            className="w-9 h-9 rounded-full bezel flex items-center justify-center text-zinc-200 hover:text-white shrink-0"
+            title="生成手机扫码遥控二维码"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+              <line x1="14" y1="14" x2="14" y2="17" />
+              <line x1="17" y1="14" x2="17" y2="21" />
+              <line x1="20" y1="17" x2="20" y2="14" />
+              <line x1="14" y1="20" x2="21" y2="20" />
+            </svg>
+          </button>
+        )}
         <UserMenu />
       </div>
+      <RemoteQRDisplay open={qrOpen} onClose={() => setQrOpen(false)} />
     </header>
   );
 }

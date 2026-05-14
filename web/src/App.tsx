@@ -14,7 +14,8 @@ import PlayerBar from './player/PlayerBar';
 import NowPlayingView from './player/NowPlayingView';
 import { AuthProvider, useAuth } from './AuthContext';
 import { PrefsProvider } from './PrefsContext';
-import { RemoteProvider } from './remote/RemoteContext';
+import { RemoteProvider, useRemote } from './remote/RemoteContext';
+import type { RestoreLocalSnapshot } from './player/PlayerContext';
 import RemoteBadge from './remote/RemoteBadge';
 import { useT } from './i18n/useT';
 import { api } from './api';
@@ -70,6 +71,7 @@ function AppContent() {
   // sidebar stays static and these props are ignored.
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const player = usePlayer();
+  const remote = useRemote();
 
   // Wrap setView so picking something in the mobile drawer auto-closes it.
   function handleSetView(v: View) {
@@ -105,6 +107,39 @@ function AppContent() {
         window.history.replaceState({}, '', url.toString());
       });
     // Run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Deep-link handler #2: ?remote_host=<deviceId> — phone-side QR-scan
+  // landing URL. Hands the param to remote.enable() with the current
+  // local snapshot (so leaving remote mode restores whatever was playing
+  // here). Clean the URL afterwards so a refresh doesn't re-enable.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hostId = params.get('remote_host');
+    if (!hostId) return;
+    const snap: RestoreLocalSnapshot = {
+      queue: player.queue,
+      cursor: player.cursor,
+      shuffledOrder: player.shuffledOrder,
+      position_sec: player.position,
+      was_playing: player.isPlaying,
+      shuffle: player.shuffle,
+      repeat: player.repeat,
+      current_playlist_id: player.currentPlaylistId,
+    };
+    remote
+      .enable(hostId, snap as unknown as Record<string, unknown>)
+      .catch((err) => {
+        console.error('QR remote-host enable failed:', err);
+      })
+      .finally(() => {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('remote_host');
+        window.history.replaceState({}, '', url.toString());
+      });
+    // Run once on mount — capturing fresh player state at link-arrival
+    // time is exactly what we want; later changes shouldn't re-fire it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

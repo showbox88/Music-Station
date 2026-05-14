@@ -91,12 +91,11 @@ export default function VinylSkin(p: SkinProps) {
         <div className="flex items-center justify-between pt-5 pb-2 shrink-0">
           <button
             onClick={p.onClose}
-            className="hidden md:flex w-10 h-10 items-center justify-center rounded-full hover:bg-white/10 text-2xl"
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-2xl shrink-0"
             title="Back to library"
           >
             ‹
           </button>
-          <div className="md:hidden w-10 h-10 shrink-0" />
           <div className="text-center min-w-0 flex-1 px-3">
             {t.album && <div className="text-base font-medium truncate">{t.album}</div>}
             {subtitle && (
@@ -346,8 +345,10 @@ export default function VinylSkin(p: SkinProps) {
           </button>
         </div>
 
-        {/* Volume — desktop only */}
-        <div className="hidden md:flex items-center gap-3 pb-6 shrink-0 px-2">
+        {/* Volume — shown on every viewport so the phone can drive the
+            host's volume in remote mode. In local mode it duplicates the
+            phone's hardware buttons but the cost is a single row. */}
+        <div className="flex items-center gap-3 pb-4 md:pb-6 shrink-0 px-2">
           <button
             onClick={() => p.onSetVolume(p.volume > 0 ? 0 : 0.7)}
             title={p.volume > 0 ? 'Mute' : 'Unmute'}

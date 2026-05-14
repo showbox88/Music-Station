@@ -198,6 +198,8 @@ export interface RemoteSnapshot {
   repeat: 'off' | 'one' | 'all';
   position_sec: number;
   position_at_server_ms: number;
+  /** Host's audio volume, 0..1. Optional — older hosts may omit. */
+  volume?: number;
 }
 
 export type RemoteAction =

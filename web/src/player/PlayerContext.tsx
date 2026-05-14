@@ -853,6 +853,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     repeat,
     position_sec: positionRef.current,
     position_at_server_ms: Date.now(),
+    volume,
   }), [
     current,
     duration,
@@ -862,6 +863,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     isPlaying,
     shuffle,
     repeat,
+    volume,
   ]);
 
   // Edge publish: re-publishes 50 ms after any tracked state changes.
@@ -1016,7 +1018,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       isPlaying: !!snap?.is_playing,
       position: livePosition,
       duration: snap?.duration_sec ?? 0,
-      volume,
+      // Reflect the host's volume so the slider on the phone matches
+      // what's actually playing. Falls back to local volume only if the
+      // host hasn't pushed a snapshot with this field yet.
+      volume: typeof snap?.volume === 'number' ? snap.volume : volume,
       shuffle: !!snap?.shuffle,
       repeat: snap?.repeat ?? 'off',
       current: remoteTrack,
