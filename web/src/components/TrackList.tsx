@@ -7,7 +7,10 @@ import TrackContextMenu from './TrackContextMenu';
 import StarRating from './StarRating';
 import CoverThumb from './CoverThumb';
 import { usePlayer } from '../player/PlayerContext';
+import { usePrefs } from '../PrefsContext';
 import { useT } from '../i18n/useT';
+
+type TracksView = 'list' | 'card';
 
 function formatDuration(sec: number | null): string {
   if (sec == null) return '—';
@@ -41,6 +44,8 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
   const [addingTo, setAddingTo] = useState<{ track: Track; x: number; y: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ track: Track; x: number; y: number } | null>(null);
   const player = usePlayer();
+  const { prefs, setPref } = usePrefs();
+  const view: TracksView = prefs.tracks_view === 'card' ? 'card' : 'list';
   const t = useT();
 
   // Debounce search
@@ -128,6 +133,42 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
         <span className="text-xs text-zinc-500 tabular-nums shrink-0 ml-auto">
           {loading ? '…' : `${showing}/${total}`}
         </span>
+        {/* List ↔ Card toggle. Two segments share the bezel vocabulary
+            with the rest of the toolbar; the active one glows. */}
+        <div
+          className="inline-flex rounded-full overflow-hidden shrink-0"
+          style={{ border: '1px solid #050506' }}
+        >
+          <button
+            onClick={() => setPref('tracks_view', 'list')}
+            className={`w-8 h-7 flex items-center justify-center ${
+              view === 'list' ? 'glow-text glow-ring' : 'text-zinc-400 hover:text-white'
+            }`}
+            title="列表视图"
+            aria-pressed={view === 'list'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="4" y1="6"  x2="20" y2="6" />
+              <line x1="4" y1="12" x2="20" y2="12" />
+              <line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
+          </button>
+          <button
+            onClick={() => setPref('tracks_view', 'card')}
+            className={`w-8 h-7 flex items-center justify-center ${
+              view === 'card' ? 'glow-text glow-ring' : 'text-zinc-400 hover:text-white'
+            }`}
+            title="卡片视图"
+            aria-pressed={view === 'card'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <rect x="3"  y="3"  width="7" height="7" />
+              <rect x="14" y="3"  width="7" height="7" />
+              <rect x="3"  y="14" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {err && (
@@ -137,6 +178,164 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
       )}
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        {view === 'card' ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6 gap-3 p-3 md:p-4">
+            {tracks.map((track) => {
+              const isCur = player.current?.id === track.id;
+              const playing = isCur && player.isPlaying;
+              const playFromHere = () => {
+                if (isCur) {
+                  player.togglePlay();
+                } else {
+                  const idx = tracks.findIndex((x) => x.id === track.id);
+                  player.playList(tracks, Math.max(0, idx));
+                }
+              };
+              return (
+                <div
+                  key={track.id}
+                  className="group relative flex flex-col rounded-lg overflow-hidden surface-raised select-none"
+                  style={
+                    isCur
+                      ? { boxShadow: '0 0 0 1px rgba(255,45,181,0.55), 0 0 12px rgba(255,45,181,0.25)' }
+                      : undefined
+                  }
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setContextMenu({ track, x: e.clientX, y: e.clientY });
+                  }}
+                >
+                  {/* Square cover — tap to play / pause. The overlay icon
+                      is always faintly visible on touch (no hover) so
+                      users on phones can tell it's a play surface. */}
+                  <button
+                    onClick={playFromHere}
+                    title={isCur ? (playing ? 'Pause' : 'Resume') : 'Play'}
+                    className="relative block w-full aspect-square bg-zinc-800"
+                  >
+                    <CoverThumb src={track.cover_url} fluid />
+                    <span
+                      className="absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity opacity-0 group-hover:opacity-100 md:opacity-0"
+                      style={{
+                        color: 'rgba(255,255,255,0.85)',
+                        background: 'linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.45))',
+                        opacity: isCur ? 1 : undefined,
+                      }}
+                    >
+                      {playing ? (
+                        <svg width="42" height="42" viewBox="0 0 24 24" fill="currentColor">
+                          <rect x="6" y="5" width="4" height="14" />
+                          <rect x="14" y="5" width="4" height="14" />
+                        </svg>
+                      ) : (
+                        <svg width="44" height="44" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      )}
+                    </span>
+                    {/* Hover-only action chips top-right. Stop propagation
+                        so clicking them doesn't start playback. */}
+                    <span className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          setAddingTo({ track, x: r.left, y: r.bottom + 4 });
+                        }}
+                        title="Add to playlist"
+                        className="w-7 h-7 rounded-full bezel flex items-center justify-center text-zinc-200 hover:text-blue-400"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                          <line x1="12" y1="5" x2="12" y2="19" />
+                          <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setEditing(track);
+                        }}
+                        title="Edit metadata"
+                        className="hidden md:flex w-7 h-7 rounded-full bezel items-center justify-center text-zinc-200 hover:text-white"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          onDelete(track);
+                        }}
+                        disabled={!track.is_owner}
+                        title={track.is_owner ? 'Delete' : t('tracks.delete_only_owner_tooltip')}
+                        className="w-7 h-7 rounded-full bezel flex items-center justify-center text-zinc-200 hover:text-red-400 disabled:opacity-30 disabled:hover:text-zinc-200"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                        </svg>
+                      </button>
+                    </span>
+                    {/* Source badge bottom-left so the user sees public /
+                        shared tracks at a glance in the grid. */}
+                    <span className="absolute bottom-1.5 left-1.5">
+                      <SourceBadge track={track} />
+                    </span>
+                  </button>
+
+                  <div className="px-2 py-1.5 min-w-0">
+                    <div className="text-sm font-medium truncate flex items-center gap-1.5">
+                      {track.last_edited_at && (
+                        <span
+                          className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0"
+                          title={`Edited ${track.last_edited_at}`}
+                        />
+                      )}
+                      <span className="truncate" title={track.title || track.rel_path}>
+                        {track.title || '—'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-zinc-500 truncate" title={track.artist || ''}>
+                      {track.artist || '—'}
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <StarRating
+                        value={track.rating}
+                        onChange={async (v) => {
+                          try {
+                            const updated = await api.updateTrack(track.id, { rating: v });
+                            setTracks((prev) =>
+                              prev.map((x) =>
+                                x.id === track.id ? { ...updated, cover_url: x.cover_url } : x,
+                              ),
+                            );
+                          } catch (e: any) {
+                            alert(t('tracks.rating_update_failed', { err: e?.message ?? String(e) }));
+                          }
+                        }}
+                      />
+                      <span className="text-[10px] text-zinc-500 tabular-nums">
+                        {formatDuration(track.duration_sec)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {tracks.length === 0 && !loading && (
+              <div className="col-span-full text-center py-12 text-zinc-500 text-sm">
+                {debouncedQ
+                  ? t('tracks.no_results', { q: debouncedQ })
+                  : t('tracks.no_tracks')}
+              </div>
+            )}
+          </div>
+        ) : (
         <table className="w-full text-sm table-fixed">
           <thead className="text-xs uppercase text-zinc-500 sticky top-0" style={{ background: '#141415' }}>
             <tr className="border-b border-black/60">
@@ -347,6 +546,7 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
             )}
           </tbody>
         </table>
+        )}
       </div>
 
       {editing && (

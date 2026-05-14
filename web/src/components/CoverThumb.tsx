@@ -22,21 +22,37 @@ function resolveSrc(src: string | null): string | null {
 
 interface Props {
   src: string | null;
-  size?: number;        // px square
+  size?: number;        // px square; ignored when `fluid` is true
   className?: string;
   alt?: string;
+  /** Fill 100% of the parent container instead of using `size`. Used by
+   *  the card-mode track grid where cell width is layout-driven. */
+  fluid?: boolean;
 }
 
-export default function CoverThumb({ src, size = 36, className = '', alt = '' }: Props) {
+export default function CoverThumb({
+  src,
+  size = 36,
+  className = '',
+  alt = '',
+  fluid = false,
+}: Props) {
   const [errored, setErrored] = useState(false);
   const resolved = resolveSrc(src);
   const showImg = resolved && !errored;
   const dim = `${size}px`;
+  const containerStyle: React.CSSProperties = fluid
+    ? { width: '100%', height: '100%' }
+    : { width: dim, height: dim };
+  const imgStyle: React.CSSProperties = fluid ? {} : { width: dim, height: dim };
+  const fallbackFontSize: string = fluid
+    ? '40%'
+    : `${Math.round(size * 0.5)}px`;
 
   return (
     <div
-      className={`shrink-0 rounded bg-zinc-800 flex items-center justify-center overflow-hidden ${className}`}
-      style={{ width: dim, height: dim }}
+      className={`${fluid ? '' : 'shrink-0 rounded'} bg-zinc-800 flex items-center justify-center overflow-hidden ${className}`}
+      style={containerStyle}
     >
       {showImg ? (
         <img
@@ -45,10 +61,10 @@ export default function CoverThumb({ src, size = 36, className = '', alt = '' }:
           loading="lazy"
           onError={() => setErrored(true)}
           className="w-full h-full object-cover"
-          style={{ width: dim, height: dim }}
+          style={imgStyle}
         />
       ) : (
-        <span className="text-zinc-600" style={{ fontSize: Math.round(size * 0.5) }}>
+        <span className="text-zinc-600" style={{ fontSize: fallbackFontSize }}>
           ♪
         </span>
       )}

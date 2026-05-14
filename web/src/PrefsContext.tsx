@@ -57,6 +57,8 @@ export interface PrefsBlob {
   global_eq?: EQState;
   /** Selected player skin id. See `Player Skin/skin-NN-*.md` and player/skins/registry.ts. */
   player_skin?: 'vinyl' | 'cream' | 'cosmic' | 'aurora' | 'abyss';
+  /** TrackList layout mode. 'list' = the dense table; 'card' = album-art grid. */
+  tracks_view?: 'list' | 'card';
   [k: string]: unknown;
 }
 
