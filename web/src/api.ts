@@ -169,6 +169,42 @@ export interface DiskInfo {
   library_bytes: number;
 }
 
+export interface RemoteDeviceEntry {
+  device_id: string;
+  name: string;
+  is_self: boolean;
+  is_host: boolean;
+  online: boolean;
+  last_seen_ms: number;
+  following: string | null;
+}
+
+export interface RemoteSnapshot {
+  schema: 1;
+  current_track: {
+    id: number;
+    title: string;
+    artist: string;
+    album: string;
+    cover_url: string | null;
+    url: string;
+  } | null;
+  duration_sec: number;
+  queue_ids: number[];
+  cursor: number;
+  current_playlist_id: number | null;
+  is_playing: boolean;
+  shuffle: boolean;
+  repeat: 'off' | 'one' | 'all';
+  position_sec: number;
+  position_at_server_ms: number;
+}
+
+export type RemoteAction =
+  | 'togglePlay' | 'next' | 'prev' | 'seek' | 'setVolume' | 'jumpTo'
+  | 'toggleShuffle' | 'cycleRepeat' | 'playList' | 'playOne' | 'enqueue'
+  | 'clearQueue';
+
 export const api = {
   status: () => getJson<Status>('/status'),
   disk: () => getJson<DiskInfo>('/status/disk'),
@@ -233,6 +269,37 @@ export const api = {
     putJson<{ ok: boolean }>(`/me/track-eq/${trackId}`, state),
   deleteTrackEq: (trackId: number) =>
     deleteReq<{ ok: boolean }>(`/me/track-eq/${trackId}`),
+
+  // ----- remote control -----
+  registerRemote: (deviceId: string, name?: string) =>
+    postJson<{ ok: boolean; device_id: string; name: string }>(
+      '/me/remote/register',
+      { device_id: deviceId, name },
+    ),
+  listRemoteDevices: (selfId: string) =>
+    getJson<{ devices: RemoteDeviceEntry[] }>(
+      `/me/remote/devices?self=${encodeURIComponent(selfId)}`,
+    ),
+  followHost: (selfId: string, hostId: string) =>
+    postJson<{ ok: boolean; snapshot: RemoteSnapshot | null }>(
+      '/me/remote/follow',
+      { device_id: selfId, host: hostId },
+    ),
+  unfollowHost: (selfId: string) =>
+    postJson<{ ok: boolean }>('/me/remote/unfollow', { device_id: selfId }),
+  sendRemoteCommand: (selfId: string, to: string, action: RemoteAction, args: unknown = null) =>
+    postJson<{ ok: boolean }>('/me/remote/command', {
+      from: selfId,
+      to,
+      action,
+      args,
+    }),
+  publishRemoteState: (deviceId: string, snapshot: RemoteSnapshot) =>
+    postJson<{ ok: boolean }>('/me/remote/state', {
+      device_id: deviceId,
+      snapshot,
+    }),
+
   getTrackByPath: (relPath: string) =>
     getJson<Track>(`/tracks/by-path?p=${encodeURIComponent(relPath)}`),
   deleteTrack: async (id: number) => {
