@@ -249,6 +249,13 @@ export default function AuroraSkin(p: SkinProps) {
             Lyrics
           </button>
           <button
+            onClick={p.onToggleRemote}
+            title={p.isRemote ? '退出遥控器' : '开启遥控器'}
+            style={{ fontSize: 12, fontWeight: 600, color: p.isRemote ? 'var(--accent-soft)' : 'var(--text-muted)', letterSpacing: '0.1em' }}
+          >
+            REMOTE
+          </button>
+          <button
             onClick={p.onCycleSpatial}
             style={{ fontSize: 12, fontWeight: 600, color: p.spatialPreset !== 'off' ? 'var(--accent-soft)' : 'var(--text-muted)', letterSpacing: '0.1em' }}
           >

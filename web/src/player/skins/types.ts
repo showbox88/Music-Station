@@ -62,6 +62,10 @@ export interface SkinProps {
   spatialPreset: 'off' | 'cinema' | 'hall' | 'club';
   /** True if the equalizer has any non-zero gain (UI may glow the EQ button). */
   eqActive: boolean;
+  /** Remote-control toggle — opens picker if off, or turns it off + restores local playback. */
+  onToggleRemote: () => void;
+  /** True when this tab is currently a remote-controller for another device. */
+  isRemote: boolean;
 
   /* ---------- lyrics ---------- */
   lyricsStatus: 'idle' | 'loading' | 'absent' | 'error' | 'present';

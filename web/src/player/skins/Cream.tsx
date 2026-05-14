@@ -214,6 +214,18 @@ export default function CreamSkin(p: SkinProps) {
             </svg>
           </button>
           <button
+            onClick={p.onToggleRemote}
+            title={p.isRemote ? '退出遥控器' : '开启遥控器'}
+            style={{
+              color: p.isRemote ? 'var(--accent)' : 'var(--text-muted)',
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: '0.1em',
+            }}
+          >
+            REMOTE
+          </button>
+          <button
             onClick={p.onCycleSpatial}
             title={`Spatial: ${p.spatialPreset}`}
             style={{

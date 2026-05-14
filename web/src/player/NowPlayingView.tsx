@@ -196,6 +196,8 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
     onCycleSpatial: () => p.spatial.cycle(),
     spatialPreset: p.spatial.preset,
     eqActive,
+    onToggleRemote: toggleRemote,
+    isRemote: remote.isRemote,
 
     lyricsStatus: lyrics.status,
     lyrics: lyrics.status === 'present' ? lyrics.parsed : null,
@@ -222,19 +224,6 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
 
   return (
     <>
-      <button
-        type="button"
-        onClick={toggleRemote}
-        className={`md:hidden fixed top-3 right-14 z-40 rounded-full px-3 py-1.5 text-xs font-medium backdrop-blur ${
-          remote.isRemote
-            ? 'bg-fuchsia-600/90 text-white'
-            : 'bg-zinc-900/60 text-zinc-200 hover:bg-zinc-800/80'
-        }`}
-        aria-label={remote.isRemote ? '退出遥控器' : '开启遥控器'}
-      >
-        {remote.isRemote ? `📱 → ${remote.hostName ?? '?'}` : '📱 遥控器'}
-      </button>
-
       {remote.isRemote && remote.hostOffline && (
         <div className="md:hidden fixed top-14 left-3 right-3 z-40 rounded-lg bg-rose-700/95 text-white text-xs px-3 py-2 flex items-center justify-between gap-2">
           <span>host 已离线</span>

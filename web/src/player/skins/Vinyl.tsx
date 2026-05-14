@@ -104,6 +104,15 @@ export default function VinylSkin(p: SkinProps) {
             )}
           </div>
           <button
+            onClick={p.onToggleRemote}
+            title={p.isRemote ? '退出遥控器' : '开启遥控器'}
+            className={`min-w-[3.25rem] h-6 px-2 rounded-md bezel flex items-center justify-center text-[10px] font-semibold tracking-wider mr-1 ${
+              p.isRemote ? 'glow-text glow-ring' : 'text-zinc-300 hover:text-white'
+            }`}
+          >
+            REMOTE
+          </button>
+          <button
             onClick={p.onCycleSpatial}
             title={`Spatial reverb: ${p.spatialPreset.toUpperCase()}`}
             className={`min-w-[3.25rem] h-6 px-2 rounded-md bezel flex items-center justify-center text-[10px] font-semibold tracking-wider mr-1 ${

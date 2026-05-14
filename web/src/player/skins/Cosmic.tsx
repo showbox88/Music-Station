@@ -262,6 +262,14 @@ export default function CosmicSkin(p: SkinProps) {
         {/* Auxiliary row — Spatial / EQ as small text labels */}
         <div className="flex items-center justify-center gap-6 pt-2 shrink-0">
           <button
+            onClick={p.onToggleRemote}
+            title={p.isRemote ? '退出遥控器' : '开启遥控器'}
+            className={p.isRemote ? 'icon-btn-active' : 'icon-btn'}
+            style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.15em' }}
+          >
+            REMOTE
+          </button>
+          <button
             onClick={p.onCycleSpatial}
             className={p.spatialPreset !== 'off' ? 'icon-btn-active' : 'icon-btn'}
             style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.15em' }}

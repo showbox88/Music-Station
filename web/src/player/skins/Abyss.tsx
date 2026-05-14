@@ -256,6 +256,14 @@ export default function AbyssSkin(p: SkinProps) {
             Lyrics
           </button>
           <button
+            onClick={p.onToggleRemote}
+            title={p.isRemote ? '退出遥控器' : '开启遥控器'}
+            className={p.isRemote ? 'icon-btn-active' : 'icon-btn-muted'}
+            style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.1em' }}
+          >
+            REMOTE
+          </button>
+          <button
             onClick={p.onCycleSpatial}
             className={p.spatialPreset !== 'off' ? 'icon-btn-active' : 'icon-btn-muted'}
             style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.1em' }}
