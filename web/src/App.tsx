@@ -15,6 +15,7 @@ import NowPlayingView from './player/NowPlayingView';
 import { AuthProvider, useAuth } from './AuthContext';
 import { PrefsProvider } from './PrefsContext';
 import { RemoteProvider } from './remote/RemoteContext';
+import RemoteBadge from './remote/RemoteBadge';
 import { useT } from './i18n/useT';
 import { api } from './api';
 
@@ -160,6 +161,7 @@ function AppContent() {
         onClose={() => setNowPlayingOpen(false)}
         onLibraryChange={refresh}
       />
+      <RemoteBadge />
     </div>
   );
 }
