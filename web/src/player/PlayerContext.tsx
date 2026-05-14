@@ -498,6 +498,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const current: Track | null =
     currentQueueIndex >= 0 ? queue[currentQueueIndex] ?? null : null;
 
+  // Remote control context — must be declared before any effect that
+  // reads remote.* in its dep array (e.g. the audio src sync below),
+  // otherwise we hit a TDZ during render.
+  const remote = useRemote();
+
   // Sync <audio> src whenever current track changes
   useEffect(() => {
     const audio = audioRef.current;
@@ -819,8 +824,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   // -----------------------------------------------------------------
   // Remote control: publish state for followers + listen for commands.
+  // (remote was declared earlier — before the audio src sync effect.)
   // -----------------------------------------------------------------
-  const remote = useRemote();
 
   // Keep a ref for position so buildSnapshot doesn't re-create on every
   // 250ms timeupdate tick (which would trip the edge-publish effect).
