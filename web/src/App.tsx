@@ -14,6 +14,7 @@ import PlayerBar from './player/PlayerBar';
 import NowPlayingView from './player/NowPlayingView';
 import { AuthProvider, useAuth } from './AuthContext';
 import { PrefsProvider } from './PrefsContext';
+import { RemoteProvider } from './remote/RemoteContext';
 import { useT } from './i18n/useT';
 import { api } from './api';
 
@@ -48,10 +49,12 @@ function AuthGate() {
   if (!user) return <Login />;
   return (
     <PrefsProvider>
-      <PlayerProvider>
-        <AppContent />
-        {!!user.must_change_password && <ChangePasswordModal forced />}
-      </PlayerProvider>
+      <RemoteProvider>
+        <PlayerProvider>
+          <AppContent />
+          {!!user.must_change_password && <ChangePasswordModal forced />}
+        </PlayerProvider>
+      </RemoteProvider>
     </PrefsProvider>
   );
 }
