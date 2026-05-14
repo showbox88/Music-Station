@@ -278,5 +278,14 @@ export function remoteRouter(_deps: { db: Database }): Router {
     });
   });
 
+  // GET /api/me/remote/devices?self=<deviceId>
+  // Returns every slot under this user, with `is_self` set for the
+  // caller's own device when query parameter `self` matches.
+  r.get('/devices', (req, res) => {
+    const userId = (req as any).user!.id as number;
+    const self = String(req.query.self ?? '') || null;
+    res.json({ devices: listDevices(userId, self) });
+  });
+
   return r;
 }
