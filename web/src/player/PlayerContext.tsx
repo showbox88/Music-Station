@@ -27,6 +27,8 @@ import {
 import type { ReactNode } from 'react';
 import type { Track } from '../types';
 import { usePrefs } from '../PrefsContext';
+import { useRemote } from '../remote/RemoteContext';
+import type { RemoteSnapshot, RemoteAction } from '../api';
 
 export type RepeatMode = 'off' | 'one' | 'all';
 
@@ -775,6 +777,82 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       });
     },
   };
+
+  // -----------------------------------------------------------------
+  // Remote control: publish state for followers + listen for commands.
+  // -----------------------------------------------------------------
+  const remote = useRemote();
+
+  const buildSnapshot = useCallback((): RemoteSnapshot => ({
+    schema: 1,
+    current_track: current
+      ? {
+          id: current.id,
+          title: current.title,
+          artist: current.artist,
+          album: current.album,
+          cover_url: current.cover_url ?? null,
+          url: current.url,
+        }
+      : null,
+    duration_sec: duration,
+    queue_ids: queue.map((t) => t.id),
+    cursor: currentQueueIndex,
+    current_playlist_id: currentPlaylistId,
+    is_playing: isPlaying,
+    shuffle,
+    repeat,
+    position_sec: position,
+    position_at_server_ms: Date.now(),
+  }), [
+    current,
+    duration,
+    queue,
+    currentQueueIndex,
+    currentPlaylistId,
+    isPlaying,
+    shuffle,
+    repeat,
+    position,
+  ]);
+
+  // Edge publish: re-publishes 50 ms after any tracked state changes.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      remote.publishState(buildSnapshot());
+    }, 50);
+    return () => window.clearTimeout(t);
+  }, [
+    current?.id,
+    isPlaying,
+    shuffle,
+    repeat,
+    queue.length,
+    currentQueueIndex,
+    currentPlaylistId,
+    duration,
+    remote,
+    buildSnapshot,
+  ]);
+
+  // Safety resend every 15 s while a track is loaded.
+  useEffect(() => {
+    if (!current) return;
+    const t = window.setInterval(() => {
+      remote.publishState(buildSnapshot());
+    }, 15_000);
+    return () => window.clearInterval(t);
+  }, [current?.id, remote, buildSnapshot]);
+
+  // Re-publish on seek edges (rounded position so it doesn't fire 4×/s).
+  useEffect(() => {
+    if (!current) return;
+    const t = window.setTimeout(() => {
+      remote.publishState(buildSnapshot());
+    }, 50);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Math.round(position)]);
 
   const value: PlayerContextValue = {
     queue,
