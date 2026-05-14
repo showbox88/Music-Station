@@ -507,11 +507,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // whose `value` only updates after a host round-trip can't follow the
   // user's finger during a drag — the thumb sticks at the snapshot's
   // current value and the user gives up. We mirror their drag locally,
-  // fire the RPC, and clear the override once a fresh host snapshot
-  // arrives (any change to snap.volume signals the round-trip closed).
+  // fire the RPC, and only clear the override once the host snapshot
+  // catches up to within one slider step. During a fast drag the
+  // optimistic stays, so the thumb tracks the finger; once the user
+  // settles, the final RPC's snapshot matches and the override clears
+  // — at which point external host-side volume changes pass through.
   const [remoteVolumeOpt, setRemoteVolumeOpt] = useState<number | null>(null);
   useEffect(() => {
-    setRemoteVolumeOpt(null);
+    const sv = remote.hostSnapshot?.volume;
+    if (typeof sv !== 'number') return;
+    setRemoteVolumeOpt((opt) => {
+      if (opt == null) return null;
+      // 0.015 covers one 0.01 slider step plus a hair of float drift.
+      return Math.abs(opt - sv) < 0.015 ? null : opt;
+    });
   }, [remote.hostSnapshot?.volume]);
 
   // Sync <audio> src whenever current track changes

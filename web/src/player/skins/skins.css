@@ -15,6 +15,38 @@
 .skin input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; }
 .skin input[type="range"]::-moz-range-thumb     { border: none; }
 
+/* Vinyl-specific thumb. Vinyl's progress & volume sliders style the
+   track inline (not via .skin-range) so they don't inherit the
+   white-dot thumb from the .skin-range block below — without an
+   explicit rule the thumb is 0×0 and touch drags can't grab anything
+   (only tap-to-jump works, which is why the mute button worked but
+   sliding the volume didn't). 16px is the minimum size that's
+   reliably draggable on a phone. */
+.skin-vinyl input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #ff2db5;
+  box-shadow:
+    0 0 6px rgba(255, 45, 181, 0.6),
+    0 1px 2px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+}
+.skin-vinyl input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 9999px;
+  background: #ff2db5;
+  box-shadow:
+    0 0 6px rgba(255, 45, 181, 0.6),
+    0 1px 2px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+
 /* ============================================================
    Skin 01 — cream (Cream / Coral Daylight)
    ============================================================ */
