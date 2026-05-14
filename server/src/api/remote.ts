@@ -108,6 +108,25 @@ interface ValidatedArgs {
   error?: string;
 }
 
+/**
+ * Pass-through validation for the optional `tracks` field carried by
+ * playList / playOne / enqueue. Each entry must at least have a numeric
+ * id; everything else is forwarded to the host without inspection
+ * (host's PlayerContext owns the shape). Same-user auth already gates
+ * who can send this, so we trust the structure.
+ */
+function sanitizeTracks(raw: unknown): Record<string, unknown>[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: Record<string, unknown>[] = [];
+  for (const t of raw) {
+    if (!t || typeof t !== 'object') continue;
+    const obj = t as Record<string, unknown>;
+    if (!Number.isInteger(obj.id)) continue;
+    out.push(obj);
+  }
+  return out.length > 0 ? out : null;
+}
+
 function validateArgs(action: RemoteAction, raw: unknown): ValidatedArgs {
   const o = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
   switch (action) {
@@ -138,17 +157,20 @@ function validateArgs(action: RemoteAction, raw: unknown): ValidatedArgs {
       if (!trackIds || trackIds.length === 0) return { args: null, error: 'bad playList.trackIds' };
       const startIndex = Number.isInteger(o.startIndex) ? o.startIndex as number : 0;
       const playlistId = Number.isInteger(o.playlistId) ? o.playlistId as number : null;
-      return { args: { trackIds, startIndex, playlistId } };
+      const tracks = sanitizeTracks(o.tracks);
+      return { args: { trackIds, startIndex, playlistId, tracks } };
     }
     case 'playOne': {
       const trackId = Number(o.trackId);
       if (!Number.isInteger(trackId)) return { args: null, error: 'bad playOne.trackId' };
-      return { args: { trackId } };
+      const tracks = sanitizeTracks(o.tracks);
+      return { args: { trackId, tracks } };
     }
     case 'enqueue': {
       const trackIds = Array.isArray(o.trackIds) ? o.trackIds.map(Number).filter(Number.isInteger) : null;
       if (!trackIds || trackIds.length === 0) return { args: null, error: 'bad enqueue.trackIds' };
-      return { args: { trackIds } };
+      const tracks = sanitizeTracks(o.tracks);
+      return { args: { trackIds, tracks } };
     }
   }
 }

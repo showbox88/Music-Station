@@ -932,18 +932,34 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const applyTrackIdsAction = useCallback(
     async (action: 'playList' | 'playOne' | 'enqueue', a: Record<string, unknown>) => {
-      const ids: number[] = action === 'playOne'
-        ? [Number(a.trackId)]
-        : (Array.isArray(a.trackIds) ? (a.trackIds as number[]) : []);
-      if (ids.length === 0) return;
-      const known = new Map<number, Track>();
-      for (const t of queue) known.set(t.id, t);
-      // No bulk-by-ids endpoint yet. We rely on the host already having
-      // the tracks in its current queue (the common case for "tap track
-      // in queue" commands). Cross-library jumps are a documented
-      // follow-up — see plan §"Known limitation".
-      const resolved = ids.map((id) => known.get(id)).filter(Boolean) as Track[];
+      // Prefer fully-hydrated tracks the phone shipped along with the
+      // RPC — this is what lets cross-library jumps work (e.g., phone
+      // is viewing All Tracks, host is sitting on a playlist queue).
+      // Without these, the host would have to look the ids up in its
+      // own queue, which silently fails when the picked track isn't in
+      // the current playlist — the exact bug where the host appeared
+      // to only "advance within the playlist" instead of switching out.
+      let resolved: Track[] = Array.isArray(a.tracks)
+        ? (a.tracks as Track[]).filter(
+            (t) => t && typeof t === 'object' && Number.isInteger(t.id),
+          )
+        : [];
+
+      if (resolved.length === 0) {
+        // Back-compat path: older phone clients only sent ids. Resolve
+        // from the host's current queue — works for in-queue jumpTo-
+        // style actions but not for cross-library picks.
+        const ids: number[] = action === 'playOne'
+          ? [Number(a.trackId)]
+          : (Array.isArray(a.trackIds) ? (a.trackIds as number[]) : []);
+        if (ids.length === 0) return;
+        const known = new Map<number, Track>();
+        for (const t of queue) known.set(t.id, t);
+        resolved = ids.map((id) => known.get(id)).filter(Boolean) as Track[];
+      }
+
       if (resolved.length === 0) return;
+
       if (action === 'playList') {
         playList(resolved, Number(a.startIndex) || 0, a.playlistId as number | undefined);
       } else if (action === 'playOne') {
@@ -1053,14 +1069,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       repeat: snap?.repeat ?? 'off',
       current: remoteTrack,
       currentPlaylistId: snap?.current_playlist_id ?? null,
+      // Ship the full Track objects alongside the id list so the host
+      // can play tracks that aren't already in its current queue (e.g.,
+      // phone picks from All Tracks while host sits on a playlist).
       playList: (tracks, startIndex, playlistId) =>
         rpc('playList', {
           trackIds: tracks.map((x) => x.id),
+          tracks,
           startIndex: startIndex ?? 0,
           playlistId,
         }),
-      playOne: (track) => rpc('playOne', { trackId: track.id }),
-      enqueue: (tracks) => rpc('enqueue', { trackIds: tracks.map((x) => x.id) }),
+      playOne: (track) => rpc('playOne', { trackId: track.id, tracks: [track] }),
+      enqueue: (tracks) =>
+        rpc('enqueue', { trackIds: tracks.map((x) => x.id), tracks }),
       togglePlay: () => rpc('togglePlay'),
       next: () => rpc('next'),
       prev: () => rpc('prev'),
