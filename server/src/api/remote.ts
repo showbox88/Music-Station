@@ -27,6 +27,17 @@ export interface Snapshot {
   position_at_server_ms: number;
   /** Host's audio volume, 0..1. Optional for back-compat with older clients. */
   volume?: number;
+  /** Audio-effect state being applied right now. Optional so older
+   *  hosts can publish snapshots without it. */
+  effects?: {
+    spatial_preset: 'off' | 'cinema' | 'hall' | 'club';
+    global_eq_enabled: boolean;
+    eq_state: {
+      gains: number[];
+      preamp: number;
+      bypass: boolean;
+    };
+  };
 }
 
 export interface TrackSummary {
@@ -52,11 +63,19 @@ const ALLOWED_ACTIONS = new Set([
   'playOne',
   'enqueue',
   'clearQueue',
+  'setSpatialPreset',
+  'setGlobalEqEnabled',
+  'setEqGains',
+  'setEqPreamp',
+  'setEqBypass',
+  'eqReset',
 ] as const);
 export type RemoteAction =
   | 'togglePlay' | 'next' | 'prev' | 'seek' | 'setVolume' | 'jumpTo'
   | 'toggleShuffle' | 'cycleRepeat' | 'playList' | 'playOne' | 'enqueue'
-  | 'clearQueue';
+  | 'clearQueue'
+  | 'setSpatialPreset' | 'setGlobalEqEnabled'
+  | 'setEqGains' | 'setEqPreamp' | 'setEqBypass' | 'eqReset';
 
 interface DeviceSlot {
   device_id: DeviceId;
@@ -172,6 +191,48 @@ function validateArgs(action: RemoteAction, raw: unknown): ValidatedArgs {
       const tracks = sanitizeTracks(o.tracks);
       return { args: { trackIds, tracks } };
     }
+    case 'setSpatialPreset': {
+      const preset = String(o.preset ?? '');
+      if (!['off', 'cinema', 'hall', 'club'].includes(preset)) {
+        return { args: null, error: 'bad setSpatialPreset.preset' };
+      }
+      return { args: { preset } };
+    }
+    case 'setGlobalEqEnabled': {
+      if (typeof o.enabled !== 'boolean') {
+        return { args: null, error: 'bad setGlobalEqEnabled.enabled' };
+      }
+      return { args: { enabled: o.enabled } };
+    }
+    case 'setEqGains': {
+      const gains = Array.isArray(o.gains)
+        ? o.gains.map(Number).filter((n) => Number.isFinite(n))
+        : null;
+      if (!gains || gains.length !== 10) {
+        return { args: null, error: 'bad setEqGains.gains (need 10 finite numbers)' };
+      }
+      // Host clamps to [-12, 12] internally; we just guard against
+      // absurd values that would suggest a bug.
+      if (gains.some((g) => Math.abs(g) > 60)) {
+        return { args: null, error: 'setEqGains.gains out of sane range' };
+      }
+      return { args: { gains } };
+    }
+    case 'setEqPreamp': {
+      const preamp = Number(o.preamp);
+      if (!Number.isFinite(preamp) || Math.abs(preamp) > 60) {
+        return { args: null, error: 'bad setEqPreamp.preamp' };
+      }
+      return { args: { preamp } };
+    }
+    case 'setEqBypass': {
+      if (typeof o.bypass !== 'boolean') {
+        return { args: null, error: 'bad setEqBypass.bypass' };
+      }
+      return { args: { bypass: o.bypass } };
+    }
+    case 'eqReset':
+      return { args: null };
   }
 }
 

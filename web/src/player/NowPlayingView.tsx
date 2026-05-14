@@ -191,7 +191,8 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
     onToggleFavorite: toggleFavorite,
 
     onClose,
-    onOpenEq: remote.isRemote ? () => {} : () => setEqOpen(true),
+    // EQ panel works in remote mode now — controllers RPC to host.
+    onOpenEq: () => setEqOpen(true),
     onOpenAddToPlaylist: setAddingTo,
     onCycleSpatial: () => p.spatial.cycle(),
     spatialPreset: p.spatial.preset,
@@ -258,9 +259,7 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
         />
       )}
 
-      {!remote.isRemote && (
-        <EQPanel open={eqOpen} onClose={() => setEqOpen(false)} />
-      )}
+      <EQPanel open={eqOpen} onClose={() => setEqOpen(false)} />
 
       {lyricsFull && lyrics.status === 'present' && (
         <FullscreenLyrics

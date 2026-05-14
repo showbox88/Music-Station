@@ -874,6 +874,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     position_sec: positionRef.current,
     position_at_server_ms: Date.now(),
     volume,
+    effects: {
+      spatial_preset: spatialPreset,
+      global_eq_enabled: globalEqEnabled,
+      eq_state: {
+        gains: eqGains,
+        preamp: eqPreamp,
+        bypass: eqBypass,
+      },
+    },
   }), [
     current,
     duration,
@@ -884,6 +893,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     shuffle,
     repeat,
     volume,
+    spatialPreset,
+    globalEqEnabled,
+    eqGains,
+    eqPreamp,
+    eqBypass,
   ]);
 
   // Edge publish: re-publishes 50 ms after any tracked state changes.
@@ -1001,12 +1015,41 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       case 'enqueue':
         applyTrackIdsAction(action, a);
         break;
+      case 'setSpatialPreset':
+        if (typeof a.preset === 'string' && SPATIAL_PRESETS.includes(a.preset as SpatialPreset)) {
+          setSpatialPreset(a.preset as SpatialPreset);
+        }
+        break;
+      case 'setGlobalEqEnabled':
+        if (typeof a.enabled === 'boolean') {
+          setPref('global_eq_enabled', a.enabled);
+        }
+        break;
+      case 'setEqGains':
+        if (Array.isArray(a.gains) && a.gains.length === EQ_FREQUENCIES.length) {
+          eqController.setGains(a.gains as number[]);
+        }
+        break;
+      case 'setEqPreamp':
+        if (typeof a.preamp === 'number') {
+          eqController.setPreamp(a.preamp);
+        }
+        break;
+      case 'setEqBypass':
+        if (typeof a.bypass === 'boolean') {
+          eqController.setBypass(a.bypass);
+        }
+        break;
+      case 'eqReset':
+        eqController.reset();
+        break;
     }
   }, [
     remote.lastCommand,
     remote.isRemote,
     togglePlay, next, prev, seek, setVolume, jumpTo,
     toggleShuffle, cycleRepeat, clearQueue, applyTrackIdsAction,
+    setSpatialPreset, setPref, eqController,
   ]);
 
   // Ticker to make the proxy progress bar live-update.
@@ -1098,18 +1141,51 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       clearQueue: () => rpc('clearQueue'),
       restoreLocalPlayback,
       getAnalyser: () => null,
-      eq: eqController,
+      // Effects: read from the host's published snapshot when present,
+      // fall back to phone's local prefs (same per-user values) so the
+      // UI still has something to render before the first effects-
+      // carrying snapshot arrives. Setters all RPC to the host — the
+      // host owns the audio graph and the source-of-truth save.
+      eq: {
+        frequencies: EQ_FREQUENCIES,
+        gains: snap?.effects?.eq_state.gains ?? eqGains,
+        preamp: snap?.effects?.eq_state.preamp ?? eqPreamp,
+        bypass: snap?.effects?.eq_state.bypass ?? eqBypass,
+        setGain: (i, db) => {
+          const current = snap?.effects?.eq_state.gains ?? eqGains;
+          const nextGains = current.map((g, j) => (j === i ? db : g));
+          rpc('setEqGains', { gains: nextGains });
+        },
+        setGains: (db) => {
+          rpc('setEqGains', { gains: db });
+        },
+        setPreamp: (db) => {
+          rpc('setEqPreamp', { preamp: db });
+        },
+        setBypass: (b) => {
+          rpc('setEqBypass', { bypass: b });
+        },
+        reset: () => {
+          rpc('eqReset');
+        },
+      },
       spatial: {
-        preset: spatialPreset,
-        setPreset: setSpatialPreset,
+        preset: snap?.effects?.spatial_preset ?? spatialPreset,
+        setPreset: (p) => {
+          rpc('setSpatialPreset', { preset: p });
+        },
         cycle: () => {
-          const i = SPATIAL_PRESETS.indexOf(spatialPreset);
-          setSpatialPreset(SPATIAL_PRESETS[(i + 1) % SPATIAL_PRESETS.length]);
+          const current = snap?.effects?.spatial_preset ?? spatialPreset;
+          const i = SPATIAL_PRESETS.indexOf(current);
+          const next = SPATIAL_PRESETS[(i + 1) % SPATIAL_PRESETS.length];
+          rpc('setSpatialPreset', { preset: next });
         },
       },
       globalEq: {
-        enabled: globalEqEnabled,
-        setEnabled: (b: boolean) => setPref('global_eq_enabled', b),
+        enabled: snap?.effects?.global_eq_enabled ?? globalEqEnabled,
+        setEnabled: (b: boolean) => {
+          rpc('setGlobalEqEnabled', { enabled: b });
+        },
       },
     };
   }

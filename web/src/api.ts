@@ -200,12 +200,25 @@ export interface RemoteSnapshot {
   position_at_server_ms: number;
   /** Host's audio volume, 0..1. Optional — older hosts may omit. */
   volume?: number;
+  /** Audio-effect state being applied right now. Optional — older hosts
+   *  don't publish this field. */
+  effects?: {
+    spatial_preset: 'off' | 'cinema' | 'hall' | 'club';
+    global_eq_enabled: boolean;
+    eq_state: {
+      gains: number[];
+      preamp: number;
+      bypass: boolean;
+    };
+  };
 }
 
 export type RemoteAction =
   | 'togglePlay' | 'next' | 'prev' | 'seek' | 'setVolume' | 'jumpTo'
   | 'toggleShuffle' | 'cycleRepeat' | 'playList' | 'playOne' | 'enqueue'
-  | 'clearQueue';
+  | 'clearQueue'
+  | 'setSpatialPreset' | 'setGlobalEqEnabled'
+  | 'setEqGains' | 'setEqPreamp' | 'setEqBypass' | 'eqReset';
 
 export const api = {
   status: () => getJson<Status>('/status'),
