@@ -69,13 +69,15 @@ const ALLOWED_ACTIONS = new Set([
   'setEqPreamp',
   'setEqBypass',
   'eqReset',
+  'setVizStyle',
 ] as const);
 export type RemoteAction =
   | 'togglePlay' | 'next' | 'prev' | 'seek' | 'setVolume' | 'jumpTo'
   | 'toggleShuffle' | 'cycleRepeat' | 'playList' | 'playOne' | 'enqueue'
   | 'clearQueue'
   | 'setSpatialPreset' | 'setGlobalEqEnabled'
-  | 'setEqGains' | 'setEqPreamp' | 'setEqBypass' | 'eqReset';
+  | 'setEqGains' | 'setEqPreamp' | 'setEqBypass' | 'eqReset'
+  | 'setVizStyle';
 
 interface DeviceSlot {
   device_id: DeviceId;
@@ -233,6 +235,13 @@ function validateArgs(action: RemoteAction, raw: unknown): ValidatedArgs {
     }
     case 'eqReset':
       return { args: null };
+    case 'setVizStyle': {
+      const style = String(o.style ?? '').trim();
+      if (!style || style.length > 64) {
+        return { args: null, error: 'bad setVizStyle.style' };
+      }
+      return { args: { style } };
+    }
   }
 }
 

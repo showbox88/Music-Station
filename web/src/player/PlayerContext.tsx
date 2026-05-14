@@ -1125,6 +1125,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       case 'eqReset':
         eqController.reset();
         break;
+      case 'setVizStyle':
+        if (typeof a.style === 'string' && a.style.length > 0) {
+          setPref('viz_style', a.style);
+        }
+        break;
     }
   }, [
     remote.lastCommand,

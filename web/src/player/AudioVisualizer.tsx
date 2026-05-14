@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { usePlayer } from './PlayerContext';
 import { usePrefs } from '../PrefsContext';
+import { useRemote } from '../remote/RemoteContext';
 import {
   STYLES,
   STYLE_LABEL,
@@ -30,6 +31,7 @@ interface Props {
 export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
   const { getAnalyser, isPlaying } = usePlayer();
   const { prefs, setPref } = usePrefs();
+  const remote = useRemote();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // In remote mode `getAnalyser` is a fresh closure every render (it
@@ -70,7 +72,18 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
 
   const cycleStyle = () => {
     const i = cycle.indexOf(styleId);
-    setPref('viz_style', cycle[(i + 1) % cycle.length]);
+    const next = cycle[(i + 1) % cycle.length];
+    // Phone-local switch first — visualizer updates instantly.
+    setPref('viz_style', next);
+    // When we're remoting a host, push the same change there so its
+    // on-screen visualizer matches. Without this RPC the host stays on
+    // its old style forever (prefs only sync at page-load, not over
+    // SSE).
+    if (remote.isRemote) {
+      remote.sendCommand('setVizStyle', { style: next }).catch(() => {
+        /* fire-and-forget; phone still got its local update */
+      });
+    }
   };
 
   useEffect(() => {

@@ -218,7 +218,8 @@ export type RemoteAction =
   | 'toggleShuffle' | 'cycleRepeat' | 'playList' | 'playOne' | 'enqueue'
   | 'clearQueue'
   | 'setSpatialPreset' | 'setGlobalEqEnabled'
-  | 'setEqGains' | 'setEqPreamp' | 'setEqBypass' | 'eqReset';
+  | 'setEqGains' | 'setEqPreamp' | 'setEqBypass' | 'eqReset'
+  | 'setVizStyle';
 
 export const api = {
   status: () => getJson<Status>('/status'),
