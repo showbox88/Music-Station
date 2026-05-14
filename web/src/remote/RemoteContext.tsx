@@ -47,11 +47,16 @@ interface RemoteContextValue {
   lastCommand: { seq: number; payload: CommandIncoming } | null;
   followerCount: number;
   hostOffline: boolean;
+  /** Most recent FFT frame the host pushed (null until first 'viz'
+   *  event arrives). Followers use this to drive the AudioVisualizer
+   *  on phones that aren't playing any audio locally. */
+  lastVizFrame: Uint8Array | null;
 
   enable(hostId: string, restoreSnapshot: RestoreSnapshot | null): Promise<void>;
   disable(): Promise<RestoreSnapshot | null>;
   sendCommand(action: RemoteAction, args?: unknown): Promise<void>;
   publishState(snapshot: RemoteSnapshot): Promise<void>;
+  publishVizFrame(data: Uint8Array): Promise<void>;
   refreshDevices(): Promise<void>;
 }
 
@@ -76,6 +81,7 @@ export function RemoteProvider({ children }: { children: ReactNode }) {
   const [hostSnapshot, setHostSnapshot] = useState<RemoteSnapshot | null>(null);
   const [lastCommand, setLastCommand] = useState<RemoteContextValue['lastCommand']>(null);
   const [hostOffline, setHostOffline] = useState(false);
+  const [lastVizFrame, setLastVizFrame] = useState<Uint8Array | null>(null);
   const sseRef = useRef<RemoteSseHandle | null>(null);
   const cmdSeqRef = useRef(0);
 
@@ -109,6 +115,11 @@ export function RemoteProvider({ children }: { children: ReactNode }) {
               break;
             case 'host-offline':
               setHostOffline(true);
+              break;
+            case 'viz':
+              // Copy into a fresh typed array — JSON gives us a plain
+              // number[], the visualizer wants Uint8Array.
+              setLastVizFrame(new Uint8Array(ev.data.data));
               break;
             case 'welcome':
               break;
@@ -199,6 +210,18 @@ export function RemoteProvider({ children }: { children: ReactNode }) {
     [deviceId],
   );
 
+  const publishVizFrame = useCallback(
+    async (data: Uint8Array) => {
+      try {
+        // Server expects plain JSON array of bytes.
+        await api.publishRemoteViz(deviceId, Array.from(data));
+      } catch {
+        /* fire-and-forget; next 100ms tick will retry */
+      }
+    },
+    [deviceId],
+  );
+
   const refreshDevices = useCallback(async () => {
     try {
       const r = await api.listRemoteDevices(deviceId);
@@ -218,10 +241,12 @@ export function RemoteProvider({ children }: { children: ReactNode }) {
     lastCommand,
     followerCount,
     hostOffline,
+    lastVizFrame,
     enable,
     disable,
     sendCommand,
     publishState,
+    publishVizFrame,
     refreshDevices,
   };
 

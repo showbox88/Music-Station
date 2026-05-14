@@ -314,6 +314,11 @@ export const api = {
       device_id: deviceId,
       snapshot,
     }),
+  publishRemoteViz: (deviceId: string, data: number[]) =>
+    postJson<{ ok: boolean }>('/me/remote/viz', {
+      device_id: deviceId,
+      data,
+    }),
 
   getTrackByPath: (relPath: string) =>
     getJson<Track>(`/tracks/by-path?p=${encodeURIComponent(relPath)}`),

@@ -32,6 +32,17 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
   const { prefs, setPref } = usePrefs();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // In remote mode `getAnalyser` is a fresh closure every render (it
+  // captures the latest viz frame from RemoteContext). If we depended
+  // on its identity directly, the RAF effect below would restart every
+  // PlayerContext render, wiping the height / peak buffers and making
+  // the visualizer look frozen / flickery. Stash it in a ref so the
+  // draw loop always reads the latest function without re-entering.
+  const getAnalyserRef = useRef(getAnalyser);
+  useEffect(() => {
+    getAnalyserRef.current = getAnalyser;
+  }, [getAnalyser]);
+
   // Cycle list = enabled built-ins (in STYLES order) + custom ids.
   // If the user disables every built-in and has no customs, we fall back
   // to the full STYLES list so something still renders.
@@ -117,7 +128,7 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
 
     function sample(): Float32Array {
       const out = new Float32Array(bars);
-      const analyser = getAnalyser();
+      const analyser = getAnalyserRef.current();
       if (!analyser || !isPlaying) return out;
       if (!buffer || buffer.length !== analyser.frequencyBinCount) {
         buffer = new Uint8Array(analyser.frequencyBinCount);
@@ -151,7 +162,7 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
     }
 
     function sampleAndTweenRibbon() {
-      const analyser = getAnalyser();
+      const analyser = getAnalyserRef.current();
       if (!analyser || !isPlaying) {
         for (let l = 0; l < RIBBON_LAYERS; l++) {
           for (let i = 0; i < bars; i++) {
@@ -221,7 +232,10 @@ export default function AudioVisualizer({ bars = 56, height = 200 }: Props) {
     }
     draw();
     return () => cancelAnimationFrame(raf);
-  }, [bars, styleId, isBuiltin, customDef, getAnalyser, isPlaying]);
+    // getAnalyser intentionally not in deps — read via ref so we don't
+    // tear down the draw loop on every PlayerContext render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bars, styleId, isBuiltin, customDef, isPlaying]);
 
   return (
     <div className="relative" style={{ height: `${height}px` }}>

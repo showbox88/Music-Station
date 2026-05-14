@@ -503,16 +503,22 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // otherwise we hit a TDZ during render.
   const remote = useRemote();
 
-  // Optimistic volume while in remote mode. A controlled <input type=range>
-  // whose `value` only updates after a host round-trip can't follow the
-  // user's finger during a drag — the thumb sticks at the snapshot's
-  // current value and the user gives up. We mirror their drag locally,
+  // Optimistic volume + effects state while in remote mode. A controlled
+  // <input type=range> whose `value` only updates after a host round-trip
+  // can't follow the user's finger during a drag — the thumb sticks at
+  // the snapshot's current value and the user gives up. So for every
+  // remote-control surface (volume, spatial preset, EQ bands, EQ preamp,
+  // EQ bypass, global-EQ toggle) we mirror the user's input locally,
   // fire the RPC, and only clear the override once the host snapshot
-  // catches up to within one slider step. During a fast drag the
-  // optimistic stays, so the thumb tracks the finger; once the user
-  // settles, the final RPC's snapshot matches and the override clears
-  // — at which point external host-side volume changes pass through.
+  // catches up. This is what makes EQ sliders actually draggable on the
+  // phone instead of snapping back to a stale value.
   const [remoteVolumeOpt, setRemoteVolumeOpt] = useState<number | null>(null);
+  const [optSpatial, setOptSpatial] = useState<SpatialPreset | null>(null);
+  const [optGlobalEqEnabled, setOptGlobalEqEnabled] = useState<boolean | null>(null);
+  const [optEqGains, setOptEqGains] = useState<number[] | null>(null);
+  const [optEqPreamp, setOptEqPreamp] = useState<number | null>(null);
+  const [optEqBypass, setOptEqBypass] = useState<boolean | null>(null);
+
   useEffect(() => {
     const sv = remote.hostSnapshot?.volume;
     if (typeof sv !== 'number') return;
@@ -522,6 +528,44 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return Math.abs(opt - sv) < 0.015 ? null : opt;
     });
   }, [remote.hostSnapshot?.volume]);
+
+  useEffect(() => {
+    const v = remote.hostSnapshot?.effects?.spatial_preset;
+    if (v == null) return;
+    setOptSpatial((opt) => (opt != null && opt === v ? null : opt));
+  }, [remote.hostSnapshot?.effects?.spatial_preset]);
+
+  useEffect(() => {
+    const v = remote.hostSnapshot?.effects?.global_eq_enabled;
+    if (v == null) return;
+    setOptGlobalEqEnabled((opt) => (opt != null && opt === v ? null : opt));
+  }, [remote.hostSnapshot?.effects?.global_eq_enabled]);
+
+  useEffect(() => {
+    const sg = remote.hostSnapshot?.effects?.eq_state?.gains;
+    if (!sg) return;
+    setOptEqGains((opt) => {
+      if (!opt) return null;
+      if (opt.length !== sg.length) return opt;
+      const match = opt.every((g, i) => Math.abs(g - sg[i]) < 0.05);
+      return match ? null : opt;
+    });
+  }, [remote.hostSnapshot?.effects?.eq_state?.gains]);
+
+  useEffect(() => {
+    const sp = remote.hostSnapshot?.effects?.eq_state?.preamp;
+    if (typeof sp !== 'number') return;
+    setOptEqPreamp((opt) => {
+      if (opt == null) return null;
+      return Math.abs(opt - sp) < 0.05 ? null : opt;
+    });
+  }, [remote.hostSnapshot?.effects?.eq_state?.preamp]);
+
+  useEffect(() => {
+    const sb = remote.hostSnapshot?.effects?.eq_state?.bypass;
+    if (typeof sb !== 'boolean') return;
+    setOptEqBypass((opt) => (opt != null && opt === sb ? null : opt));
+  }, [remote.hostSnapshot?.effects?.eq_state?.bypass]);
 
   // Sync <audio> src whenever current track changes
   useEffect(() => {
@@ -929,6 +973,28 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(t);
   }, [remote, buildSnapshot]);
 
+  // Host-side viz stream. When a phone is following and the analyser is
+  // up, sample frequency data at 10 Hz and push it to followers. Stops
+  // automatically when no one is following so we're not burning network
+  // for nothing. The visualizer on the phone uses these frames to render
+  // a bar / ribbon that tracks the host's actual audio.
+  useEffect(() => {
+    if (remote.isRemote) return;
+    if (remote.followerCount === 0) return;
+    let buf: Uint8Array | null = null;
+    const tick = () => {
+      const analyser = analyserRef.current;
+      if (!analyser) return;
+      if (!buf || buf.length !== analyser.frequencyBinCount) {
+        buf = new Uint8Array(analyser.frequencyBinCount);
+      }
+      analyser.getByteFrequencyData(buf);
+      remote.publishVizFrame(buf);
+    };
+    const id = window.setInterval(tick, 100);
+    return () => window.clearInterval(id);
+  }, [remote.isRemote, remote.followerCount, remote]);
+
   // Force-publish on effect state changes. The edge-publish 50ms debounce
   // gets cancelled-and-rescheduled by every render — when the host
   // re-renders rapidly (e.g., a phone is hammering RPCs during an EQ
@@ -1156,50 +1222,89 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       cycleRepeat: () => rpc('cycleRepeat'),
       clearQueue: () => rpc('clearQueue'),
       restoreLocalPlayback,
-      getAnalyser: () => null,
-      // Effects: read from the host's published snapshot when present,
-      // fall back to phone's local prefs (same per-user values) so the
-      // UI still has something to render before the first effects-
-      // carrying snapshot arrives. Setters all RPC to the host — the
-      // host owns the audio graph and the source-of-truth save.
+      // Fake AnalyserNode backed by viz frames the host pushes over SSE.
+      // AudioVisualizer only uses .frequencyBinCount + getByteFrequencyData,
+      // so we don't need to implement the full AnalyserNode surface.
+      getAnalyser: () => {
+        const frame = remote.lastVizFrame;
+        if (!frame) return null;
+        return {
+          frequencyBinCount: frame.length,
+          getByteFrequencyData: (target: Uint8Array) => {
+            const src = remote.lastVizFrame;
+            if (!src) {
+              target.fill(0);
+              return;
+            }
+            const n = Math.min(target.length, src.length);
+            for (let i = 0; i < n; i++) target[i] = src[i];
+            for (let i = n; i < target.length; i++) target[i] = 0;
+          },
+          // The visualizer never calls these, but TypeScript needs the
+          // AnalyserNode shape; stub them so the cast doesn't blow up at
+          // runtime if some path probes for them.
+          getByteTimeDomainData: () => {},
+          getFloatFrequencyData: () => {},
+          getFloatTimeDomainData: () => {},
+        } as unknown as AnalyserNode;
+      },
+      // Effects: optimistic local override wins (lets sliders track the
+      // finger during a drag), then host snapshot, then phone's local
+      // prefs as last resort. Setters set the override AND fire the RPC
+      // in the same frame; the override clears once the host's snapshot
+      // catches up to the user's value.
       eq: {
         frequencies: EQ_FREQUENCIES,
-        gains: snap?.effects?.eq_state?.gains ?? eqGains,
-        preamp: snap?.effects?.eq_state?.preamp ?? eqPreamp,
-        bypass: snap?.effects?.eq_state?.bypass ?? eqBypass,
+        gains: optEqGains ?? snap?.effects?.eq_state?.gains ?? eqGains,
+        preamp: optEqPreamp ?? snap?.effects?.eq_state?.preamp ?? eqPreamp,
+        bypass: optEqBypass ?? snap?.effects?.eq_state?.bypass ?? eqBypass,
         setGain: (i, db) => {
-          const current = snap?.effects?.eq_state?.gains ?? eqGains;
+          const current =
+            optEqGains ?? snap?.effects?.eq_state?.gains ?? eqGains;
           const nextGains = current.map((g, j) => (j === i ? db : g));
+          setOptEqGains(nextGains);
           rpc('setEqGains', { gains: nextGains });
         },
         setGains: (db) => {
+          setOptEqGains(db);
           rpc('setEqGains', { gains: db });
         },
         setPreamp: (db) => {
+          setOptEqPreamp(db);
           rpc('setEqPreamp', { preamp: db });
         },
         setBypass: (b) => {
+          setOptEqBypass(b);
           rpc('setEqBypass', { bypass: b });
         },
         reset: () => {
+          setOptEqGains(new Array(EQ_FREQUENCIES.length).fill(0));
+          setOptEqPreamp(0);
           rpc('eqReset');
         },
       },
       spatial: {
-        preset: snap?.effects?.spatial_preset ?? spatialPreset,
+        preset: optSpatial ?? snap?.effects?.spatial_preset ?? spatialPreset,
         setPreset: (p) => {
+          setOptSpatial(p);
           rpc('setSpatialPreset', { preset: p });
         },
         cycle: () => {
-          const current = snap?.effects?.spatial_preset ?? spatialPreset;
-          const i = SPATIAL_PRESETS.indexOf(current);
+          const cur =
+            optSpatial ?? snap?.effects?.spatial_preset ?? spatialPreset;
+          const i = SPATIAL_PRESETS.indexOf(cur);
           const next = SPATIAL_PRESETS[(i + 1) % SPATIAL_PRESETS.length];
+          setOptSpatial(next);
           rpc('setSpatialPreset', { preset: next });
         },
       },
       globalEq: {
-        enabled: snap?.effects?.global_eq_enabled ?? globalEqEnabled,
+        enabled:
+          optGlobalEqEnabled ??
+          snap?.effects?.global_eq_enabled ??
+          globalEqEnabled,
         setEnabled: (b: boolean) => {
+          setOptGlobalEqEnabled(b);
           rpc('setGlobalEqEnabled', { enabled: b });
         },
       },

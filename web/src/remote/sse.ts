@@ -10,7 +10,8 @@ export type RemoteSseEvent =
   | { type: 'presence'; data: { devices: RemoteDeviceEntry[] } }
   | { type: 'state'; data: RemoteSnapshot }
   | { type: 'command'; data: { from: string | null; action: RemoteAction; args: unknown } }
-  | { type: 'host-offline'; data: { host: string } };
+  | { type: 'host-offline'; data: { host: string } }
+  | { type: 'viz'; data: { data: number[] } };
 
 export interface RemoteSseHandle {
   close(): void;
@@ -40,6 +41,7 @@ export function openRemoteStream(
   es.addEventListener('state', wrap('state'));
   es.addEventListener('command', wrap('command'));
   es.addEventListener('host-offline', wrap('host-offline'));
+  es.addEventListener('viz', wrap('viz'));
 
   if (onOpen) es.addEventListener('open', onOpen);
   if (onError) es.addEventListener('error', onError);

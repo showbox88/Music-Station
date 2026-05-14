@@ -458,6 +458,42 @@ export function remoteRouter(_deps: { db: Database }): Router {
     res.json({ ok: true });
   });
 
+  // POST /api/me/remote/viz
+  // Body: { device_id, data: number[0..255][] }
+  // Forwards live FFT frequency data to followers as a 'viz' SSE event
+  // so they can render an audio visualizer that matches the host's
+  // actual audio. No storage — discarded after fan-out. Rate-limited
+  // implicitly by the host's own publish cadence (10 Hz currently).
+  r.post('/viz', (req, res) => {
+    const userId = (req as any).user!.id as number;
+    const deviceId = String(req.body?.device_id ?? '').trim();
+    const data = req.body?.data;
+    if (!deviceId || !Array.isArray(data)) {
+      res.status(400).json({ error: 'device_id and data array required' });
+      return;
+    }
+    if (data.length > 512) {
+      res.status(400).json({ error: 'data too long' });
+      return;
+    }
+    const bytes: number[] = [];
+    for (const n of data) {
+      const v = Number(n);
+      if (Number.isFinite(v)) bytes.push(Math.max(0, Math.min(255, Math.round(v))));
+    }
+    const m = registry.get(userId);
+    if (!m) {
+      res.status(404).json({ error: 'unknown device' });
+      return;
+    }
+    for (const slot of m.values()) {
+      if (slot.following === deviceId && slot.sse) {
+        sseSend(slot.sse, 'viz', { data: bytes });
+      }
+    }
+    res.json({ ok: true });
+  });
+
   // POST /api/me/remote/state
   // Body: { device_id, snapshot }
   r.post('/state', (req, res) => {
