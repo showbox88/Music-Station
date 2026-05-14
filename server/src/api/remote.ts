@@ -419,6 +419,7 @@ export function remoteRouter(_deps: { db: Database }): Router {
       return;
     }
     me.following = hostId;
+    broadcastPresence(userId);
     res.json({ ok: true, snapshot: host.last_state });
   });
 
@@ -434,6 +435,7 @@ export function remoteRouter(_deps: { db: Database }): Router {
     const m = registry.get(userId);
     const me = m?.get(selfId);
     if (me) me.following = null;
+    broadcastPresence(userId);
     res.json({ ok: true });
   });
 

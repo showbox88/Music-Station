@@ -12,6 +12,7 @@ import AddToPlaylistMenu from '../components/AddToPlaylistMenu';
 import QueuePanel from './QueuePanel';
 import { RepeatIcon, RepeatOneIcon, ShuffleIcon } from '../components/Icons';
 import { api } from '../api';
+import { useRemote } from '../remote/RemoteContext';
 
 interface Props {
   onExpand?: () => void;
@@ -57,6 +58,7 @@ function fmt(sec: number): string {
 
 export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
   const p = usePlayer();
+  const remote = useRemote();
   // Optimistic favorite state — the queue's track object is shared and
   // doesn't update on its own; mirror locally for instant feedback and
   // reset whenever the playing track changes.
@@ -96,6 +98,8 @@ export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
   }
 
   function openQueue(e: React.MouseEvent<HTMLButtonElement>) {
+    // Hidden in remote mode — queue stubs only have ids, not titles. Follow-up: fetch metadata by id.
+    if (remote.isRemote) return;
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setQueueAnchor((prev) => (prev ? null : { x: r.left, y: r.top - 8 }));
   }
@@ -376,8 +380,9 @@ export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
       )}
 
       {/* Queue panel — shows all tracks in the current queue and lets the
-          user jump to any track by clicking its row. */}
-      {queueAnchor && (
+          user jump to any track by clicking its row.
+          Hidden in remote mode — queue stubs only have ids, not titles. Follow-up: fetch metadata by id. */}
+      {!remote.isRemote && queueAnchor && (
         <QueuePanel
           anchor={queueAnchor}
           onClose={() => setQueueAnchor(null)}

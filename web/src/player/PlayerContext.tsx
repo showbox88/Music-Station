@@ -822,6 +822,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // -----------------------------------------------------------------
   const remote = useRemote();
 
+  // Keep a ref for position so buildSnapshot doesn't re-create on every
+  // 250ms timeupdate tick (which would trip the edge-publish effect).
+  const positionRef = useRef(position);
+  useEffect(() => { positionRef.current = position; }, [position]);
+
   const buildSnapshot = useCallback((): RemoteSnapshot => ({
     schema: 1,
     current_track: current
@@ -841,7 +846,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     is_playing: isPlaying,
     shuffle,
     repeat,
-    position_sec: position,
+    position_sec: positionRef.current,
     position_at_server_ms: Date.now(),
   }), [
     current,
@@ -852,7 +857,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     isPlaying,
     shuffle,
     repeat,
-    position,
   ]);
 
   // Edge publish: re-publishes 50 ms after any tracked state changes.
