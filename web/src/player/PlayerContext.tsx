@@ -919,14 +919,30 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     buildSnapshot,
   ]);
 
-  // Safety resend every 15 s while a track is loaded.
+  // Safety resend every 15 s. Runs even when no track is loaded so
+  // effects state (DOLBY / EQ) keeps propagating to followers while
+  // the host sits idle between tracks.
   useEffect(() => {
-    if (!current) return;
     const t = window.setInterval(() => {
       remote.publishState(buildSnapshot());
     }, 15_000);
     return () => window.clearInterval(t);
-  }, [current?.id, remote, buildSnapshot]);
+  }, [remote, buildSnapshot]);
+
+  // Force-publish on effect state changes. The edge-publish 50ms debounce
+  // gets cancelled-and-rescheduled by every render — when the host
+  // re-renders rapidly (e.g., a phone is hammering RPCs during an EQ
+  // drag), the debounced publish can be starved. Effects are discrete
+  // events, so we just publish immediately here. Followers see the
+  // change without round-trip lag.
+  useEffect(() => {
+    if (remote.isRemote) return; // followers shouldn't broadcast their own state as if they were the host
+    remote.publishState(buildSnapshot());
+    // We intentionally trigger on the raw effect state, not on
+    // buildSnapshot's identity, so this fires even if buildSnapshot's
+    // memoization didn't update for some reason.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spatialPreset, globalEqEnabled, eqGains, eqPreamp, eqBypass]);
 
   // Re-publish on seek edges (rounded position so it doesn't fire 4×/s).
   useEffect(() => {
@@ -1148,11 +1164,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       // host owns the audio graph and the source-of-truth save.
       eq: {
         frequencies: EQ_FREQUENCIES,
-        gains: snap?.effects?.eq_state.gains ?? eqGains,
-        preamp: snap?.effects?.eq_state.preamp ?? eqPreamp,
-        bypass: snap?.effects?.eq_state.bypass ?? eqBypass,
+        gains: snap?.effects?.eq_state?.gains ?? eqGains,
+        preamp: snap?.effects?.eq_state?.preamp ?? eqPreamp,
+        bypass: snap?.effects?.eq_state?.bypass ?? eqBypass,
         setGain: (i, db) => {
-          const current = snap?.effects?.eq_state.gains ?? eqGains;
+          const current = snap?.effects?.eq_state?.gains ?? eqGains;
           const nextGains = current.map((g, j) => (j === i ? db : g));
           rpc('setEqGains', { gains: nextGains });
         },
