@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Music Station">
+  <defs>
+    <radialGradient id="ms-disc" cx="40%" cy="35%">
+      <stop offset="0%"   stop-color="#2a2a30"/>
+      <stop offset="55%"  stop-color="#0d0d10"/>
+      <stop offset="100%" stop-color="#050507"/>
+    </radialGradient>
+    <radialGradient id="ms-label" cx="50%" cy="45%">
+      <stop offset="0%"   stop-color="#ff8ad6"/>
+      <stop offset="65%"  stop-color="#ff2db5"/>
+      <stop offset="100%" stop-color="#9d1370"/>
+    </radialGradient>
+    <radialGradient id="ms-halo" cx="50%" cy="50%">
+      <stop offset="60%"  stop-color="#ff2db5" stop-opacity="0"/>
+      <stop offset="92%"  stop-color="#ff2db5" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ff2db5" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- magenta glow halo so the icon reads at 16px against any background -->
+  <circle cx="32" cy="32" r="32" fill="url(#ms-halo)"/>
+
+  <!-- vinyl disc -->
+  <circle cx="32" cy="32" r="29" fill="url(#ms-disc)"/>
+
+  <!-- grooves (very faint; disappear at small sizes but add texture at 32+) -->
+  <g fill="none" stroke="#ffffff" stroke-opacity="0.05" stroke-width="0.6">
+    <circle cx="32" cy="32" r="26"/>
+    <circle cx="32" cy="32" r="23"/>
+    <circle cx="32" cy="32" r="20"/>
+    <circle cx="32" cy="32" r="17"/>
+  </g>
+
+  <!-- bright highlight arc — gives the disc a 3D feel at any size -->
+  <path d="M 32 5 A 27 27 0 0 1 58 30" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="0.8"/>
+
+  <!-- pink center label -->
+  <circle cx="32" cy="32" r="13" fill="url(#ms-label)"/>
+
+  <!-- musical note (custom path so it's identical across fonts) -->
+  <path
+    d="M 36.5 22.5 L 36.5 35.2
+       a 3.5 3 0 1 1 -2 -2.6
+       L 34.5 26
+       L 36.5 24.5 Z"
+    fill="#ffffff"
+  />
+
+  <!-- spindle hole -->
+  <circle cx="32" cy="32" r="1.7" fill="#0a0a0c"/>
+</svg>

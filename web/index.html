@@ -3,6 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Favicon. %BASE_URL% resolves to / in dev and /app/ in prod so
+         the same markup works in both. SVG covers modern browsers
+         (light + dark mode at any DPI); apple-touch covers iOS home-
+         screen bookmarks. theme-color paints the mobile address bar
+         with the same dark tone the rest of the UI uses. -->
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
+    <link rel="apple-touch-icon" href="%BASE_URL%favicon.svg" />
+    <meta name="theme-color" content="#0d0d0e" />
     <title>Music Station</title>
   </head>
   <body class="bg-zinc-950 text-zinc-100">
