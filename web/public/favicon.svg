@@ -1,51 +1,43 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Music Station">
   <defs>
-    <radialGradient id="ms-disc" cx="40%" cy="35%">
-      <stop offset="0%"   stop-color="#2a2a30"/>
-      <stop offset="55%"  stop-color="#0d0d10"/>
-      <stop offset="100%" stop-color="#050507"/>
-    </radialGradient>
-    <radialGradient id="ms-label" cx="50%" cy="45%">
-      <stop offset="0%"   stop-color="#ff8ad6"/>
-      <stop offset="65%"  stop-color="#ff2db5"/>
-      <stop offset="100%" stop-color="#9d1370"/>
-    </radialGradient>
-    <radialGradient id="ms-halo" cx="50%" cy="50%">
-      <stop offset="60%"  stop-color="#ff2db5" stop-opacity="0"/>
-      <stop offset="92%"  stop-color="#ff2db5" stop-opacity="0.55"/>
+    <!-- Purple-red gradient: matches the app's magenta accent (#ff2db5)
+         but pushed toward fuchsia / purple at the bottom so it reads as
+         紫红 instead of pure pink. -->
+    <linearGradient id="hp-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ff66cc"/>
+      <stop offset="45%"  stop-color="#ff2db5"/>
+      <stop offset="100%" stop-color="#8a1466"/>
+    </linearGradient>
+    <!-- Soft pink halo so the icon stays visible on bookmark thumbnails
+         against either light or dark backgrounds. -->
+    <radialGradient id="hp-halo" cx="50%" cy="50%">
+      <stop offset="55%"  stop-color="#ff2db5" stop-opacity="0"/>
+      <stop offset="90%"  stop-color="#ff2db5" stop-opacity="0.45"/>
       <stop offset="100%" stop-color="#ff2db5" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
-  <!-- magenta glow halo so the icon reads at 16px against any background -->
-  <circle cx="32" cy="32" r="32" fill="url(#ms-halo)"/>
+  <!-- Halo -->
+  <circle cx="32" cy="32" r="31" fill="url(#hp-halo)"/>
 
-  <!-- vinyl disc -->
-  <circle cx="32" cy="32" r="29" fill="url(#ms-disc)"/>
+  <!-- Headband: thick rounded arch from one cup to the other -->
+  <path d="M 12 36 Q 12 12 32 12 Q 52 12 52 36"
+        stroke="url(#hp-grad)"
+        stroke-width="5"
+        stroke-linecap="round"
+        fill="none"/>
 
-  <!-- grooves (very faint; disappear at small sizes but add texture at 32+) -->
-  <g fill="none" stroke="#ffffff" stroke-opacity="0.05" stroke-width="0.6">
-    <circle cx="32" cy="32" r="26"/>
-    <circle cx="32" cy="32" r="23"/>
-    <circle cx="32" cy="32" r="20"/>
-    <circle cx="32" cy="32" r="17"/>
-  </g>
+  <!-- Left ear cup -->
+  <rect x="7"  y="32" width="14" height="22" rx="5" fill="url(#hp-grad)"/>
+  <!-- Right ear cup -->
+  <rect x="43" y="32" width="14" height="22" rx="5" fill="url(#hp-grad)"/>
 
-  <!-- bright highlight arc — gives the disc a 3D feel at any size -->
-  <path d="M 32 5 A 27 27 0 0 1 58 30" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="0.8"/>
+  <!-- Cup highlights — vertical strip on the outer edge to give a
+       slight 3D sheen at small sizes -->
+  <rect x="9"  y="35" width="2.5" height="16" rx="1.2" fill="#ffffff" fill-opacity="0.22"/>
+  <rect x="45" y="35" width="2.5" height="16" rx="1.2" fill="#ffffff" fill-opacity="0.22"/>
 
-  <!-- pink center label -->
-  <circle cx="32" cy="32" r="13" fill="url(#ms-label)"/>
-
-  <!-- musical note (custom path so it's identical across fonts) -->
-  <path
-    d="M 36.5 22.5 L 36.5 35.2
-       a 3.5 3 0 1 1 -2 -2.6
-       L 34.5 26
-       L 36.5 24.5 Z"
-    fill="#ffffff"
-  />
-
-  <!-- spindle hole -->
-  <circle cx="32" cy="32" r="1.7" fill="#0a0a0c"/>
+  <!-- Speaker hollow inside each cup -->
+  <circle cx="14"   cy="43" r="3.5" fill="#1a0420" fill-opacity="0.55"/>
+  <circle cx="50"   cy="43" r="3.5" fill="#1a0420" fill-opacity="0.55"/>
 </svg>
