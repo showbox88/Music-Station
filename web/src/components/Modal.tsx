@@ -77,7 +77,14 @@ export default function ModalShell({
   // own the shadow.
   const cardClasses = `w-full ${maxWidth} rounded-xl modal-card ${className}`.trim();
 
-  function onBackdropClick() {
+  // Listen on mousedown rather than click so a text selection that
+  // starts inside the modal (e.g. dragging across the title input) and
+  // releases outside doesn't dismiss the modal — click's target is the
+  // mouseup element, which fires on the backdrop in that case and
+  // bypasses the inner stopPropagation. mousedown's target is where the
+  // gesture *started*, which is what "did the user actually click the
+  // backdrop?" should mean.
+  function onBackdropMouseDown() {
     if (forced) return;
     onClose?.();
   }
@@ -88,10 +95,10 @@ export default function ModalShell({
 
   if (as === 'form') {
     return (
-      <div className={backdropClasses} onClick={onBackdropClick}>
+      <div className={backdropClasses} onMouseDown={onBackdropMouseDown}>
         <form
           onSubmit={onSubmit}
-          onClick={stopPropagation}
+          onMouseDown={stopPropagation}
           className={cardClasses}
         >
           {children}
@@ -101,8 +108,8 @@ export default function ModalShell({
   }
 
   return (
-    <div className={backdropClasses} onClick={onBackdropClick}>
-      <div onClick={stopPropagation} className={cardClasses}>
+    <div className={backdropClasses} onMouseDown={onBackdropMouseDown}>
+      <div onMouseDown={stopPropagation} className={cardClasses}>
         {children}
       </div>
     </div>
