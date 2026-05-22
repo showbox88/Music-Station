@@ -17,20 +17,31 @@ interface Props {
   onChanged: (newCoverUrl: string | null) => void;
 }
 
+type SearchMode = 'metadata' | 'lyric';
+
 export default function CoverPicker({ track, onChanged }: Props) {
   const [coverUrl, setCoverUrl] = useState<string | null>(track.cover_url);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
+  const [searchMode, setSearchMode] = useState<SearchMode>('metadata');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CoverSearchResult[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Auto-suggest query from artist + album
+  // Auto-suggest query from artist + album when in metadata mode. Lyric
+  // mode is user-driven — they're typing a phrase they remember — so we
+  // don't pre-fill it. Switching modes clears stale results so the grid
+  // doesn't show iTunes hits under the lyric placeholder (or vice versa).
   useEffect(() => {
-    const initial = [track.artist, track.album].filter(Boolean).join(' ').trim();
-    setQuery(initial || track.title || '');
-  }, [track.id, track.artist, track.album, track.title]);
+    if (searchMode === 'metadata') {
+      const initial = [track.artist, track.album].filter(Boolean).join(' ').trim();
+      setQuery(initial || track.title || '');
+    } else {
+      setQuery('');
+    }
+    setResults([]);
+  }, [track.id, track.artist, track.album, track.title, searchMode]);
 
   async function handleUpload(f: File) {
     setBusy(true);
@@ -67,7 +78,10 @@ export default function CoverPicker({ track, onChanged }: Props) {
     setResults([]);
     setSearching(true);
     try {
-      const r = await api.searchCovers(query.trim());
+      const r =
+        searchMode === 'lyric'
+          ? await api.searchCoversByLyrics(query.trim())
+          : await api.searchCovers(query.trim());
       setResults(r.results);
     } catch (e: any) {
       setErr(String(e?.message ?? e));
@@ -146,6 +160,35 @@ export default function CoverPicker({ track, onChanged }: Props) {
         // outer form's onSubmit (which closes the modal). Using a div +
         // explicit button type=button + Enter key handler instead.
         <div className="space-y-2">
+          {/* Mode toggle — "metadata" hits iTunes by artist+album,
+              "lyric" hits NetEase's type=1006 lyric-text search. */}
+          <div
+            className="inline-flex rounded-full overflow-hidden text-xs"
+            style={{ border: '1px solid #050506' }}
+          >
+            <button
+              type="button"
+              onClick={() => setSearchMode('metadata')}
+              className={`px-3 py-1 ${
+                searchMode === 'metadata'
+                  ? 'glow-text glow-ring'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              按封面
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchMode('lyric')}
+              className={`px-3 py-1 ${
+                searchMode === 'lyric'
+                  ? 'glow-text glow-ring'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              按歌词
+            </button>
+          </div>
           <div className="flex gap-2">
             <input
               type="text"
@@ -158,7 +201,11 @@ export default function CoverPicker({ track, onChanged }: Props) {
                   handleSearch();
                 }
               }}
-              placeholder="Artist + album (e.g. Pink Floyd Dark Side)"
+              placeholder={
+                searchMode === 'lyric'
+                  ? '输入一句记得的歌词，例如「夜空中最亮的星」'
+                  : 'Artist + album (e.g. Pink Floyd Dark Side)'
+              }
               className="input text-xs"
             />
             <button
@@ -178,7 +225,10 @@ export default function CoverPicker({ track, onChanged }: Props) {
                   type="button"
                   onClick={() => handlePick(r)}
                   disabled={busy || !r.full_url}
-                  title={[r.artist, r.album].filter(Boolean).join(' — ')}
+                  title={
+                    [r.title, r.artist, r.album].filter(Boolean).join(' — ') +
+                    (r.lyric_match ? `\n${r.lyric_match}` : '')
+                  }
                   className="group flex flex-col items-stretch text-left hover:ring-2 hover:ring-blue-500 rounded overflow-hidden disabled:opacity-50"
                 >
                   {r.thumbnail_url ? (
@@ -186,17 +236,29 @@ export default function CoverPicker({ track, onChanged }: Props) {
                   ) : (
                     <div className="w-full h-20 bg-zinc-800" />
                   )}
-                  <div className="px-1 py-0.5 text-[10px] truncate">{r.album ?? '—'}</div>
+                  <div className="px-1 py-0.5 text-[10px] truncate">
+                    {r.title || r.album || '—'}
+                  </div>
                   <div className="px-1 pb-0.5 text-[10px] text-zinc-500 truncate">
                     {r.artist ?? '—'}
                   </div>
+                  {r.lyric_match && (
+                    <div
+                      className="px-1 pb-0.5 text-[10px] text-fuchsia-300/80 truncate"
+                      title={r.lyric_match}
+                    >
+                      ♪ {r.lyric_match}
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
           )}
           {results.length === 0 && !busy && (
             <div className="text-xs text-zinc-500">
-              Tip: try just the album name or "artist + album". Source: iTunes.
+              {searchMode === 'lyric'
+                ? '提示：输入歌词中的一句即可，越独特越容易命中。来源：网易云。'
+                : 'Tip: try just the album name or "artist + album". Source: iTunes.'}
             </div>
           )}
         </div>

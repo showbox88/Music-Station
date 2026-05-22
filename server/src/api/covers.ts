@@ -276,6 +276,86 @@ export function coversRouter({ db, coverDir }: Deps): Router {
     res.json({ ok: true, track_id: id });
   });
 
+  // GET /api/covers/search-by-lyrics?q=<lyric text>
+  // Proxies NetEase's type=1006 lyric-text search — the only public
+  // endpoint among our lyric sources that matches against lyric BODY
+  // text rather than just metadata. Returns songs that contain the
+  // user's text, with the album cover URL so the result tile shows
+  // something pickable. The lyric_match field contains a short snippet
+  // of the matching line so the user can verify they got the right
+  // song before clicking.
+  r.get('/covers/search-by-lyrics', async (req, res) => {
+    const q = String(req.query.q ?? '').trim();
+    if (!q) {
+      res.status(400).json({ error: 'q is required' });
+      return;
+    }
+    const limit = Math.min(Number(req.query.limit) || 12, 25);
+    try {
+      const url =
+        `https://music.163.com/api/search/get?s=${encodeURIComponent(q)}` +
+        `&type=1006&limit=${limit}`;
+      const resp = await fetch(url, {
+        signal: AbortSignal.timeout(8000),
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+            '(KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+          Referer: 'https://music.163.com/',
+        },
+      });
+      if (!resp.ok) {
+        res.status(502).json({ error: `netease returned ${resp.status}` });
+        return;
+      }
+      // NetEase type=1006 response shape:
+      //   { result: { songs: [{ name, artists:[{name}], album:{name,picUrl},
+      //                          lyrics:["matched line 1", ...] }] } }
+      // `lyrics` is sometimes a string, sometimes a string[]; sometimes
+      // wrapped in <span class=s-fc7> tags — strip them.
+      const j = (await resp.json()) as {
+        result?: {
+          songs?: Array<{
+            name?: string;
+            artists?: Array<{ name?: string }>;
+            album?: { name?: string; picUrl?: string };
+            lyrics?: string | string[];
+          }>;
+        };
+      };
+      const songs = j.result?.songs ?? [];
+      const stripTags = (s: string) => s.replace(/<[^>]+>/g, '').trim();
+      const results = songs
+        .map((s) => {
+          // NetEase pic URLs sometimes come back as http:// — force https
+          // so they don't get blocked by mixed-content rules in the browser.
+          const pic = s.album?.picUrl
+            ? s.album.picUrl.replace(/^http:\/\//i, 'https://')
+            : null;
+          const lyricRaw = Array.isArray(s.lyrics)
+            ? s.lyrics.join(' / ')
+            : typeof s.lyrics === 'string'
+              ? s.lyrics
+              : null;
+          return {
+            source: 'netease',
+            title: s.name ?? null,
+            artist:
+              (s.artists ?? []).map((a) => a.name ?? '').filter(Boolean).join(', ') ||
+              null,
+            album: s.album?.name ?? null,
+            thumbnail_url: pic,
+            full_url: pic,
+            lyric_match: lyricRaw ? stripTags(lyricRaw) : null,
+          };
+        })
+        .filter((r) => r.full_url);  // can't pick a result with no cover
+      res.json({ count: results.length, results });
+    } catch (err: any) {
+      res.status(500).json({ error: `search failed: ${err?.message ?? err}` });
+    }
+  });
+
   // GET /api/covers/search?q=...
   // Proxies iTunes Search API. No API key needed. Returns simplified results.
   r.get('/covers/search', async (req, res) => {

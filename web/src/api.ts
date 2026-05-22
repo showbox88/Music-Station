@@ -79,6 +79,12 @@ export interface CoverSearchResult {
   album: string | null;
   thumbnail_url: string | null;
   full_url: string | null;
+  /** Present on lyric-mode results (search-by-lyrics): NetEase song title
+   *  that matched. iTunes results don't carry it. */
+  title?: string | null;
+  /** Present on lyric-mode results: the matched lyric line(s), so the
+   *  user can verify before clicking the tile. */
+  lyric_match?: string | null;
 }
 
 // Production base = '/app/', dev base = '/'. Vite injects the value at build.
@@ -359,6 +365,13 @@ export const api = {
   searchCovers: (q: string, limit = 12) =>
     getJson<{ count: number; results: CoverSearchResult[] }>(
       `/covers/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+  /** Search NetEase by lyric body text. Results carry a `lyric_match`
+   *  snippet of the matched line. Use this when the user only remembers
+   *  a phrase from the song. */
+  searchCoversByLyrics: (q: string, limit = 12) =>
+    getJson<{ count: number; results: CoverSearchResult[] }>(
+      `/covers/search-by-lyrics?q=${encodeURIComponent(q)}&limit=${limit}`,
     ),
   uploadCover: async (trackId: number, file: File) => {
     const fd = new FormData();
