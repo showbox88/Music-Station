@@ -555,6 +555,9 @@ export default function TrackList({ refreshKey, onChanged, favoritedOnly = false
           onClose={() => setEditing(null)}
           onSaved={(updated) => {
             setTracks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+            // Sync the playing queue so cover / metadata edits show up
+            // in the playbar and NowPlayingView immediately.
+            player.replaceTrackInQueue(updated);
           }}
         />
       )}

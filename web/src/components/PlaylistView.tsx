@@ -318,6 +318,9 @@ export default function PlaylistView({ playlistId, refreshKey, onChanged }: Prop
                 ? { ...d, tracks: d.tracks.map((x) => (x.id === updated.id ? updated : x)) }
                 : d,
             );
+            // Sync the playing queue so cover / metadata edits show up
+            // in the playbar and NowPlayingView immediately.
+            player.replaceTrackInQueue(updated);
             onChanged();
           }}
         />

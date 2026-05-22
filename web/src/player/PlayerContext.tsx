@@ -211,6 +211,14 @@ interface PlayerActions {
   cycleRepeat: () => void;
   clearQueue: () => void;
   restoreLocalPlayback: (snap: RestoreLocalSnapshot) => void;
+  /**
+   * Replace a track in the queue (matched by id) with a fresh object
+   * reference. Called from EditTrackModal callbacks so cover / metadata
+   * edits show up in the playbar and NowPlayingView immediately —
+   * without this, the queue holds the pre-edit Track object and the
+   * cached image keeps rendering even after the cover changes server-side.
+   */
+  replaceTrackInQueue: (updated: Track) => void;
 }
 
 interface PlayerContextValue extends PlayerState, PlayerActions {
@@ -799,6 +807,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setCursor(-1);
   }, []);
 
+  const replaceTrackInQueue = useCallback((updated: Track) => {
+    setQueue((q) => {
+      // Only touch state if there's actually a matching entry — avoids
+      // a no-op re-render when the edited track isn't queued.
+      if (!q.some((t) => t.id === updated.id)) return q;
+      return q.map((t) => (t.id === updated.id ? updated : t));
+    });
+  }, []);
+
   // Wire 'ended' → next/repeat handler (uses freshest state)
   useEffect(() => {
     handleEndedRef.current = () => {
@@ -1227,6 +1244,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       cycleRepeat: () => rpc('cycleRepeat'),
       clearQueue: () => rpc('clearQueue'),
       restoreLocalPlayback,
+      // Remote mode: the queue we display is the host's snapshot, so
+      // editing metadata on the follower side can't mutate it. No-op.
+      replaceTrackInQueue: () => {},
       // Fake AnalyserNode backed by viz frames the host pushes over SSE.
       // AudioVisualizer only uses .frequencyBinCount + getByteFrequencyData,
       // so we don't need to implement the full AnalyserNode surface.
@@ -1341,6 +1361,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     cycleRepeat,
     clearQueue,
     restoreLocalPlayback,
+    replaceTrackInQueue,
     getAnalyser: () => analyserRef.current,
     eq: eqController,
     spatial: {
