@@ -15,11 +15,24 @@ import CoverThumb from './CoverThumb';
 interface Props {
   track: Track;
   onChanged: (newCoverUrl: string | null) => void;
+  /**
+   * Called when the user picks a lyric-search result, with the song
+   * info NetEase returned. The parent (EditTrackModal) merges these
+   * into the form so the user doesn't have to retype title/artist/album.
+   * Picking always then auto-rerolls the cover search using the new
+   * artist+album against iTunes, because NetEase's picId-derived cover
+   * URLs are unreliable (often default / blurred placeholders).
+   */
+  onTrackInfoFound?: (info: {
+    title?: string;
+    artist?: string;
+    album?: string;
+  }) => void;
 }
 
 type SearchMode = 'metadata' | 'lyric';
 
-export default function CoverPicker({ track, onChanged }: Props) {
+export default function CoverPicker({ track, onChanged, onTrackInfoFound }: Props) {
   const [coverUrl, setCoverUrl] = useState<string | null>(track.cover_url);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -29,19 +42,29 @@ export default function CoverPicker({ track, onChanged }: Props) {
   const [results, setResults] = useState<CoverSearchResult[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Auto-suggest query from artist + album when in metadata mode. Lyric
-  // mode is user-driven — they're typing a phrase they remember — so we
-  // don't pre-fill it. Switching modes clears stale results so the grid
-  // doesn't show iTunes hits under the lyric placeholder (or vice versa).
+  // Re-initialize only when the modal opens for a different track —
+  // NOT on every searchMode change. The lyric-pick handler below sets
+  // mode + query in lockstep with auto-search, and a useEffect that
+  // also responds to searchMode would clobber that pre-set query.
   useEffect(() => {
-    if (searchMode === 'metadata') {
+    const initial = [track.artist, track.album].filter(Boolean).join(' ').trim();
+    setQuery(initial || track.title || '');
+    setResults([]);
+    setSearchMode('metadata');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track.id]);
+
+  function switchSearchMode(mode: SearchMode) {
+    if (mode === searchMode) return;
+    setSearchMode(mode);
+    setResults([]);
+    if (mode === 'metadata') {
       const initial = [track.artist, track.album].filter(Boolean).join(' ').trim();
       setQuery(initial || track.title || '');
     } else {
       setQuery('');
     }
-    setResults([]);
-  }, [track.id, track.artist, track.album, track.title, searchMode]);
+  }
 
   async function handleUpload(f: File) {
     setBusy(true);
@@ -91,6 +114,36 @@ export default function CoverPicker({ track, onChanged }: Props) {
   }
 
   async function handlePick(r: CoverSearchResult) {
+    // Lyric-mode pick: don't trust NetEase's cover. Use the result for
+    // its accurate song info instead — fill the form fields and re-run
+    // the search against iTunes by artist+album so the user picks from
+    // a real album-art grid.
+    if (searchMode === 'lyric') {
+      onTrackInfoFound?.({
+        title: r.title ?? undefined,
+        artist: r.artist ?? undefined,
+        album: r.album ?? undefined,
+      });
+      const nextQuery = [r.artist, r.album].filter(Boolean).join(' ').trim();
+      setSearchMode('metadata');
+      setQuery(nextQuery);
+      setResults([]);
+      if (!nextQuery) return;
+      setBusy(true);
+      setErr(null);
+      try {
+        const out = await api.searchCovers(nextQuery);
+        setResults(out.results);
+      } catch (e: any) {
+        setErr(String(e?.message ?? e));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    // Metadata-mode pick: NetEase pick path is gone now, so this is
+    // always an iTunes result. Save it as the track's cover.
     if (!r.full_url) return;
     setBusy(true);
     setErr(null);
@@ -168,7 +221,7 @@ export default function CoverPicker({ track, onChanged }: Props) {
           >
             <button
               type="button"
-              onClick={() => setSearchMode('metadata')}
+              onClick={() => switchSearchMode('metadata')}
               className={`px-3 py-1 ${
                 searchMode === 'metadata'
                   ? 'glow-text glow-ring'
@@ -179,7 +232,7 @@ export default function CoverPicker({ track, onChanged }: Props) {
             </button>
             <button
               type="button"
-              onClick={() => setSearchMode('lyric')}
+              onClick={() => switchSearchMode('lyric')}
               className={`px-3 py-1 ${
                 searchMode === 'lyric'
                   ? 'glow-text glow-ring'
@@ -257,7 +310,7 @@ export default function CoverPicker({ track, onChanged }: Props) {
           {results.length === 0 && !busy && (
             <div className="text-xs text-zinc-500">
               {searchMode === 'lyric'
-                ? '提示：输入歌词中的一句即可，越独特越容易命中。来源：网易云。'
+                ? '提示：输入歌词中的一句即可，选中后会自动填好歌曲信息再去搜封面。来源：网易云。'
                 : 'Tip: try just the album name or "artist + album". Source: iTunes.'}
             </div>
           )}

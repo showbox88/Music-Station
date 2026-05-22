@@ -115,6 +115,21 @@ export default function EditTrackModal({ track, onClose, onSaved }: Props) {
                 <CoverPicker
                   track={{ ...track, cover_url: coverUrl }}
                   onChanged={setCoverUrl}
+                  onTrackInfoFound={(info) => {
+                    // Lyric-search pick auto-fills these so the user
+                    // doesn't have to retype, then CoverPicker re-runs
+                    // an iTunes search using the new artist+album for
+                    // higher-quality cover art. Only effective for
+                    // owners — non-owners' fields are disabled and the
+                    // payload strips these anyway, so the form update
+                    // is harmless either way.
+                    setForm((f) => ({
+                      ...f,
+                      ...(info.title !== undefined ? { title: info.title } : {}),
+                      ...(info.artist !== undefined ? { artist: info.artist } : {}),
+                      ...(info.album !== undefined ? { album: info.album } : {}),
+                    }));
+                  }}
                 />
               </Field>
 
