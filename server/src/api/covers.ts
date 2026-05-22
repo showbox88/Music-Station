@@ -16,9 +16,50 @@
 import { Router } from 'express';
 import multer from 'multer';
 import type { Database } from 'better-sqlite3';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import { unlink, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
+
+/**
+ * NetEase image URLs are obfuscated — the API returns a numeric picId
+ * and the image lives at `p3.music.126.net/<encrypted>/<picId>.jpg`.
+ * The encryption is XOR with a constant string + MD5 + base64url. This
+ * is the same recipe NetEase's own web client uses; community-reverse-
+ * engineered, stable for 10+ years. Without this, type=1006 results
+ * have no cover URL we can actually display.
+ */
+function neteasePicUrlFromId(picId: string | number | null | undefined): string | null {
+  if (picId === undefined || picId === null) return null;
+  const idStr = String(picId);
+  if (!idStr || idStr === '0') return null;
+  const magic = '3go8&$8*3*3h0k(2)2';
+  const buf = Buffer.from(idStr, 'ascii');
+  for (let i = 0; i < buf.length; i++) {
+    buf[i] ^= magic.charCodeAt(i % magic.length);
+  }
+  const md5 = createHash('md5').update(buf).digest('base64');
+  const encrypted = md5.replace(/\//g, '_').replace(/\+/g, '-');
+  return `https://p3.music.126.net/${encrypted}/${idStr}.jpg`;
+}
+
+/**
+ * NetEase type=1006 returns the full lyric text in `lyrics.txt`, not
+ * the matched snippet. Pull out the first line that actually contains
+ * the user's query (case-insensitive) so the result tile shows
+ * something meaningful — otherwise we'd display 200 chars of unrelated
+ * lyric prefix.
+ */
+function extractLyricMatch(txt: string | null | undefined, q: string): string | null {
+  if (!txt) return null;
+  const lines = txt.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return null;
+  const lower = q.toLowerCase();
+  for (const line of lines) {
+    if (line.toLowerCase().includes(lower)) return line.slice(0, 80);
+  }
+  return lines[0].slice(0, 80);
+}
 
 const MAX_COVER_BYTES = 5 * 1024 * 1024; // 5 MB plenty for cover art
 const ALLOWED_EXT = /^\.(jpe?g|png|webp|gif)$/i;
@@ -308,35 +349,49 @@ export function coversRouter({ db, coverDir }: Deps): Router {
         res.status(502).json({ error: `netease returned ${resp.status}` });
         return;
       }
-      // NetEase type=1006 response shape:
-      //   { result: { songs: [{ name, artists:[{name}], album:{name,picUrl},
-      //                          lyrics:["matched line 1", ...] }] } }
-      // `lyrics` is sometimes a string, sometimes a string[]; sometimes
-      // wrapped in <span class=s-fc7> tags — strip them.
+      // NetEase type=1006 actually returns:
+      //   { result: { songs: [{ name, artists:[{name}],
+      //       album:{ name, picId, picUrl(maybe null) },
+      //       lyrics: { txt: "<full lyric>", range: [...] } }] } }
+      // Both the cover and the matched snippet need extra work — see
+      // neteasePicUrlFromId and extractLyricMatch above.
       const j = (await resp.json()) as {
         result?: {
           songs?: Array<{
             name?: string;
             artists?: Array<{ name?: string }>;
-            album?: { name?: string; picUrl?: string };
-            lyrics?: string | string[];
+            album?: {
+              name?: string;
+              picId?: string | number;
+              picUrl?: string | null;
+            };
+            lyrics?: { txt?: string } | string | string[];
           }>;
         };
       };
       const songs = j.result?.songs ?? [];
-      const stripTags = (s: string) => s.replace(/<[^>]+>/g, '').trim();
       const results = songs
         .map((s) => {
-          // NetEase pic URLs sometimes come back as http:// — force https
-          // so they don't get blocked by mixed-content rules in the browser.
-          const pic = s.album?.picUrl
-            ? s.album.picUrl.replace(/^http:\/\//i, 'https://')
-            : null;
-          const lyricRaw = Array.isArray(s.lyrics)
-            ? s.lyrics.join(' / ')
-            : typeof s.lyrics === 'string'
-              ? s.lyrics
-              : null;
+          // Prefer picUrl if present (it sometimes is, especially for
+          // newer albums); fall back to deriving from picId. Force
+          // https either way to avoid mixed-content blocks.
+          const rawPic =
+            (typeof s.album?.picUrl === 'string' && s.album.picUrl) ||
+            neteasePicUrlFromId(s.album?.picId);
+          const pic = rawPic ? rawPic.replace(/^http:\/\//i, 'https://') : null;
+
+          // lyrics can be: { txt }, string, string[]
+          const lyricTxt =
+            s.lyrics && typeof s.lyrics === 'object' && !Array.isArray(s.lyrics)
+              ? typeof s.lyrics.txt === 'string'
+                ? s.lyrics.txt
+                : null
+              : Array.isArray(s.lyrics)
+                ? s.lyrics.join('\n')
+                : typeof s.lyrics === 'string'
+                  ? s.lyrics
+                  : null;
+
           return {
             source: 'netease',
             title: s.name ?? null,
@@ -346,7 +401,7 @@ export function coversRouter({ db, coverDir }: Deps): Router {
             album: s.album?.name ?? null,
             thumbnail_url: pic,
             full_url: pic,
-            lyric_match: lyricRaw ? stripTags(lyricRaw) : null,
+            lyric_match: extractLyricMatch(lyricTxt, q),
           };
         })
         .filter((r) => r.full_url);  // can't pick a result with no cover
