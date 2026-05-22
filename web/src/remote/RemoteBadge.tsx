@@ -5,6 +5,14 @@ import RemoteQRDisplay from './RemoteQRDisplay';
 interface Props {
   /** Mobile variant — 28px circle to match MiniBtn in PlayerBar. */
   mini?: boolean;
+  /**
+   * Shape:
+   *   - 'circle' (default) — round bezel, used in PlayerBar where everything
+   *     in the action cluster is a circle.
+   *   - 'pill' — h-6 rounded rectangle that matches REMOTE/DOLBY/EQ in the
+   *     fullscreen skin top bar.
+   */
+  variant?: 'circle' | 'pill';
 }
 
 /**
@@ -20,26 +28,30 @@ interface Props {
  * Hidden on the follower side (`remote.isRemote === true`) — a phone
  * that's already controlling someone else has nothing to host.
  */
-export default function RemoteBadge({ mini = false }: Props) {
+export default function RemoteBadge({ mini = false, variant = 'circle' }: Props) {
   const remote = useRemote();
   const [qrOpen, setQrOpen] = useState(false);
 
   if (remote.isRemote) return null;
 
   const active = remote.followerCount > 0;
-  const size = mini ? 'w-7 h-7' : 'w-8 h-8';
   const label = active
     ? remote.followerCount > 1
       ? `${remote.followerCount} 部手机正在遥控 · 点击扫码新增`
       : '手机正在遥控 · 点击扫码新增'
     : '点击扫码遥控';
 
+  const shapeClass =
+    variant === 'pill'
+      ? 'h-6 px-3 rounded-md bezel'
+      : `${mini ? 'w-7 h-7' : 'w-8 h-8'} rounded-full bezel`;
+
   return (
     <>
       <button
         type="button"
         onClick={() => setQrOpen(true)}
-        className={`${size} rounded-full bezel flex items-center justify-center ${
+        className={`${shapeClass} flex items-center justify-center ${
           active ? 'glow-text glow-ring' : 'text-zinc-300 hover:text-white'
         }`}
         title={label}

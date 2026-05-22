@@ -103,7 +103,7 @@ export default function VinylSkin(p: SkinProps) {
               <div className="text-[11px] text-purple-200/70 truncate mt-0.5">{subtitle}</div>
             )}
           </div>
-          <span className="mr-1"><RemoteBadge /></span>
+          <span className="mr-1"><RemoteBadge variant="pill" /></span>
           <button
             onClick={p.onToggleRemote}
             title={p.isRemote ? '退出遥控器' : '开启遥控器'}
@@ -158,7 +158,12 @@ export default function VinylSkin(p: SkinProps) {
             </svg>
           </button>
           <span className="ml-1">
-            <SkinPicker current={p.currentSkinId} onPick={p.onPickSkin} />
+            <SkinPicker
+              current={p.currentSkinId}
+              onPick={p.onPickSkin}
+              triggerClassName="h-6 px-3 rounded-md bezel flex items-center justify-center text-zinc-300 hover:text-white"
+              triggerStyle={{}}
+            />
           </span>
         </div>
 

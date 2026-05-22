@@ -5,13 +5,25 @@ import type { SkinId } from './types';
 interface Props {
   current: SkinId;
   onPick: (id: SkinId) => void;
+  /** Override the trigger button's className (skin-specific styling).
+   *  When provided, replaces the default circular trigger styling. */
+  triggerClassName?: string;
+  /** Override inline styles on the trigger button. When omitted the
+   *  default semi-transparent circle styling is used. Pass an empty
+   *  object `{}` to suppress the default styling. */
+  triggerStyle?: React.CSSProperties;
 }
 
 /**
  * Small palette button that opens a popover with the four skin swatches.
  * Lives at the top-right of every NowPlayingView regardless of skin.
  */
-export default function SkinPicker({ current, onPick }: Props) {
+export default function SkinPicker({
+  current,
+  onPick,
+  triggerClassName,
+  triggerStyle,
+}: Props) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -38,11 +50,16 @@ export default function SkinPicker({ current, onPick }: Props) {
       <button
         onClick={() => setOpen((v) => !v)}
         title="Choose skin"
-        className="w-8 h-8 rounded-full flex items-center justify-center text-current opacity-70 hover:opacity-100"
-        style={{
-          background: 'rgba(255,255,255,0.10)',
-          border: '1px solid rgba(255,255,255,0.16)',
-        }}
+        className={
+          triggerClassName ??
+          'w-8 h-8 rounded-full flex items-center justify-center text-current opacity-70 hover:opacity-100'
+        }
+        style={
+          triggerStyle ?? {
+            background: 'rgba(255,255,255,0.10)',
+            border: '1px solid rgba(255,255,255,0.16)',
+          }
+        }
       >
         {/* palette icon */}
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
