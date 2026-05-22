@@ -129,6 +129,12 @@ function AppContent() {
     };
     remote
       .enable(hostId, snap as unknown as Record<string, unknown>)
+      .then(() => {
+        // Land the phone straight in the fullscreen player — the whole
+        // point of scanning is to control playback, so jumping past the
+        // library list is what the user expects.
+        setNowPlayingOpen(true);
+      })
       .catch((err) => {
         console.error('QR remote-host enable failed:', err);
       })

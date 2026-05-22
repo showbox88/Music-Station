@@ -17,6 +17,7 @@ import SkinPicker from './SkinPicker';
 import AudioVisualizer from '../AudioVisualizer';
 import LyricsPanel from '../LyricsPanel';
 import { RepeatIcon, RepeatOneIcon, ShuffleIcon, VolumeIcon } from '../../components/Icons';
+import RemoteBadge from '../../remote/RemoteBadge';
 
 function fmt(sec: number): string {
   if (!Number.isFinite(sec) || sec < 0) return '0:00';
@@ -102,6 +103,7 @@ export default function VinylSkin(p: SkinProps) {
               <div className="text-[11px] text-purple-200/70 truncate mt-0.5">{subtitle}</div>
             )}
           </div>
+          <span className="mr-1"><RemoteBadge /></span>
           <button
             onClick={p.onToggleRemote}
             title={p.isRemote ? '退出遥控器' : '开启遥控器'}

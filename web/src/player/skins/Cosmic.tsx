@@ -6,6 +6,7 @@ import { useState } from 'react';
 import type { SkinProps } from './types';
 import SkinPicker from './SkinPicker';
 import CosmicWave from './CosmicWave';
+import RemoteBadge from '../../remote/RemoteBadge';
 
 function fmt(sec: number): string {
   if (!Number.isFinite(sec) || sec < 0) return '0:00';
@@ -261,6 +262,7 @@ export default function CosmicSkin(p: SkinProps) {
 
         {/* Auxiliary row — Spatial / EQ as small text labels */}
         <div className="flex items-center justify-center gap-6 pt-2 shrink-0">
+          <RemoteBadge />
           <button
             onClick={p.onToggleRemote}
             title={p.isRemote ? '退出遥控器' : '开启遥控器'}

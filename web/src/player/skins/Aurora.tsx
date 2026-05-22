@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import type { SkinProps } from './types';
 import SkinPicker from './SkinPicker';
+import RemoteBadge from '../../remote/RemoteBadge';
 
 function fmt(sec: number): string {
   if (!Number.isFinite(sec) || sec < 0) return '0:00';
@@ -248,6 +249,7 @@ export default function AuroraSkin(p: SkinProps) {
           >
             Lyrics
           </button>
+          <RemoteBadge />
           <button
             onClick={p.onToggleRemote}
             title={p.isRemote ? '退出遥控器' : '开启遥控器'}
