@@ -73,6 +73,17 @@ app.use((req, _res, next) => {
   next();
 });
 
+// MP3 streaming. Historically served by smart-trip-mcp at the same Funnel
+// origin so the page could load /audio/* cross-pathless. After music-station
+// moved to tailnet :8448 (2026-05-30), the smart-trip /audio/* is on a
+// different origin (:443) — Web Audio's createMediaElementSource() then
+// taints the audio element and silences playback through the EQ/visualizer
+// graph. Serving /audio/* here keeps everything same-origin.
+app.use(
+  '/audio',
+  express.static(MUSIC_DIR, { maxAge: '1d', fallthrough: false, acceptRanges: true }),
+);
+
 // Static cover serving — must precede /api routers since the cover URL
 // is /api/covers/<filename>. We use express.static so range/cache work.
 // Covers are not gated: they're tiny image files referenced from <img>
