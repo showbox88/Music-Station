@@ -62,6 +62,17 @@ scanLibrary(db, MUSIC_DIR)
 const app = express();
 app.use(express.json({ limit: '4mb' }));
 
+// Strip `/app` prefix from API requests so the frontend (built with Vite
+// BASE_URL=/app/, which prefixes every fetch with /app/api/...) reaches the
+// same /api/* routers whether served directly (tailnet :8448/) or behind a
+// proxy that keeps the /app prefix.
+app.use((req, _res, next) => {
+  if (req.url.startsWith('/app/api/') || req.url === '/app/api') {
+    req.url = req.url.slice(4);
+  }
+  next();
+});
+
 // Static cover serving — must precede /api routers since the cover URL
 // is /api/covers/<filename>. We use express.static so range/cache work.
 // Covers are not gated: they're tiny image files referenced from <img>
