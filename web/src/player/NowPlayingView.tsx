@@ -140,6 +140,33 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  // Remote-mode placeholder: scanning the QR enables remote-follow mode
+  // and opens this view, but if the host isn't currently playing anything
+  // p.current (derived from hostSnapshot.current_track) is null. Without
+  // this branch the view would render null and the phone would land on
+  // the library list — exactly the opposite of what the QR scan is
+  // meant to do. Show a "waiting for host" placeholder so the phone
+  // visibly enters the player and re-renders into the real skin the
+  // instant the host starts playing something.
+  if (open && remote.isRemote && !p.current) {
+    return (
+      <div className="fixed inset-0 z-40 bg-zinc-950 text-zinc-300 flex flex-col items-center justify-center gap-3 px-6">
+        <div className="text-xs uppercase tracking-widest text-zinc-500">
+          {remote.hostOffline ? '主机离线' : '正在跟随主机'}
+        </div>
+        <div className="text-sm text-zinc-400 text-center">
+          主机当前没有播放任何曲目，开始播放后这里会自动显示。
+        </div>
+        <button
+          onClick={onClose}
+          className="mt-6 px-4 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-xs"
+        >
+          关闭
+        </button>
+      </div>
+    );
+  }
+
   if (!open || !p.current) return null;
 
   const t = p.current;
