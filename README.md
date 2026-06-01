@@ -27,14 +27,23 @@ read the same `/opt/music` filesystem and stay independent for now.
    in-memory)      SQLite library.db)
 ```
 
-Public path layout (behind Tailscale Funnel `https://debian.tail4cfa2.ts.net/`):
+Path layout (2026-05-30 reshuffle — music-station moved off public Funnel
+to a tailnet-only Serve listener for auth reasons):
+
+`https://debian.tail4cfa2.ts.net/` (Funnel, public):
 
 | Path | Served by | Use |
 |---|---|---|
 | `/`        | smart-trip MCP | MCP `/mcp` endpoint, healthz |
 | `/audio/*` | smart-trip MCP (express.static) | MP3 streaming (browser opens these) |
-| `/app/*`   | music-station   | Frontend (this repo) |
-| `/api/*`   | music-station   | REST API (this repo) |
+| `/dl/*`    | dl-server | APK / file download landing |
+
+`https://debian.tail4cfa2.ts.net:8448/` (Tailscale Serve, tailnet only):
+
+| Path | Served by | Use |
+|---|---|---|
+| `/app/*`   | music-station | Frontend (this repo) |
+| `/api/*`   | music-station | REST API (this repo) |
 
 ## Local dev
 
@@ -81,7 +90,8 @@ sudo tailscale serve --bg --https=443 --set-path=/api  http://localhost:3002
 sudo tailscale serve status
 ```
 
-Open `https://debian.tail4cfa2.ts.net/app/` in browser.
+Open `https://debian.tail4cfa2.ts.net:8448/app/` in browser (requires
+Tailscale — music-station is no longer exposed via public Funnel).
 
 ## Day-2 ops
 

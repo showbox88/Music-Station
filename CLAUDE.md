@@ -10,7 +10,7 @@ Music-Station — a personal music streaming server.
 - **Web frontend**: React + Vite + TypeScript at `web/`
 - **Backend**: Node + Express + better-sqlite3 at `server/`
 - **Runs on**: a remote Debian VM, accessed over Tailscale as host `debian`
-- **Public URL**: <https://debian.tail4cfa2.ts.net/app/>
+- **Access URL**: <https://debian.tail4cfa2.ts.net:8448/> (tailnet only — Funnel removed 2026-05-30 for security; access requires Tailscale)
 - **Code repo**: <https://github.com/showbox88/Music-Station>
 
 ## Deploy workflow — DO THIS AFTER EVERY CODE CHANGE

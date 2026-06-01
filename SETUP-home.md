@@ -162,9 +162,10 @@ ssh showbox@debian 'sudo /opt/music-station/deploy.sh'
 
 部署完打开浏览器：
 
-- **公网（所有设备都能访问）**：<https://debian.tail4cfa2.ts.net/app/>
-- **办公室局域网**：<http://192.168.1.16/>（家里访问不到这个）
-- **Tailscale 网内**：<http://debian/app/> （需家里电脑装了 Tailscale）
+- **Tailscale 网内（推荐）**：<https://debian.tail4cfa2.ts.net:8448/app/>
+- **办公室局域网**：<http://192.168.1.16:3002/app/>（家里访问不到这个）
+
+> 注意：2026-05-30 起 music-station 不再走公网 Funnel，必须开 Tailscale 才能访问。
 
 ---
 
@@ -213,6 +214,6 @@ git add -A && git commit -m "msg" && git push && ssh showbox@debian 'sudo /opt/m
 - VM 名字：**`debian`**（Tailscale MagicDNS）
 - 用户：**`showbox`**
 - 部署一行命令：**`ssh showbox@debian 'sudo /opt/music-station/deploy.sh'`**
-- 公网访问：**<https://debian.tail4cfa2.ts.net/app/>**
+- 访问地址（tailnet 内）：**<https://debian.tail4cfa2.ts.net:8448/app/>**
 
 只要 Tailscale 是绿的，家里和办公室体验完全一样。
