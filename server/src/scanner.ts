@@ -95,6 +95,15 @@ async function readTrack(absPath: string, relPath: string): Promise<ScannedTrack
 export async function scanLibrary(db: Database, musicDir: string): Promise<ScanResult> {
   const start = Date.now();
 
+  // New rows need an owner so the multi-user visibility filter can show
+  // them. SMB / filesystem drops have no actor identity, so default to
+  // the first user (= bootstrap admin), matching backfillOwnership.
+  const defaultOwnerId = (
+    db.prepare('SELECT id FROM users ORDER BY id ASC LIMIT 1').get() as
+      | { id: number }
+      | undefined
+  )?.id ?? null;
+
   const fsRelPaths = new Set(await walkAudio(musicDir, musicDir));
   const dbRelPaths = new Set(
     db.prepare('SELECT rel_path FROM tracks').all().map((r: any) => r.rel_path),
@@ -124,9 +133,9 @@ export async function scanLibrary(db: Database, musicDir: string): Promise<ScanR
   //                  land in the DB.
   const insertStmt = db.prepare(`
     INSERT INTO tracks (rel_path, title, artist, album, genre, year, track_no,
-                        duration_sec, size_bytes, bitrate, mime)
+                        duration_sec, size_bytes, bitrate, mime, owner_id)
     VALUES (@rel_path, @title, @artist, @album, @genre, @year, @track_no,
-            @duration_sec, @size_bytes, @bitrate, @mime)
+            @duration_sec, @size_bytes, @bitrate, @mime, @owner_id)
   `);
 
   const refreshStmt = db.prepare(`
@@ -157,7 +166,7 @@ export async function scanLibrary(db: Database, musicDir: string): Promise<ScanR
         });
         updated++;
       } else {
-        insertStmt.run(t);
+        insertStmt.run({ ...t, owner_id: defaultOwnerId });
         inserted++;
       }
     } catch {
