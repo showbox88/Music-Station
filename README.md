@@ -102,6 +102,43 @@ Tailscale — music-station is no longer exposed via public Funnel).
 | Upgrade (pull + build + restart) | `cd /opt/music-station && sudo -u mcp git pull && sudo -u mcp npm install && sudo -u mcp npm run build && sudo systemctl restart music-station` |
 | DB backup | `sqlite3 /var/lib/music-station/library.db ".backup /backup/library-$(date +%F).db"` |
 
+## SMB access to /opt/music
+
+A Samba share named `music` exposes `/opt/music` over Tailscale so you can
+drop mp3s in from a phone or PC without going through the web upload form.
+Restricted to the tailnet via `hosts allow = 100.64.0.0/10 127.0.0.1` in
+`/etc/samba/smb.conf` — credentials are a samba password for the existing
+`showbox` Linux user, set with `smbpasswd` (not in this repo).
+
+### Connection address (client quirks)
+
+| Client | Address |
+|---|---|
+| Windows Explorer | `\\debian.tail4cfa2.ts.net\music` |
+| macOS Finder / iOS Files / VLC / CX File Explorer | `smb://debian.tail4cfa2.ts.net` (then pick share `music`) |
+| Samsung "我的文件" | `debian.tail4cfa2.ts.net/music/` — path-style, in one field. The standard `smb://` + separate share form gives a misleading "credentials wrong" error. |
+
+### After dropping files in
+
+The scanner only runs at server startup and on demand — there's no
+filesystem watcher. Click the **重新扫描 / Rescan** button in the web
+header to ingest new files; new rows are assigned `owner_id = 1`
+(first user = bootstrap admin) so they're immediately visible.
+
+### Toggle read-only vs read-write
+
+```bash
+# Lock down (read-only)
+ssh showbox@debian "sudo sed -i 's/^   read only = no$/   read only = yes/' /etc/samba/smb.conf && sudo systemctl reload smbd"
+
+# Allow upload (read-write)
+ssh showbox@debian "sudo sed -i 's/^   read only = yes$/   read only = no/' /etc/samba/smb.conf && sudo systemctl reload smbd"
+```
+
+Files uploaded via SMB are forced to `mcp:mcp` ownership by
+`force user = mcp` / `force group = mcp` in the share config, matching
+the systemd service user — so the Express side can always read them.
+
 ## Schema notes
 
 - `tracks.rel_path` is the unique key — relative to `MUSIC_DIR`, forward
@@ -114,8 +151,11 @@ Tailscale — music-station is no longer exposed via public Funnel).
 
 ## Known limitations / TODO
 
-- No auth yet (S5). Anyone reaching the URL can browse and (later) upload.
+- Cookie-session auth and per-user track/playlist/favorites are in place
+  (see `db/schema.ts` and `PLAN-multiuser.md`). The bootstrap admin
+  `showbox88` is created on first start with a forced password change.
 - Concurrent upload + scan races aren't handled.
 - Bulk metadata edit not implemented.
 - No M3U export yet.
-- Player UI: deferred to S5; in S1 you click ▶ which opens MP3 in new tab.
+- No filesystem watcher — SMB / direct filesystem drops require a manual
+  "重新扫描" click in the web header to be picked up.
