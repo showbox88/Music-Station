@@ -139,6 +139,62 @@ Files uploaded via SMB are forced to `mcp:mcp` ownership by
 `force user = mcp` / `force group = mcp` in the share config, matching
 the systemd service user — so the Express side can always read them.
 
+## Browser-local folder library (Chrome / Edge desktop only)
+
+A second "library" you can add via the **📁 本地文件夹** sidebar entry —
+picks a folder from the user's own computer using the File System
+Access API, scans the audio files in it, and plays them through the
+existing player. Files never leave the machine; the server is not
+involved.
+
+### What v1 does
+
+- One folder per browser, recursive scan
+- ID3 metadata via `music-metadata-browser`
+- Embedded cover art lifted into a data: URL (capped at 256 KB per
+  cover to keep IndexedDB small)
+- Sibling `.lrc` files **detected** (rendered display is a v1.1 item)
+- Manual rescan button — no filesystem watcher
+- Re-grant flow on page reload (Chrome drops the directory permission
+  for security; we call `queryPermission` / `requestPermission`)
+
+### Where the data lives
+
+| Thing | Storage |
+|---|---|
+| Folder handle | IndexedDB on this browser only |
+| Track rows | IndexedDB on this browser only |
+| Current play queue | Process memory, ephemeral |
+
+Nothing crosses to the server. Logging into the same Music-Station
+account from a different device, the local-folder library doesn't
+follow — each browser has its own independent local library.
+
+### Where the sidebar entry doesn't show
+
+Only when `window.showDirectoryPicker` exists — Chrome / Edge on
+desktop. Safari, Firefox, and most mobile browsers lack the API, so
+the entry is hidden instead of leading users into a broken page.
+
+### Track identity convention
+
+Local-folder tracks get **negative synthetic ids** (FNV-1a hash of
+rel_path, folded into the negative integer range), distinct from
+server tracks (positive AUTOINCREMENT). The existing `Track` type
+and player work unchanged, and components that touch server-side
+per-user state branch on `track.id < 0` to no-op for local tracks.
+The helper `isLocalTrack()` lives in `web/src/local/types.ts`.
+
+### v1.1 follow-ups (deliberately deferred)
+
+- Render lyrics from sibling `.lrc` files
+- Local-side favorites / ratings / per-track EQ in IndexedDB
+- Local playlists with mixed server + local items
+- Dynamic-import `music-metadata-browser` so it doesn't add 400+ KB
+  to the main bundle every page load
+- Multi-folder
+- ID3 editing / upload-to-server pipe for local tracks
+
 ## Schema notes
 
 - `tracks.rel_path` is the unique key — relative to `MUSIC_DIR`, forward
