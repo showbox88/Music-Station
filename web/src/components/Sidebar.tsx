@@ -17,7 +17,14 @@ export type View =
   | { kind: 'lyrics-editor' }
   | { kind: 'visualizer-lab' }
   | { kind: 'admin' }
+  | { kind: 'local-folder' }
   | { kind: 'playlist'; id: number };
+
+/** True iff this browser supports the File System Access API. We hide
+ *  the "本地文件夹" entry on browsers that can't open it (Safari, FF,
+ *  most mobile browsers) so users never click a button that errors. */
+const SUPPORTS_FSA =
+  typeof window !== 'undefined' && 'showDirectoryPicker' in window;
 
 interface Props {
   view: View;
@@ -279,6 +286,20 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           >
             <span className="inline-block w-5 text-center mr-1">{'⚙︎'}</span>
             {t('sidebar.admin')}
+          </button>
+        )}
+        {SUPPORTS_FSA && (
+          <button
+            onClick={() => setView({ kind: 'local-folder' })}
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
+              view.kind === 'local-folder'
+                ? 'bezel glow-text'
+                : 'text-zinc-300 hover:bg-white/5'
+            }`}
+            title="浏览本地电脑上的文件夹（曲目数据只存这台浏览器）"
+          >
+            <span className="inline-block w-5 text-center mr-1">{'📁'}</span>
+            本地文件夹
           </button>
         )}
       </div>

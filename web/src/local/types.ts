@@ -1,0 +1,90 @@
+/**
+ * Browser-local library types and Track-adapter helpers.
+ *
+ * The existing player + UI work on `Track` (server-side DTO). To reuse
+ * them for browser-local files we shape a `LocalTrack` into a Track via
+ * `localToTrack()`, with:
+ *   - id     : a stable NEGATIVE integer derived from rel_path so it can
+ *              never collide with a server id (server ids are positive
+ *              AUTOINCREMENT). Components can branch on `id < 0` to know
+ *              "this is local — skip server-side per-user feature calls".
+ *   - url    : the caller-provided blob URL (made just-in-time from the
+ *              FileSystemFileHandle), or '' when not yet resolved.
+ *   - source : 'mine' — matches the server-side "owned-by-me" surface
+ *              so the existing UI badges look right.
+ */
+import type { Track } from '../types';
+
+export interface LocalTrack {
+  /** Path relative to the chosen folder, forward slashes. */
+  rel_path: string;
+  title: string | null;
+  artist: string | null;
+  album: string | null;
+  year: number | null;
+  duration_sec: number | null;
+  size_bytes: number;
+  bitrate: number | null;
+  /** True iff a sibling `<basename>.lrc` exists in the folder. */
+  has_lrc: boolean;
+  /** Tiny data: URL with embedded ID3 cover, or null if no embedded art. */
+  cover_data_url: string | null;
+}
+
+/**
+ * Stable negative integer derived from rel_path.
+ * Uses FNV-1a 32-bit folded into the negative range so server ids
+ * (positive) and local ids (negative) never collide.
+ */
+export function localIdFromRelPath(relPath: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < relPath.length; i++) {
+    h ^= relPath.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  const unsigned = h >>> 0;
+  return -1 - (unsigned % 2_000_000_000);
+}
+
+/**
+ * Adapt a LocalTrack into a Track suitable for the existing player + UI.
+ * `blobUrl` should be supplied just before playback (and revoked after).
+ * Pass '' when only using the row for list rendering.
+ */
+export function localToTrack(lt: LocalTrack, blobUrl: string): Track {
+  const fallbackTitle =
+    lt.rel_path.replace(/\.[^.]+$/, '').split('/').pop() ?? lt.rel_path;
+  return {
+    id: localIdFromRelPath(lt.rel_path),
+    rel_path: lt.rel_path,
+    title: lt.title ?? fallbackTitle,
+    artist: lt.artist,
+    album: lt.album,
+    genre: null,
+    year: lt.year,
+    track_no: null,
+    duration_sec: lt.duration_sec,
+    size_bytes: lt.size_bytes,
+    bitrate: lt.bitrate,
+    mime: 'audio/mpeg',
+    rating: 0,
+    favorited: false,
+    added_at: '',
+    modified_at: '',
+    last_edited_at: null,
+    url: blobUrl,
+    cover_url: lt.cover_data_url,
+    owner_id: null,
+    owner_username: null,
+    owner_display_name: null,
+    is_public: false,
+    is_owner: true,
+    shared_with_me: false,
+    source: 'mine',
+  };
+}
+
+/** True iff this track came from the browser-local library. */
+export function isLocalTrack(t: Pick<Track, 'id'>): boolean {
+  return t.id < 0;
+}

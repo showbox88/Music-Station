@@ -83,6 +83,12 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
       setLyrics({ status: 'idle' });
       return;
     }
+    // Local-folder tracks have negative ids; the server has no lyrics
+    // record for them. Show 'absent' without an HTTP round-trip.
+    if (id < 0) {
+      setLyrics({ status: 'absent' });
+      return;
+    }
     let cancelled = false;
     setLyrics({ status: 'loading' });
     api
@@ -111,6 +117,9 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
   async function handleFetchLyrics() {
     const id = p.current?.id;
     if (!id || fetchingLyrics) return;
+    // Local tracks aren't in the server DB. v1 doesn't auto-fetch
+    // lyrics for them; drop a .lrc next to the mp3 instead.
+    if (id < 0) return;
     setFetchingLyrics(true);
     try {
       const r = await api.fetchLyrics(id);
@@ -182,6 +191,9 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
 
   const isFav = (favOpt ?? t.favorited) ?? false;
   async function toggleFavorite() {
+    // Local-folder tracks aren't in the server DB; favorites for them
+    // aren't supported in v1 (would need IndexedDB-backed state).
+    if (t.id < 0) return;
     const next = !isFav;
     setFavOpt(next);
     try {

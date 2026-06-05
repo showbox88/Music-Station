@@ -77,6 +77,8 @@ export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
 
   async function toggleFav() {
     if (!t) return;
+    // Local-folder tracks (negative id) aren't in the server DB.
+    if (t.id < 0) return;
     const next = !isFav;
     setFavOpt(next);
     try {
