@@ -14,6 +14,7 @@ import { RepeatIcon, RepeatOneIcon, ShuffleIcon } from '../components/Icons';
 import { api } from '../api';
 import { useRemote } from '../remote/RemoteContext';
 import RemoteBadge from '../remote/RemoteBadge';
+import { patchLocalUserState } from '../local/db';
 
 interface Props {
   onExpand?: () => void;
@@ -77,9 +78,20 @@ export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
 
   async function toggleFav() {
     if (!t) return;
-    // Local-folder tracks (negative id) aren't in the server DB.
-    if (t.id < 0) return;
     const next = !isFav;
+    // Local-folder tracks (negative id) aren't in the server DB —
+    // persist favorited to browser-local IndexedDB instead.
+    if (t.id < 0) {
+      setFavOpt(next);
+      try {
+        await patchLocalUserState(t.rel_path, { favorited: next || null });
+        (t as { favorited: boolean }).favorited = next;
+      } catch (err: unknown) {
+        setFavOpt(!next);
+        console.warn('local favorite save failed', err);
+      }
+      return;
+    }
     setFavOpt(next);
     try {
       await api.updateTrack(t.id, { favorited: next });

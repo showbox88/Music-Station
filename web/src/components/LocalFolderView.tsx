@@ -22,12 +22,15 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePlayer } from '../player/PlayerContext';
+import { usePrefs } from '../PrefsContext';
 import {
   getStoredFolderHandle,
   setStoredFolderHandle,
   clearStoredFolderHandle,
   listLocalTracks,
   clearLocalTracks,
+  listLocalUserStates,
+  patchLocalUserState,
 } from '../local/db';
 import {
   scanFolder,
@@ -35,8 +38,9 @@ import {
   type ScanProgress,
   type ScanResult,
 } from '../local/scanner';
-import type { LocalTrack } from '../local/types';
+import type { LocalTrack, LocalUserState } from '../local/types';
 import { localToTrack } from '../local/types';
+import StarRating from './StarRating';
 
 type Mode = 'need-picker' | 'need-permission' | 'ready' | 'scanning';
 
@@ -68,15 +72,33 @@ async function requestReadPermission(
 
 export default function LocalFolderView() {
   const player = usePlayer();
+  const { refreshLocalTrackIndex } = usePrefs();
   const [mode, setMode] = useState<Mode>('need-picker');
   const [handle, setHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [tracks, setTracks] = useState<LocalTrack[]>([]);
+  const [userStateByPath, setUserStateByPath] = useState<
+    Record<string, LocalUserState>
+  >({});
   const [err, setErr] = useState<string | null>(null);
   const [progress, setProgress] = useState<ScanProgress | null>(null);
   const [lastResult, setLastResult] = useState<ScanResult | null>(null);
   const [q, setQ] = useState('');
+  const [favOnly, setFavOnly] = useState(false);
 
   const blobCacheRef = useRef<Map<string, string>>(new Map());
+
+  // Load user_state alongside the track list. Called whenever the
+  // displayed list of tracks changes (initial load, after scan).
+  const reloadUserStates = useCallback(async () => {
+    try {
+      const all = await listLocalUserStates();
+      const map: Record<string, LocalUserState> = {};
+      for (const s of all) map[s.rel_path] = s;
+      setUserStateByPath(map);
+    } catch {
+      setUserStateByPath({});
+    }
+  }, []);
 
   // On mount: try the stored handle.
   useEffect(() => {
@@ -93,7 +115,7 @@ export default function LocalFolderView() {
         const perm = await queryReadPermission(stored);
         if (cancelled) return;
         if (perm === 'granted') {
-          const ts = await listLocalTracks();
+          const [ts] = await Promise.all([listLocalTracks(), reloadUserStates()]);
           if (cancelled) return;
           setTracks(ts);
           setMode('ready');
@@ -118,6 +140,10 @@ export default function LocalFolderView() {
       setLastResult(r);
       const ts = await listLocalTracks();
       setTracks(ts);
+      await reloadUserStates();
+      // Let PrefsContext rebuild its negative-id → rel_path lookup so
+      // the player's per-track EQ can find local tracks just scanned.
+      await refreshLocalTrackIndex();
       const stillExisting = new Set(ts.map((t) => t.rel_path));
       for (const [path, url] of blobCacheRef.current.entries()) {
         if (!stillExisting.has(path)) {
@@ -207,49 +233,115 @@ export default function LocalFolderView() {
     async (lt: LocalTrack) => {
       try {
         const url = await blobUrlFor(lt);
-        player.playOne(localToTrack(lt, url));
+        player.playOne(localToTrack(lt, url, userStateByPath[lt.rel_path]));
       } catch (e) {
         setErr(`播放失败: ${(e as Error).message}`);
       }
     },
-    [blobUrlFor, player],
+    [blobUrlFor, player, userStateByPath],
   );
 
   const enqueueOne = useCallback(
     async (lt: LocalTrack) => {
       try {
         const url = await blobUrlFor(lt);
-        player.enqueue([localToTrack(lt, url)]);
+        player.enqueue([localToTrack(lt, url, userStateByPath[lt.rel_path])]);
       } catch (e) {
         setErr(`加入队列失败: ${(e as Error).message}`);
       }
     },
-    [blobUrlFor, player],
+    [blobUrlFor, player, userStateByPath],
+  );
+
+  const toggleFavorite = useCallback(
+    async (lt: LocalTrack) => {
+      const current = !!userStateByPath[lt.rel_path]?.favorited;
+      const next = !current;
+      // Optimistic update.
+      setUserStateByPath((prev) => {
+        const merged: LocalUserState = {
+          ...(prev[lt.rel_path] ?? { rel_path: lt.rel_path }),
+          favorited: next,
+        };
+        return { ...prev, [lt.rel_path]: merged };
+      });
+      try {
+        await patchLocalUserState(lt.rel_path, { favorited: next || null });
+      } catch (e) {
+        // Roll back on persistence failure.
+        setUserStateByPath((prev) => {
+          const merged: LocalUserState = {
+            ...(prev[lt.rel_path] ?? { rel_path: lt.rel_path }),
+            favorited: current,
+          };
+          return { ...prev, [lt.rel_path]: merged };
+        });
+        setErr(`本地收藏保存失败: ${(e as Error).message}`);
+      }
+    },
+    [userStateByPath],
+  );
+
+  const setRating = useCallback(
+    async (lt: LocalTrack, value: number) => {
+      const prevValue = userStateByPath[lt.rel_path]?.rating ?? 0;
+      const cleared = value === 0;
+      setUserStateByPath((prev) => {
+        const merged: LocalUserState = {
+          ...(prev[lt.rel_path] ?? { rel_path: lt.rel_path }),
+          rating: value,
+        };
+        return { ...prev, [lt.rel_path]: merged };
+      });
+      try {
+        await patchLocalUserState(lt.rel_path, {
+          rating: cleared ? null : value,
+        });
+      } catch (e) {
+        setUserStateByPath((prev) => {
+          const merged: LocalUserState = {
+            ...(prev[lt.rel_path] ?? { rel_path: lt.rel_path }),
+            rating: prevValue,
+          };
+          return { ...prev, [lt.rel_path]: merged };
+        });
+        setErr(`本地评分保存失败: ${(e as Error).message}`);
+      }
+    },
+    [userStateByPath],
   );
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return tracks;
-    return tracks.filter(
-      (t) =>
-        (t.title ?? '').toLowerCase().includes(needle) ||
-        (t.artist ?? '').toLowerCase().includes(needle) ||
-        (t.album ?? '').toLowerCase().includes(needle) ||
-        t.rel_path.toLowerCase().includes(needle),
-    );
-  }, [tracks, q]);
+    let out = tracks;
+    if (favOnly) {
+      out = out.filter((t) => !!userStateByPath[t.rel_path]?.favorited);
+    }
+    if (needle) {
+      out = out.filter(
+        (t) =>
+          (t.title ?? '').toLowerCase().includes(needle) ||
+          (t.artist ?? '').toLowerCase().includes(needle) ||
+          (t.album ?? '').toLowerCase().includes(needle) ||
+          t.rel_path.toLowerCase().includes(needle),
+      );
+    }
+    return out;
+  }, [tracks, q, favOnly, userStateByPath]);
 
   const playAll = useCallback(async () => {
     if (filtered.length === 0) return;
     try {
       const resolved = await Promise.all(
-        filtered.map(async (lt) => localToTrack(lt, await blobUrlFor(lt))),
+        filtered.map(async (lt) =>
+          localToTrack(lt, await blobUrlFor(lt), userStateByPath[lt.rel_path]),
+        ),
       );
       player.playList(resolved, 0);
     } catch (e) {
       setErr(`播放失败: ${(e as Error).message}`);
     }
-  }, [filtered, blobUrlFor, player]);
+  }, [filtered, blobUrlFor, player, userStateByPath]);
 
   /* ---------- render ---------- */
 
@@ -323,6 +415,17 @@ export default function LocalFolderView() {
           placeholder="搜索本地曲目"
           className="input flex-1 max-w-md min-w-0"
         />
+        <button
+          onClick={() => setFavOnly((v) => !v)}
+          className={`text-[11px] px-2.5 py-1 rounded-full bezel shrink-0 ${
+            favOnly
+              ? 'glow-text glow-ring text-white'
+              : 'text-zinc-400 hover:text-white'
+          }`}
+          title="只看本地收藏"
+        >
+          ♥ 收藏
+        </button>
         <span className="text-xs text-zinc-500 tabular-nums shrink-0 ml-auto">
           {filtered.length}/{tracks.length}
         </span>
@@ -384,6 +487,8 @@ export default function LocalFolderView() {
                 <th className="text-left px-3 py-1.5">标题</th>
                 <th className="text-left px-3 py-1.5 hidden md:table-cell">艺术家</th>
                 <th className="text-left px-3 py-1.5 hidden lg:table-cell">专辑</th>
+                <th className="text-center px-3 py-1.5 w-10">♥</th>
+                <th className="text-left px-3 py-1.5 w-28 hidden md:table-cell">评分</th>
                 <th className="text-right px-3 py-1.5 w-16 tabular-nums">时长</th>
                 <th className="text-right px-3 py-1.5 w-20 tabular-nums hidden md:table-cell">大小</th>
                 <th className="text-right px-3 py-1.5 w-24"></th>
@@ -426,6 +531,29 @@ export default function LocalFolderView() {
                   </td>
                   <td className="px-3 py-1.5 hidden lg:table-cell text-zinc-400 truncate max-w-xs">
                     {t.album ?? '—'}
+                  </td>
+                  <td className="px-3 py-1.5 text-center">
+                    {(() => {
+                      const fav = !!userStateByPath[t.rel_path]?.favorited;
+                      return (
+                        <button
+                          onClick={() => toggleFavorite(t)}
+                          className={`text-base leading-none ${
+                            fav ? 'text-pink-400' : 'text-zinc-600 hover:text-zinc-300'
+                          }`}
+                          title={fav ? '取消收藏' : '收藏到本地'}
+                          aria-pressed={fav}
+                        >
+                          {fav ? '♥' : '♡'}
+                        </button>
+                      );
+                    })()}
+                  </td>
+                  <td className="px-3 py-1.5 hidden md:table-cell">
+                    <StarRating
+                      value={userStateByPath[t.rel_path]?.rating ?? 0}
+                      onChange={(v) => setRating(t, v)}
+                    />
                   </td>
                   <td className="px-3 py-1.5 text-right text-zinc-400 tabular-nums">
                     {formatDuration(t.duration_sec)}

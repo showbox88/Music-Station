@@ -35,6 +35,12 @@ import {
 import type { ReactNode } from 'react';
 import { api } from './api';
 import { translate, detectBrowserLanguage, isLanguage, type Language } from './i18n';
+import {
+  listLocalTracks,
+  listLocalUserStates,
+  patchLocalUserState,
+} from './local/db';
+import { localIdFromRelPath } from './local/types';
 
 /* ----------------------------- types ----------------------------- */
 
@@ -68,6 +74,13 @@ interface PrefsContextValue {
   trackEqMap: Record<number, EQState>;
   setTrackEq: (trackId: number, state: EQState) => void;
   clearTrackEq: (trackId: number) => void;
+  /**
+   * Re-read the browser-local track list + user_state from IndexedDB
+   * and merge their EQ entries into `trackEqMap` keyed by negative
+   * ids (FNV-1a of rel_path). Call after a local-folder scan / pick
+   * so the player can find EQ for newly-discovered local tracks.
+   */
+  refreshLocalTrackIndex: () => Promise<void>;
 }
 
 const Ctx = createContext<PrefsContextValue | null>(null);
@@ -125,6 +138,13 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   const eqTimersRef = useRef<Record<number, number>>({});
   const eqPendingRef = useRef<Record<number, EQState>>({});
 
+  // Negative-id → rel_path lookup for browser-local tracks. Built at
+  // mount from listLocalTracks(); refreshed by refreshLocalTrackIndex
+  // after a local-folder scan brings new tracks in. Used by
+  // setTrackEq / clearTrackEq to recover rel_path when the player
+  // hands us a negative id.
+  const localIdToRelPathRef = useRef<Map<number, string>>(new Map());
+
   // Initial load + one-time localStorage migration
   useEffect(() => {
     let cancelled = false;
@@ -174,8 +194,34 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
           /* ignore */
         }
 
+        // Pull in browser-local tracks + their per-track user state
+        // so the EQ map already knows about them on first render. No
+        // network — both are IndexedDB lookups. Safe to run even when
+        // the user has no local folder set (returns empty arrays).
+        let mergedEqWithLocal = mergedEq;
+        try {
+          const [localTracks, localStates] = await Promise.all([
+            listLocalTracks(),
+            listLocalUserStates(),
+          ]);
+          const idMap = new Map<number, string>();
+          for (const lt of localTracks) {
+            idMap.set(localIdFromRelPath(lt.rel_path), lt.rel_path);
+          }
+          localIdToRelPathRef.current = idMap;
+          const overlay: Record<number, EQState> = {};
+          for (const s of localStates) {
+            if (s.eq) overlay[localIdFromRelPath(s.rel_path)] = s.eq;
+          }
+          mergedEqWithLocal = { ...mergedEq, ...overlay };
+        } catch (localErr) {
+          // IndexedDB unavailable or schema bug — degrade silently.
+          // Server-side EQ still works.
+          console.warn('local user_state load failed', localErr);
+        }
+
         setPrefs(mergedPrefs);
-        setTrackEqMap(mergedEq);
+        setTrackEqMap(mergedEqWithLocal);
         setLoaded(true);
       } catch (e: any) {
         if (cancelled) return;
@@ -215,6 +261,17 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
     const state = eqPendingRef.current[trackId];
     if (!state) return;
     delete eqPendingRef.current[trackId];
+    if (trackId < 0) {
+      const relPath = localIdToRelPathRef.current.get(trackId);
+      if (!relPath) {
+        console.warn('local track id has no rel_path mapping', trackId);
+        return;
+      }
+      patchLocalUserState(relPath, { eq: state }).catch((e) =>
+        console.warn('local track-eq save failed', e),
+      );
+      return;
+    }
     api.saveTrackEq(trackId, state).catch((e) =>
       console.warn('track-eq save failed', e),
     );
@@ -240,7 +297,42 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(eqTimersRef.current[trackId]);
       delete eqTimersRef.current[trackId];
     }
+    if (trackId < 0) {
+      const relPath = localIdToRelPathRef.current.get(trackId);
+      if (relPath) {
+        patchLocalUserState(relPath, { eq: null }).catch(() => {/* ignore */});
+      }
+      return;
+    }
     api.deleteTrackEq(trackId).catch(() => {/* ignore */});
+  }, []);
+
+  const refreshLocalTrackIndex = useCallback(async () => {
+    try {
+      const [localTracks, localStates] = await Promise.all([
+        listLocalTracks(),
+        listLocalUserStates(),
+      ]);
+      const idMap = new Map<number, string>();
+      for (const lt of localTracks) {
+        idMap.set(localIdFromRelPath(lt.rel_path), lt.rel_path);
+      }
+      localIdToRelPathRef.current = idMap;
+      // Re-overlay: drop stale negative-id entries, fold in fresh ones.
+      setTrackEqMap((prev) => {
+        const next: Record<number, EQState> = {};
+        for (const [k, v] of Object.entries(prev)) {
+          const n = Number(k);
+          if (n >= 0) next[n] = v;
+        }
+        for (const s of localStates) {
+          if (s.eq) next[localIdFromRelPath(s.rel_path)] = s.eq;
+        }
+        return next;
+      });
+    } catch (e) {
+      console.warn('refreshLocalTrackIndex failed', e);
+    }
   }, []);
 
   if (!loaded) {
@@ -259,7 +351,16 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <Ctx.Provider value={{ prefs, setPref, trackEqMap, setTrackEq, clearTrackEq }}>
+    <Ctx.Provider
+      value={{
+        prefs,
+        setPref,
+        trackEqMap,
+        setTrackEq,
+        clearTrackEq,
+        refreshLocalTrackIndex,
+      }}
+    >
       {children}
     </Ctx.Provider>
   );
@@ -276,6 +377,7 @@ const PREFS_STUB: PrefsContextValue = {
   trackEqMap: {},
   setTrackEq: () => {},
   clearTrackEq: () => {},
+  refreshLocalTrackIndex: async () => {},
 };
 
 export function usePrefs(): PrefsContextValue {

@@ -32,6 +32,20 @@ export interface LocalTrack {
 }
 
 /**
+ * Browser-only per-track user state, parallel to the server's
+ * user_favorites / user_track_ratings / user_track_eq tables.
+ * Keyed by rel_path. Fields are optional — we only persist what the
+ * user has actually set, and delete the row when everything is cleared.
+ * See db.ts `patchLocalUserState`.
+ */
+export interface LocalUserState {
+  rel_path: string;
+  favorited?: boolean;
+  rating?: number; // 0..5
+  eq?: { gains: number[]; preamp: number; bypass: boolean };
+}
+
+/**
  * Stable negative integer derived from rel_path.
  * Uses FNV-1a 32-bit folded into the negative range so server ids
  * (positive) and local ids (negative) never collide.
@@ -50,8 +64,14 @@ export function localIdFromRelPath(relPath: string): number {
  * Adapt a LocalTrack into a Track suitable for the existing player + UI.
  * `blobUrl` should be supplied just before playback (and revoked after).
  * Pass '' when only using the row for list rendering.
+ * Optional `userState` merges browser-local favorited/rating so the
+ * adapted Track reflects what the user previously set.
  */
-export function localToTrack(lt: LocalTrack, blobUrl: string): Track {
+export function localToTrack(
+  lt: LocalTrack,
+  blobUrl: string,
+  userState?: LocalUserState | null,
+): Track {
   const fallbackTitle =
     lt.rel_path.replace(/\.[^.]+$/, '').split('/').pop() ?? lt.rel_path;
   return {
@@ -67,8 +87,8 @@ export function localToTrack(lt: LocalTrack, blobUrl: string): Track {
     size_bytes: lt.size_bytes,
     bitrate: lt.bitrate,
     mime: 'audio/mpeg',
-    rating: 0,
-    favorited: false,
+    rating: userState?.rating ?? 0,
+    favorited: userState?.favorited ?? false,
     added_at: '',
     modified_at: '',
     last_edited_at: null,

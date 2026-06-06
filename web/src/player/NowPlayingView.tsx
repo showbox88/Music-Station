@@ -17,6 +17,7 @@ import EQPanel from './EQPanel';
 import LyricsPanel, { parseLrc, type ParsedLyrics } from './LyricsPanel';
 import { api } from '../api';
 import AddToPlaylistMenu from '../components/AddToPlaylistMenu';
+import { patchLocalUserState } from '../local/db';
 import './skins/skins.css';
 import { DEFAULT_SKIN, isSkinId } from './skins/registry';
 import type { SkinId, SkinProps } from './skins/types';
@@ -191,10 +192,20 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
 
   const isFav = (favOpt ?? t.favorited) ?? false;
   async function toggleFavorite() {
-    // Local-folder tracks aren't in the server DB; favorites for them
-    // aren't supported in v1 (would need IndexedDB-backed state).
-    if (t.id < 0) return;
     const next = !isFav;
+    // Local-folder tracks (negative id) persist to browser-local
+    // IndexedDB instead of hitting the server.
+    if (t.id < 0) {
+      setFavOpt(next);
+      try {
+        await patchLocalUserState(t.rel_path, { favorited: next || null });
+        (t as any).favorited = next;
+      } catch (err: any) {
+        setFavOpt(!next);
+        alert(`本地收藏保存失败: ${err?.message ?? err}`);
+      }
+      return;
+    }
     setFavOpt(next);
     try {
       await api.updateTrack(t.id, { favorited: next });
