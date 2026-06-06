@@ -39,7 +39,7 @@ import {
   type ScanResult,
 } from '../local/scanner';
 import type { LocalTrack, LocalUserState } from '../local/types';
-import { localToTrack } from '../local/types';
+import { localToTrack, localIdFromRelPath } from '../local/types';
 import StarRating from './StarRating';
 
 type Mode = 'need-picker' | 'need-permission' | 'ready' | 'scanning';
@@ -72,7 +72,8 @@ async function requestReadPermission(
 
 export default function LocalFolderView() {
   const player = usePlayer();
-  const { refreshLocalTrackIndex } = usePrefs();
+  const { prefs, setPref, refreshLocalTrackIndex } = usePrefs();
+  const view: 'list' | 'card' = prefs.tracks_view === 'card' ? 'card' : 'list';
   const [mode, setMode] = useState<Mode>('need-picker');
   const [handle, setHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [tracks, setTracks] = useState<LocalTrack[]>([]);
@@ -343,6 +344,31 @@ export default function LocalFolderView() {
     }
   }, [filtered, blobUrlFor, player, userStateByPath]);
 
+  // Card click: if this track is the current one, toggle play/pause;
+  // otherwise materialize the full filtered list and start from idx.
+  const playFromIndex = useCallback(
+    async (idx: number) => {
+      const target = filtered[idx];
+      if (!target) return;
+      const targetId = localIdFromRelPath(target.rel_path);
+      if (player.current?.id === targetId) {
+        player.togglePlay();
+        return;
+      }
+      try {
+        const resolved = await Promise.all(
+          filtered.map(async (lt) =>
+            localToTrack(lt, await blobUrlFor(lt), userStateByPath[lt.rel_path]),
+          ),
+        );
+        player.playList(resolved, idx);
+      } catch (e) {
+        setErr(`播放失败: ${(e as Error).message}`);
+      }
+    },
+    [filtered, blobUrlFor, player, userStateByPath],
+  );
+
   /* ---------- render ---------- */
 
   if (mode === 'need-picker') {
@@ -451,6 +477,43 @@ export default function LocalFolderView() {
         >
           📁 换文件夹
         </button>
+        {/* List ↔ Card toggle. Shares the tracks_view pref with the
+            server-side TrackList so flipping it here also flips it
+            there — intentional, one mental model. */}
+        <div
+          className="inline-flex rounded-full overflow-hidden shrink-0"
+          style={{ border: '1px solid #050506' }}
+        >
+          <button
+            onClick={() => setPref('tracks_view', 'list')}
+            className={`w-8 h-7 flex items-center justify-center ${
+              view === 'list' ? 'glow-text glow-ring' : 'text-zinc-400 hover:text-white'
+            }`}
+            title="列表视图"
+            aria-pressed={view === 'list'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="4" y1="6"  x2="20" y2="6" />
+              <line x1="4" y1="12" x2="20" y2="12" />
+              <line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
+          </button>
+          <button
+            onClick={() => setPref('tracks_view', 'card')}
+            className={`w-8 h-7 flex items-center justify-center ${
+              view === 'card' ? 'glow-text glow-ring' : 'text-zinc-400 hover:text-white'
+            }`}
+            title="封面视图"
+            aria-pressed={view === 'card'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <rect x="3"  y="3"  width="7" height="7" />
+              <rect x="14" y="3"  width="7" height="7" />
+              <rect x="3"  y="14" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div className="px-3 md:px-6 py-1.5 border-b border-black/60 text-[11px] text-zinc-500 flex items-center gap-3">
@@ -478,6 +541,121 @@ export default function LocalFolderView() {
             {tracks.length === 0
               ? '这个文件夹里没找到音频文件。'
               : '搜索没有结果。'}
+          </div>
+        ) : view === 'card' ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6 gap-3 p-3 md:p-4">
+            {filtered.map((t, idx) => {
+              const fav = !!userStateByPath[t.rel_path]?.favorited;
+              const rating = userStateByPath[t.rel_path]?.rating ?? 0;
+              const isCur = player.current?.id === localIdFromRelPath(t.rel_path);
+              const playing = isCur && player.isPlaying;
+              return (
+                <div
+                  key={t.rel_path}
+                  className="group relative flex flex-col rounded-lg overflow-hidden surface-raised select-none"
+                  style={
+                    isCur
+                      ? { boxShadow: '0 0 0 1px rgba(255,45,181,0.55), 0 0 12px rgba(255,45,181,0.25)' }
+                      : undefined
+                  }
+                >
+                  <button
+                    onClick={() => playFromIndex(idx)}
+                    title={isCur ? (playing ? 'Pause' : 'Resume') : 'Play'}
+                    className="relative block w-full aspect-square bg-zinc-800"
+                  >
+                    {t.cover_data_url ? (
+                      <img
+                        src={t.cover_data_url}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-4xl text-zinc-600">
+                        ♪
+                      </div>
+                    )}
+                    {/* Play/pause overlay — same UX as the server card */}
+                    <span
+                      className="absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity opacity-0 group-hover:opacity-100 md:opacity-0"
+                      style={{
+                        color: 'rgba(255,255,255,0.85)',
+                        background: 'linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.45))',
+                        opacity: isCur ? 1 : undefined,
+                      }}
+                    >
+                      {playing ? (
+                        <svg width="42" height="42" viewBox="0 0 24 24" fill="currentColor">
+                          <rect x="6" y="5" width="4" height="14" />
+                          <rect x="14" y="5" width="4" height="14" />
+                        </svg>
+                      ) : (
+                        <svg width="44" height="44" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      )}
+                    </span>
+                    {/* Top-right action chips on hover. Heart always
+                        rendered (the main local-side action); + enqueue. */}
+                    <span className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          enqueueOne(t);
+                        }}
+                        title="加入播放队列"
+                        className="w-7 h-7 rounded-full bezel flex items-center justify-center text-zinc-200 hover:text-blue-400"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                          <line x1="12" y1="5" x2="12" y2="19" />
+                          <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          toggleFavorite(t);
+                        }}
+                        title={fav ? '取消收藏' : '收藏到本地'}
+                        className="w-7 h-7 rounded-full bezel flex items-center justify-center"
+                      >
+                        <span className={fav ? 'text-pink-400' : 'text-zinc-200'}>
+                          {fav ? '♥' : '♡'}
+                        </span>
+                      </button>
+                    </span>
+                    {/* LRC badge bottom-left when sibling .lrc exists. */}
+                    {t.has_lrc && (
+                      <span
+                        className="absolute bottom-1.5 left-1.5 text-[9px] uppercase tracking-wide text-pink-300/90 bezel px-1.5 py-0.5 rounded-full"
+                        title="有 .lrc 歌词文件"
+                      >
+                        lrc
+                      </span>
+                    )}
+                  </button>
+
+                  <div className="px-2 py-1.5 min-w-0">
+                    <div className="text-sm font-medium truncate" title={t.title || t.rel_path}>
+                      {t.title || '—'}
+                    </div>
+                    <div className="text-xs text-zinc-500 truncate" title={t.artist || ''}>
+                      {t.artist || '—'}
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <StarRating value={rating} onChange={(v) => setRating(t, v)} />
+                      <span className="text-[10px] text-zinc-500 tabular-nums">
+                        {formatDuration(t.duration_sec)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <table className="w-full text-sm">
