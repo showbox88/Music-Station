@@ -191,7 +191,7 @@ function AppContent() {
             onChanged={refresh}
           />
         ) : view.kind === 'local-folder' ? (
-          <LocalFolderView />
+          <LocalFolderView onChanged={refresh} />
         ) : view.kind === 'local-playlist' ? (
           <LocalPlaylistView
             playlistId={view.id}

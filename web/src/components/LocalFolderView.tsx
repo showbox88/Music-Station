@@ -71,7 +71,17 @@ async function requestReadPermission(
   return (await (handle as any).requestPermission({ mode: 'read' })) as PermissionState;
 }
 
-export default function LocalFolderView() {
+interface Props {
+  /**
+   * Bumped by the parent (App.tsx) when something this view did
+   * affects the sidebar — e.g. a track was added to a playlist via
+   * AddToPlaylistMenu. App's `refresh` increments `refreshKey` which
+   * the Sidebar's load effect watches.
+   */
+  onChanged?: () => void;
+}
+
+export default function LocalFolderView({ onChanged }: Props = {}) {
   const player = usePlayer();
   const { prefs, setPref, refreshLocalTrackIndex } = usePrefs();
   const view: 'list' | 'card' = prefs.tracks_view === 'card' ? 'card' : 'list';
@@ -815,6 +825,9 @@ export default function LocalFolderView() {
             // playlists (only EQ lookup uses it), but keeps PrefsContext
             // and IndexedDB in lockstep.
             void refreshLocalTrackIndex();
+            // Tell the parent so the Sidebar reloads its playlist
+            // counts after a successful add.
+            onChanged?.();
           }}
         />
       )}
