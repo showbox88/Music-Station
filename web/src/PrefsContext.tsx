@@ -40,7 +40,7 @@ import {
   listLocalUserStates,
   patchLocalUserState,
 } from './local/db';
-import { localIdFromRelPath } from './local/types';
+import { localIdFromFolderAndPath } from './local/types';
 
 /* ----------------------------- types ----------------------------- */
 
@@ -138,12 +138,14 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   const eqTimersRef = useRef<Record<number, number>>({});
   const eqPendingRef = useRef<Record<number, EQState>>({});
 
-  // Negative-id → rel_path lookup for browser-local tracks. Built at
-  // mount from listLocalTracks(); refreshed by refreshLocalTrackIndex
-  // after a local-folder scan brings new tracks in. Used by
-  // setTrackEq / clearTrackEq to recover rel_path when the player
-  // hands us a negative id.
-  const localIdToRelPathRef = useRef<Map<number, string>>(new Map());
+  // Negative-id → (folder_id, rel_path) lookup for browser-local
+  // tracks. Built at mount from listLocalTracks(); refreshed by
+  // refreshLocalTrackIndex after a local-folder scan brings new tracks
+  // in. Used by setTrackEq / clearTrackEq to recover the compound key
+  // when the player hands us a negative id.
+  const localTrackKeyRef = useRef<Map<number, { folder_id: number; rel_path: string }>>(
+    new Map(),
+  );
 
   // Initial load + one-time localStorage migration
   useEffect(() => {
@@ -197,21 +199,26 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
         // Pull in browser-local tracks + their per-track user state
         // so the EQ map already knows about them on first render. No
         // network — both are IndexedDB lookups. Safe to run even when
-        // the user has no local folder set (returns empty arrays).
+        // the user has no local folders set (returns empty arrays).
         let mergedEqWithLocal = mergedEq;
         try {
           const [localTracks, localStates] = await Promise.all([
             listLocalTracks(),
             listLocalUserStates(),
           ]);
-          const idMap = new Map<number, string>();
+          const keyMap = new Map<number, { folder_id: number; rel_path: string }>();
           for (const lt of localTracks) {
-            idMap.set(localIdFromRelPath(lt.rel_path), lt.rel_path);
+            keyMap.set(localIdFromFolderAndPath(lt.folder_id, lt.rel_path), {
+              folder_id: lt.folder_id,
+              rel_path: lt.rel_path,
+            });
           }
-          localIdToRelPathRef.current = idMap;
+          localTrackKeyRef.current = keyMap;
           const overlay: Record<number, EQState> = {};
           for (const s of localStates) {
-            if (s.eq) overlay[localIdFromRelPath(s.rel_path)] = s.eq;
+            if (s.eq) {
+              overlay[localIdFromFolderAndPath(s.folder_id, s.rel_path)] = s.eq;
+            }
           }
           mergedEqWithLocal = { ...mergedEq, ...overlay };
         } catch (localErr) {
@@ -262,12 +269,12 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
     if (!state) return;
     delete eqPendingRef.current[trackId];
     if (trackId < 0) {
-      const relPath = localIdToRelPathRef.current.get(trackId);
-      if (!relPath) {
-        console.warn('local track id has no rel_path mapping', trackId);
+      const key = localTrackKeyRef.current.get(trackId);
+      if (!key) {
+        console.warn('local track id has no key mapping', trackId);
         return;
       }
-      patchLocalUserState(relPath, { eq: state }).catch((e) =>
+      patchLocalUserState(key.folder_id, key.rel_path, { eq: state }).catch((e) =>
         console.warn('local track-eq save failed', e),
       );
       return;
@@ -298,9 +305,11 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
       delete eqTimersRef.current[trackId];
     }
     if (trackId < 0) {
-      const relPath = localIdToRelPathRef.current.get(trackId);
-      if (relPath) {
-        patchLocalUserState(relPath, { eq: null }).catch(() => {/* ignore */});
+      const key = localTrackKeyRef.current.get(trackId);
+      if (key) {
+        patchLocalUserState(key.folder_id, key.rel_path, { eq: null }).catch(
+          () => {/* ignore */},
+        );
       }
       return;
     }
@@ -313,11 +322,14 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
         listLocalTracks(),
         listLocalUserStates(),
       ]);
-      const idMap = new Map<number, string>();
+      const keyMap = new Map<number, { folder_id: number; rel_path: string }>();
       for (const lt of localTracks) {
-        idMap.set(localIdFromRelPath(lt.rel_path), lt.rel_path);
+        keyMap.set(localIdFromFolderAndPath(lt.folder_id, lt.rel_path), {
+          folder_id: lt.folder_id,
+          rel_path: lt.rel_path,
+        });
       }
-      localIdToRelPathRef.current = idMap;
+      localTrackKeyRef.current = keyMap;
       // Re-overlay: drop stale negative-id entries, fold in fresh ones.
       setTrackEqMap((prev) => {
         const next: Record<number, EQState> = {};
@@ -326,7 +338,9 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
           if (n >= 0) next[n] = v;
         }
         for (const s of localStates) {
-          if (s.eq) next[localIdFromRelPath(s.rel_path)] = s.eq;
+          if (s.eq) {
+            next[localIdFromFolderAndPath(s.folder_id, s.rel_path)] = s.eq;
+          }
         }
         return next;
       });

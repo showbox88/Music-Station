@@ -14,8 +14,12 @@ import {
   createLocalPlaylist,
   renameLocalPlaylist as renameLocalPl,
   deleteLocalPlaylist as deleteLocalPl,
+  listLocalFolders,
+  createLocalFolder,
+  renameLocalFolder,
+  deleteLocalFolder,
 } from '../local/db';
-import type { LocalPlaylist } from '../local/types';
+import type { LocalFolder, LocalPlaylist } from '../local/types';
 
 export type View =
   | { kind: 'all' }
@@ -24,7 +28,7 @@ export type View =
   | { kind: 'lyrics-editor' }
   | { kind: 'visualizer-lab' }
   | { kind: 'admin' }
-  | { kind: 'local-folder' }
+  | { kind: 'local-folder'; folderId: number }
   | { kind: 'playlist'; id: number }
   | { kind: 'local-playlist'; id: number };
 
@@ -47,6 +51,7 @@ interface Props {
 export default function Sidebar({ view, setView, refreshKey, onChanged, open = false, onClose }: Props) {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [localPlaylists, setLocalPlaylists] = useState<LocalPlaylist[]>([]);
+  const [localFolders, setLocalFolders] = useState<LocalFolder[]>([]);
   const [favOwners, setFavOwners] = useState<FavoritesOwner[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -93,8 +98,62 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
     listLocalPlaylists()
       .then(setLocalPlaylists)
       .catch(() => setLocalPlaylists([]));
+    listLocalFolders()
+      .then(setLocalFolders)
+      .catch(() => setLocalFolders([]));
   }
   useEffect(load, [refreshKey]);
+
+  async function onAddLocalFolder() {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const picked: FileSystemDirectoryHandle = await (window as any).showDirectoryPicker({
+        mode: 'read',
+        id: `music-station-local-folder-${Date.now()}`,
+      });
+      const f = await createLocalFolder(picked);
+      load();
+      setView({ kind: 'local-folder', folderId: f.id });
+      onChanged();
+    } catch (e) {
+      const msg = String((e as Error)?.message ?? e);
+      if (!/abort/i.test(msg)) setErr(msg);
+    }
+  }
+
+  async function onRenameLocalFolder(f: LocalFolder) {
+    const next = prompt('文件夹显示名', f.name);
+    if (!next || next.trim() === f.name) return;
+    try {
+      await renameLocalFolder(f.id, next.trim());
+      load();
+      onChanged();
+    } catch (e: any) {
+      alert(String(e?.message ?? e));
+    }
+  }
+
+  async function onDeleteLocalFolder(f: LocalFolder) {
+    if (
+      !confirm(
+        `删除文件夹「${f.name}」？这只是从这里移除，原本的电脑文件不会被动。\n` +
+          `这个文件夹里的曲目元数据、收藏、评分、EQ 也会跟着清掉。\n` +
+          `它在 playlist 里的曲目会变灰，可以保留或之后挨个移除。`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await deleteLocalFolder(f.id);
+      if (view.kind === 'local-folder' && view.folderId === f.id) {
+        setView({ kind: 'all' });
+      }
+      load();
+      onChanged();
+    } catch (e: any) {
+      alert(String(e?.message ?? e));
+    }
+  }
 
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -343,18 +402,48 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
           </button>
         )}
         {SUPPORTS_FSA && (
-          <button
-            onClick={() => setView({ kind: 'local-folder' })}
-            className={`w-full text-left px-3 py-2 rounded-lg text-sm ${
-              view.kind === 'local-folder'
-                ? 'bezel glow-text'
-                : 'text-zinc-300 hover:bg-white/5'
-            }`}
-            title="浏览本地电脑上的文件夹（曲目数据只存这台浏览器）"
-          >
-            <span className="inline-block w-5 text-center mr-1">{'📁'}</span>
-            本地文件夹
-          </button>
+          <div className="space-y-0.5">
+            {/* Group header lights up if ANY local folder is the
+                current view. */}
+            <div
+              className={`flex items-center px-3 py-2 rounded-lg text-sm ${
+                view.kind === 'local-folder'
+                  ? 'bezel glow-text'
+                  : 'text-zinc-300'
+              }`}
+            >
+              <span className="inline-block w-5 text-center mr-1">{'📁'}</span>
+              <span className="flex-1">本地文件夹</span>
+              <button
+                onClick={onAddLocalFolder}
+                className="w-6 h-6 rounded-full bezel text-zinc-300 hover:text-white flex items-center justify-center"
+                title="添加一个本地文件夹"
+              >
+                +
+              </button>
+            </div>
+            {localFolders.length > 0 && (
+              <div className="ml-3 pl-2 border-l border-black/60 space-y-0.5">
+                {localFolders.map((f) => (
+                  <LocalFolderRow
+                    key={f.id}
+                    folder={f}
+                    selected={
+                      view.kind === 'local-folder' && view.folderId === f.id
+                    }
+                    onSelect={() => setView({ kind: 'local-folder', folderId: f.id })}
+                    onRename={() => onRenameLocalFolder(f)}
+                    onDelete={() => onDeleteLocalFolder(f)}
+                  />
+                ))}
+              </div>
+            )}
+            {localFolders.length === 0 && (
+              <div className="text-[10px] text-zinc-600 px-3 py-1">
+                还没有本地文件夹。点 + 添加一个。
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -603,6 +692,60 @@ function PlaylistRow({
             ✕
           </button>
         )}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Sidebar row for one registered local folder. Editable display
+ * name, hover ✎ rename / ✕ delete. Selection style matches the
+ * playlist sub-items so the hierarchy reads consistently.
+ */
+function LocalFolderRow({
+  folder,
+  selected,
+  onSelect,
+  onRename,
+  onDelete,
+}: {
+  folder: LocalFolder;
+  selected: boolean;
+  onSelect: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      className={`group flex items-center px-3 py-1.5 rounded-lg text-sm cursor-pointer ${
+        selected ? 'text-pink-300 bg-white/[0.04]' : 'text-zinc-300 hover:bg-white/5'
+      }`}
+      onClick={onSelect}
+      title={folder.handle.name}
+    >
+      <span className="mr-2 opacity-70">📁</span>
+      <span className="flex-1 min-w-0 truncate align-middle">{folder.name}</span>
+      <span className="ml-2 opacity-0 group-hover:opacity-100 flex gap-1">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRename();
+          }}
+          className="text-xs px-1 text-zinc-400 hover:text-white"
+          title="重命名"
+        >
+          ✎
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="text-xs px-1 text-zinc-400 hover:text-red-400"
+          title="移除文件夹"
+        >
+          ✕
+        </button>
       </span>
     </div>
   );

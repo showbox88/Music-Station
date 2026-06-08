@@ -194,11 +194,16 @@ export default function NowPlayingView({ open, onClose, onLibraryChange }: Props
   async function toggleFavorite() {
     const next = !isFav;
     // Local-folder tracks (negative id) persist to browser-local
-    // IndexedDB instead of hitting the server.
+    // IndexedDB instead of hitting the server. v4 carries folder_id
+    // on the Track DTO.
     if (t.id < 0) {
       setFavOpt(next);
       try {
-        await patchLocalUserState(t.rel_path, { favorited: next || null });
+        await patchLocalUserState(
+          t.local_folder_id ?? -1,
+          t.rel_path,
+          { favorited: next || null },
+        );
         (t as any).favorited = next;
       } catch (err: any) {
         setFavOpt(!next);

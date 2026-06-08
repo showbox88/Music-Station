@@ -26,17 +26,18 @@ import {
   getLocalPlaylist,
   removeFromLocalPlaylistAt,
   getLocalTrack,
-  getStoredFolderHandle,
   listLocalUserStates,
+  listLocalFolders,
 } from '../local/db';
 import { getFileHandle } from '../local/scanner';
 import type {
+  LocalFolder,
   LocalPlaylist,
   LocalPlaylistItem,
   LocalTrack,
   LocalUserState,
 } from '../local/types';
-import { localToTrack, localIdFromRelPath } from '../local/types';
+import { localToTrack, localIdFromFolderAndPath } from '../local/types';
 
 interface Props {
   playlistId: number;
@@ -81,14 +82,17 @@ export default function LocalPlaylistView({ playlistId, refreshKey, onChanged }:
   const [rows, setRows] = useState<RowView[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [folderHandle, setFolderHandle] = useState<FileSystemDirectoryHandle | null>(
-    null,
-  );
-  const [folderPermission, setFolderPermission] = useState<
-    'unknown' | 'granted' | 'need-grant' | 'no-folder'
-  >('unknown');
 
+  /** Per-folder permission state for folders referenced by this
+   *  playlist's local items. Keyed by folder_id. */
+  const [folderMap, setFolderMap] = useState<
+    Map<number, { folder: LocalFolder; permission: PermissionState }>
+  >(new Map());
+
+  // Blob URL cache keyed by `${folder_id}:${rel_path}` so two folders
+  // with the same rel_path don't shadow each other.
   const blobCacheRef = useRef<Map<string, string>>(new Map());
+  const blobCacheKey = (fid: number, p: string) => `${fid}:${p}`;
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -102,15 +106,25 @@ export default function LocalPlaylistView({ playlistId, refreshKey, onChanged }:
       }
       setPlaylist(pl);
 
-      const stored = await getStoredFolderHandle();
-      if (!stored) {
-        setFolderHandle(null);
-        setFolderPermission('no-folder');
-      } else {
-        setFolderHandle(stored);
-        const perm = await queryReadPermission(stored);
-        setFolderPermission(perm === 'granted' ? 'granted' : 'need-grant');
+      // Load every folder referenced by a local item in this playlist,
+      // plus their permission states. We do this lazily — only the
+      // folders we actually need, not every folder in the DB.
+      const referencedFolderIds = new Set(
+        pl.items
+          .filter((it): it is Extract<LocalPlaylistItem, { kind: 'local' }> => it.kind === 'local')
+          .map((it) => it.folder_id),
+      );
+      const allFolders = referencedFolderIds.size > 0 ? await listLocalFolders() : [];
+      const newFolderMap = new Map<
+        number,
+        { folder: LocalFolder; permission: PermissionState }
+      >();
+      for (const f of allFolders) {
+        if (!referencedFolderIds.has(f.id)) continue;
+        const perm = await queryReadPermission(f.handle);
+        newFolderMap.set(f.id, { folder: f, permission: perm });
       }
+      setFolderMap(newFolderMap);
 
       const serverIds = pl.items
         .filter((it): it is Extract<LocalPlaylistItem, { kind: 'server' }> => it.kind === 'server')
@@ -121,16 +135,18 @@ export default function LocalPlaylistView({ playlistId, refreshKey, onChanged }:
         serverMap = new Map(r.tracks.map((t) => [t.id, t]));
       }
 
-      const localPaths = pl.items
-        .filter((it): it is Extract<LocalPlaylistItem, { kind: 'local' }> => it.kind === 'local')
-        .map((it) => it.rel_path);
-      const localTrackByPath = new Map<string, LocalTrack>();
-      for (const p of localPaths) {
-        const lt = await getLocalTrack(p);
-        if (lt) localTrackByPath.set(p, lt);
+      const localItems = pl.items.filter(
+        (it): it is Extract<LocalPlaylistItem, { kind: 'local' }> => it.kind === 'local',
+      );
+      const localTrackByKey = new Map<string, LocalTrack>();
+      for (const it of localItems) {
+        const lt = await getLocalTrack(it.folder_id, it.rel_path);
+        if (lt) localTrackByKey.set(`${it.folder_id}:${it.rel_path}`, lt);
       }
       const stateMap = new Map<string, LocalUserState>();
-      for (const s of await listLocalUserStates()) stateMap.set(s.rel_path, s);
+      for (const s of await listLocalUserStates()) {
+        stateMap.set(`${s.folder_id}:${s.rel_path}`, s);
+      }
 
       const resolved: RowView[] = pl.items.map((it, i) => {
         if (it.kind === 'server') {
@@ -144,15 +160,21 @@ export default function LocalPlaylistView({ playlistId, refreshKey, onChanged }:
             staleReason: !t ? '曲目已删除或对你不可见' : undefined,
           };
         }
-        const lt = localTrackByPath.get(it.rel_path);
+        const lookupKey = `${it.folder_id}:${it.rel_path}`;
+        const lt = localTrackByKey.get(lookupKey);
+        const folderMissing = !newFolderMap.has(it.folder_id);
         return {
-          key: `l${it.rel_path}-${i}`,
+          key: `l${lookupKey}-${i}`,
           position: i,
           kind: 'local',
           localTrack: lt,
-          localState: stateMap.get(it.rel_path),
-          stale: !lt,
-          staleReason: !lt ? '本地文件不在当前文件夹里' : undefined,
+          localState: stateMap.get(lookupKey),
+          stale: !lt || folderMissing,
+          staleReason: folderMissing
+            ? '原文件夹已被删除'
+            : !lt
+              ? '本地文件不在文件夹里了'
+              : undefined,
         };
       });
       setRows(resolved);
@@ -167,32 +189,44 @@ export default function LocalPlaylistView({ playlistId, refreshKey, onChanged }:
     reload();
   }, [reload, refreshKey]);
 
-  const grantPermission = useCallback(async () => {
-    if (!folderHandle) return;
-    try {
-      const r = await requestReadPermission(folderHandle);
-      if (r === 'granted') setFolderPermission('granted');
-    } catch (e) {
-      setErr(String((e as Error).message ?? e));
-    }
-  }, [folderHandle]);
+  /** Re-grant permission for ONE specific folder by id. */
+  const grantPermissionFor = useCallback(
+    async (folderId: number) => {
+      const entry = folderMap.get(folderId);
+      if (!entry) return;
+      try {
+        const r = await requestReadPermission(entry.folder.handle);
+        if (r === 'granted') {
+          setFolderMap((prev) => {
+            const next = new Map(prev);
+            next.set(folderId, { folder: entry.folder, permission: 'granted' });
+            return next;
+          });
+        }
+      } catch (e) {
+        setErr(String((e as Error).message ?? e));
+      }
+    },
+    [folderMap],
+  );
 
   const resolveForPlay = useCallback(
     async (row: RowView): Promise<Track | null> => {
       if (row.kind === 'server') return row.serverTrack ?? null;
       if (!row.localTrack) return null;
-      if (!folderHandle || folderPermission !== 'granted') return null;
-      const cached = blobCacheRef.current.get(row.localTrack.rel_path);
-      let url = cached;
+      const folder = folderMap.get(row.localTrack.folder_id);
+      if (!folder || folder.permission !== 'granted') return null;
+      const cacheKey = blobCacheKey(row.localTrack.folder_id, row.localTrack.rel_path);
+      let url = blobCacheRef.current.get(cacheKey);
       if (!url) {
-        const fh = await getFileHandle(folderHandle, row.localTrack.rel_path);
+        const fh = await getFileHandle(folder.folder.handle, row.localTrack.rel_path);
         const file = await fh.getFile();
         url = URL.createObjectURL(file);
-        blobCacheRef.current.set(row.localTrack.rel_path, url);
+        blobCacheRef.current.set(cacheKey, url);
       }
       return localToTrack(row.localTrack, url, row.localState);
     },
-    [folderHandle, folderPermission],
+    [folderMap],
   );
 
   const playAll = useCallback(async () => {
@@ -220,7 +254,10 @@ export default function LocalPlaylistView({ playlistId, refreshKey, onChanged }:
         target.kind === 'server'
           ? target.serverTrack?.id
           : target.localTrack
-            ? localIdFromRelPath(target.localTrack.rel_path)
+            ? localIdFromFolderAndPath(
+                target.localTrack.folder_id,
+                target.localTrack.rel_path,
+              )
             : null;
       if (targetId != null && player.current?.id === targetId) {
         player.togglePlay();
@@ -237,9 +274,11 @@ export default function LocalPlaylistView({ playlistId, refreshKey, onChanged }:
         let playableSeen = 0;
         for (let i = 0; i <= idx && i < rows.length; i++) {
           const r = rows[i];
-          const isPlayable =
-            !r.stale &&
-            !(r.kind === 'local' && folderPermission !== 'granted');
+          const folderOk =
+            r.kind !== 'local' ||
+            (r.localTrack &&
+              folderMap.get(r.localTrack.folder_id)?.permission === 'granted');
+          const isPlayable = !r.stale && folderOk;
           if (i === idx) {
             adjustedIdx = playableSeen;
             break;
@@ -251,7 +290,7 @@ export default function LocalPlaylistView({ playlistId, refreshKey, onChanged }:
         setErr(`播放失败: ${(e as Error).message}`);
       }
     },
-    [rows, resolveForPlay, player, folderPermission],
+    [rows, resolveForPlay, player, folderMap],
   );
 
   const removeAt = useCallback(
@@ -271,6 +310,29 @@ export default function LocalPlaylistView({ playlistId, refreshKey, onChanged }:
     () => rows.some((r) => r.kind === 'local'),
     [rows],
   );
+
+  /** Folders this playlist references that aren't 'granted' yet. */
+  const foldersNeedingGrant = useMemo(
+    () =>
+      Array.from(folderMap.values()).filter(
+        (e) => e.permission !== 'granted',
+      ),
+    [folderMap],
+  );
+
+  /** True iff the playlist references a folder_id we couldn't find in
+   *  the folders store (user deleted the folder after building the
+   *  playlist). Render a distinct banner for this. */
+  const hasMissingFolders = useMemo(() => {
+    const referenced = new Set<number>();
+    for (const r of rows) {
+      if (r.kind === 'local' && r.localTrack) referenced.add(r.localTrack.folder_id);
+    }
+    for (const id of referenced) {
+      if (!folderMap.has(id)) return true;
+    }
+    return false;
+  }, [rows, folderMap]);
 
   if (loading && !playlist) {
     return (
@@ -313,20 +375,25 @@ export default function LocalPlaylistView({ playlistId, refreshKey, onChanged }:
         </button>
       </div>
 
-      {hasLocalItems && folderPermission === 'need-grant' && (
-        <div className="px-3 md:px-6 py-2 text-xs text-amber-300 border-b border-amber-900/40 flex items-center gap-3">
-          <span>这个 playlist 里有本地曲目，需要重新授权读「{folderHandle?.name}」</span>
+      {foldersNeedingGrant.map((entry) => (
+        <div
+          key={entry.folder.id}
+          className="px-3 md:px-6 py-2 text-xs text-amber-300 border-b border-amber-900/40 flex items-center gap-3"
+        >
+          <span>
+            需要重新授权读文件夹「{entry.folder.name}」(里面有曲目在这个 playlist 里)
+          </span>
           <button
-            onClick={grantPermission}
+            onClick={() => grantPermissionFor(entry.folder.id)}
             className="text-[11px] px-2 py-0.5 rounded-full bezel glow-text glow-ring"
           >
             🔓 授予访问
           </button>
         </div>
-      )}
-      {hasLocalItems && folderPermission === 'no-folder' && (
+      ))}
+      {hasMissingFolders && (
         <div className="px-3 md:px-6 py-2 text-xs text-amber-300 border-b border-amber-900/40">
-          这个 playlist 里有本地曲目，但你还没选过本地文件夹（去侧边栏「📁 本地文件夹」选一个）
+          这个 playlist 里有曲目来自已删除的文件夹，下面会标灰。可以挨个移除，或保留等以后重新添加同名文件夹。
         </div>
       )}
 

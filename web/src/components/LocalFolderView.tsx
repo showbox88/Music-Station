@@ -7,7 +7,8 @@
  * stored FileSystemDirectoryHandle.
  *
  * States:
- *   - need-picker        : nothing stored yet → "Pick folder" button
+ *   - loading            : looking the folder row up by id
+ *   - folder-not-found   : id no longer in the folders store
  *   - need-permission    : handle stored but permission not granted on
  *                          this session → "Grant access" button
  *   - ready              : list of tracks + search + rescan
@@ -24,11 +25,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePlayer } from '../player/PlayerContext';
 import { usePrefs } from '../PrefsContext';
 import {
-  getStoredFolderHandle,
-  setStoredFolderHandle,
-  clearStoredFolderHandle,
+  getLocalFolder,
+  replaceLocalFolderHandle,
   listLocalTracks,
-  clearLocalTracks,
+  clearLocalTracksForFolder,
   listLocalUserStates,
   patchLocalUserState,
 } from '../local/db';
@@ -38,12 +38,17 @@ import {
   type ScanProgress,
   type ScanResult,
 } from '../local/scanner';
-import type { LocalTrack, LocalUserState } from '../local/types';
-import { localToTrack, localIdFromRelPath } from '../local/types';
+import type { LocalFolder, LocalTrack, LocalUserState } from '../local/types';
+import { localToTrack, localIdFromFolderAndPath } from '../local/types';
 import StarRating from './StarRating';
 import AddToPlaylistMenu from './AddToPlaylistMenu';
 
-type Mode = 'need-picker' | 'need-permission' | 'ready' | 'scanning';
+type Mode =
+  | 'loading'
+  | 'need-permission'
+  | 'ready'
+  | 'scanning'
+  | 'folder-not-found';
 
 function formatDuration(sec: number | null): string {
   if (sec == null) return '—';
@@ -72,6 +77,9 @@ async function requestReadPermission(
 }
 
 interface Props {
+  /** Which registered folder this view is showing. Sidebar passes it
+   *  via the {kind:'local-folder', folderId} View entry. */
+  folderId: number;
   /**
    * Bumped by the parent (App.tsx) when something this view did
    * affects the sidebar — e.g. a track was added to a playlist via
@@ -81,11 +89,12 @@ interface Props {
   onChanged?: () => void;
 }
 
-export default function LocalFolderView({ onChanged }: Props = {}) {
+export default function LocalFolderView({ folderId, onChanged }: Props) {
   const player = usePlayer();
   const { prefs, setPref, refreshLocalTrackIndex } = usePrefs();
   const view: 'list' | 'card' = prefs.tracks_view === 'card' ? 'card' : 'list';
-  const [mode, setMode] = useState<Mode>('need-picker');
+  const [mode, setMode] = useState<Mode>('loading');
+  const [folder, setFolder] = useState<LocalFolder | null>(null);
   const [handle, setHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [tracks, setTracks] = useState<LocalTrack[]>([]);
   const [userStateByPath, setUserStateByPath] = useState<
@@ -104,35 +113,42 @@ export default function LocalFolderView({ onChanged }: Props = {}) {
 
   const blobCacheRef = useRef<Map<string, string>>(new Map());
 
-  // Load user_state alongside the track list. Called whenever the
-  // displayed list of tracks changes (initial load, after scan).
+  // Load user_state alongside the track list. Scoped to THIS folder
+  // so two folders' "song.mp3" don't shadow each other's hearts.
   const reloadUserStates = useCallback(async () => {
     try {
-      const all = await listLocalUserStates();
+      const all = await listLocalUserStates(folderId);
       const map: Record<string, LocalUserState> = {};
       for (const s of all) map[s.rel_path] = s;
       setUserStateByPath(map);
     } catch {
       setUserStateByPath({});
     }
-  }, []);
+  }, [folderId]);
 
-  // On mount: try the stored handle.
+  // Load this folder's handle + tracks whenever folderId changes
+  // (navigation between folders in the sidebar).
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setMode('loading');
+      setErr(null);
       try {
-        const stored = await getStoredFolderHandle();
+        const f = await getLocalFolder(folderId);
         if (cancelled) return;
-        if (!stored) {
-          setMode('need-picker');
+        if (!f) {
+          setMode('folder-not-found');
           return;
         }
-        setHandle(stored);
-        const perm = await queryReadPermission(stored);
+        setFolder(f);
+        setHandle(f.handle);
+        const perm = await queryReadPermission(f.handle);
         if (cancelled) return;
         if (perm === 'granted') {
-          const [ts] = await Promise.all([listLocalTracks(), reloadUserStates()]);
+          const [ts] = await Promise.all([
+            listLocalTracks(folderId),
+            reloadUserStates(),
+          ]);
           if (cancelled) return;
           setTracks(ts);
           setMode('ready');
@@ -146,59 +162,66 @@ export default function LocalFolderView({ onChanged }: Props = {}) {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folderId]);
 
-  const runScan = useCallback(async (h: FileSystemDirectoryHandle) => {
-    setMode('scanning');
-    setProgress({ scanned: 0, total: 0, current_rel_path: null });
-    setLastResult(null);
-    try {
-      const r = await scanFolder(h, (p) => setProgress(p));
-      setLastResult(r);
-      const ts = await listLocalTracks();
-      setTracks(ts);
-      await reloadUserStates();
-      // Let PrefsContext rebuild its negative-id → rel_path lookup so
-      // the player's per-track EQ can find local tracks just scanned.
-      await refreshLocalTrackIndex();
-      const stillExisting = new Set(ts.map((t) => t.rel_path));
-      for (const [path, url] of blobCacheRef.current.entries()) {
-        if (!stillExisting.has(path)) {
-          URL.revokeObjectURL(url);
-          blobCacheRef.current.delete(path);
+  const runScan = useCallback(
+    async (h: FileSystemDirectoryHandle) => {
+      setMode('scanning');
+      setProgress({ scanned: 0, total: 0, current_rel_path: null });
+      setLastResult(null);
+      try {
+        const r = await scanFolder(h, folderId, (p) => setProgress(p));
+        setLastResult(r);
+        const ts = await listLocalTracks(folderId);
+        setTracks(ts);
+        await reloadUserStates();
+        await refreshLocalTrackIndex();
+        const stillExisting = new Set(ts.map((t) => t.rel_path));
+        for (const [path, url] of blobCacheRef.current.entries()) {
+          if (!stillExisting.has(path)) {
+            URL.revokeObjectURL(url);
+            blobCacheRef.current.delete(path);
+          }
         }
+        setMode('ready');
+      } catch (e) {
+        setErr(String((e as Error).message ?? e));
+        setMode('ready');
+      } finally {
+        setProgress(null);
       }
-      setMode('ready');
-    } catch (e) {
-      setErr(String((e as Error).message ?? e));
-      setMode('ready');
-    } finally {
-      setProgress(null);
-    }
-  }, []);
+    },
+    [folderId, reloadUserStates, refreshLocalTrackIndex],
+  );
 
-  const pickFolder = useCallback(async () => {
+  /** Swap this folder's handle to a new directory pick. Same folder
+   *  id stays — so favorites/ratings/EQ/playlist refs survive. We
+   *  wipe THIS folder's old track rows and rescan; user_state is
+   *  preserved (still keyed by rel_path under the same folder_id). */
+  const swapHandle = useCallback(async () => {
     setErr(null);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const picked: FileSystemDirectoryHandle = await (window as any).showDirectoryPicker({
         mode: 'read',
-        id: 'music-station-local-folder',
+        id: `music-station-local-folder-${folderId}`,
       });
-      await setStoredFolderHandle(picked);
-      // Wipe any old DB rows from a previous folder so the list reflects
-      // ONLY the new pick.
-      await clearLocalTracks();
+      await replaceLocalFolderHandle(folderId, picked);
+      await clearLocalTracksForFolder(folderId);
       for (const url of blobCacheRef.current.values()) URL.revokeObjectURL(url);
       blobCacheRef.current.clear();
       setHandle(picked);
+      // Re-fetch the folder row so display name / handle.name reflects
+      // the new pick if the user later renames.
+      const f = await getLocalFolder(folderId);
+      if (f) setFolder(f);
       await runScan(picked);
     } catch (e) {
       const msg = String((e as Error).message ?? e);
-      // User-aborted the picker — silent
       if (!/abort/i.test(msg)) setErr(msg);
     }
-  }, [runScan]);
+  }, [folderId, runScan]);
 
   const grantPermission = useCallback(async () => {
     if (!handle) return;
@@ -206,7 +229,10 @@ export default function LocalFolderView({ onChanged }: Props = {}) {
     try {
       const r = await requestReadPermission(handle);
       if (r === 'granted') {
-        const ts = await listLocalTracks();
+        const [ts] = await Promise.all([
+          listLocalTracks(folderId),
+          reloadUserStates(),
+        ]);
         setTracks(ts);
         setMode('ready');
       } else {
@@ -215,22 +241,22 @@ export default function LocalFolderView({ onChanged }: Props = {}) {
     } catch (e) {
       setErr(String((e as Error).message ?? e));
     }
-  }, [handle]);
+  }, [handle, folderId, reloadUserStates]);
 
   const rescan = useCallback(() => {
     if (handle) runScan(handle);
   }, [handle, runScan]);
 
   const changeFolder = useCallback(async () => {
-    if (!confirm('换一个文件夹？当前列表会被清空。')) return;
-    await clearStoredFolderHandle();
-    await clearLocalTracks();
-    for (const url of blobCacheRef.current.values()) URL.revokeObjectURL(url);
-    blobCacheRef.current.clear();
-    setHandle(null);
-    setTracks([]);
-    setMode('need-picker');
-  }, []);
+    if (
+      !confirm(
+        '换一个文件夹？这个本地文件夹的曲目列表会被清空，重新扫描指向的新文件夹。收藏/评分/EQ 会保留（key 一样的话就重新接上）。',
+      )
+    ) {
+      return;
+    }
+    await swapHandle();
+  }, [swapHandle]);
 
   const blobUrlFor = useCallback(
     async (lt: LocalTrack): Promise<string> => {
@@ -274,21 +300,22 @@ export default function LocalFolderView({ onChanged }: Props = {}) {
     async (lt: LocalTrack) => {
       const current = !!userStateByPath[lt.rel_path]?.favorited;
       const next = !current;
-      // Optimistic update.
+      const seed: LocalUserState = { folder_id: folderId, rel_path: lt.rel_path };
       setUserStateByPath((prev) => {
         const merged: LocalUserState = {
-          ...(prev[lt.rel_path] ?? { rel_path: lt.rel_path }),
+          ...(prev[lt.rel_path] ?? seed),
           favorited: next,
         };
         return { ...prev, [lt.rel_path]: merged };
       });
       try {
-        await patchLocalUserState(lt.rel_path, { favorited: next || null });
+        await patchLocalUserState(folderId, lt.rel_path, {
+          favorited: next || null,
+        });
       } catch (e) {
-        // Roll back on persistence failure.
         setUserStateByPath((prev) => {
           const merged: LocalUserState = {
-            ...(prev[lt.rel_path] ?? { rel_path: lt.rel_path }),
+            ...(prev[lt.rel_path] ?? seed),
             favorited: current,
           };
           return { ...prev, [lt.rel_path]: merged };
@@ -296,28 +323,29 @@ export default function LocalFolderView({ onChanged }: Props = {}) {
         setErr(`本地收藏保存失败: ${(e as Error).message}`);
       }
     },
-    [userStateByPath],
+    [userStateByPath, folderId],
   );
 
   const setRating = useCallback(
     async (lt: LocalTrack, value: number) => {
       const prevValue = userStateByPath[lt.rel_path]?.rating ?? 0;
       const cleared = value === 0;
+      const seed: LocalUserState = { folder_id: folderId, rel_path: lt.rel_path };
       setUserStateByPath((prev) => {
         const merged: LocalUserState = {
-          ...(prev[lt.rel_path] ?? { rel_path: lt.rel_path }),
+          ...(prev[lt.rel_path] ?? seed),
           rating: value,
         };
         return { ...prev, [lt.rel_path]: merged };
       });
       try {
-        await patchLocalUserState(lt.rel_path, {
+        await patchLocalUserState(folderId, lt.rel_path, {
           rating: cleared ? null : value,
         });
       } catch (e) {
         setUserStateByPath((prev) => {
           const merged: LocalUserState = {
-            ...(prev[lt.rel_path] ?? { rel_path: lt.rel_path }),
+            ...(prev[lt.rel_path] ?? seed),
             rating: prevValue,
           };
           return { ...prev, [lt.rel_path]: merged };
@@ -325,7 +353,7 @@ export default function LocalFolderView({ onChanged }: Props = {}) {
         setErr(`本地评分保存失败: ${(e as Error).message}`);
       }
     },
-    [userStateByPath],
+    [userStateByPath, folderId],
   );
 
   const filtered = useMemo(() => {
@@ -366,7 +394,7 @@ export default function LocalFolderView({ onChanged }: Props = {}) {
     async (idx: number) => {
       const target = filtered[idx];
       if (!target) return;
-      const targetId = localIdFromRelPath(target.rel_path);
+      const targetId = localIdFromFolderAndPath(folderId, target.rel_path);
       if (player.current?.id === targetId) {
         player.togglePlay();
         return;
@@ -382,24 +410,24 @@ export default function LocalFolderView({ onChanged }: Props = {}) {
         setErr(`播放失败: ${(e as Error).message}`);
       }
     },
-    [filtered, blobUrlFor, player, userStateByPath],
+    [filtered, blobUrlFor, player, userStateByPath, folderId],
   );
 
   /* ---------- render ---------- */
 
-  if (mode === 'need-picker') {
+  if (mode === 'loading') {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-center px-6 gap-4">
-        <div className="text-zinc-400 text-sm max-w-md">
-          选一个本地文件夹，扫描里面的音乐文件，在这里浏览和播放。
-          所有数据只存在这台电脑的浏览器里，服务器不知道。
-        </div>
-        <button
-          onClick={pickFolder}
-          className="px-5 py-2.5 rounded-full bezel glow-text glow-ring text-sm"
-        >
-          📁 选择文件夹
-        </button>
+      <div className="flex-1 flex items-center justify-center text-sm text-zinc-500">
+        加载文件夹…
+      </div>
+    );
+  }
+
+  if (mode === 'folder-not-found') {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center text-center px-6 gap-3">
+        <div className="text-zinc-400 text-sm">这个文件夹的记录找不到了（可能刚被删除）。</div>
+        <div className="text-zinc-500 text-xs">侧边栏里点 + 加一个新的本地文件夹。</div>
         {err && <div className="text-xs text-red-400">{err}</div>}
       </div>
     );
@@ -533,7 +561,12 @@ export default function LocalFolderView({ onChanged }: Props = {}) {
       </div>
 
       <div className="px-3 md:px-6 py-1.5 border-b border-black/60 text-[11px] text-zinc-500 flex items-center gap-3">
-        <span className="truncate">📁 {handle?.name}</span>
+        <span className="truncate">
+          📁 {folder?.name}
+          {folder && folder.name !== handle?.name && (
+            <span className="text-zinc-600 ml-1">({handle?.name})</span>
+          )}
+        </span>
         {lastResult && (
           <span className="tabular-nums">
             +{lastResult.inserted} ↻{lastResult.updated} −{lastResult.removed}{' '}
@@ -563,7 +596,7 @@ export default function LocalFolderView({ onChanged }: Props = {}) {
             {filtered.map((t, idx) => {
               const fav = !!userStateByPath[t.rel_path]?.favorited;
               const rating = userStateByPath[t.rel_path]?.rating ?? 0;
-              const isCur = player.current?.id === localIdFromRelPath(t.rel_path);
+              const isCur = player.current?.id === localIdFromFolderAndPath(folderId, t.rel_path);
               const playing = isCur && player.isPlaying;
               return (
                 <div

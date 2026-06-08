@@ -28,6 +28,11 @@ export interface Track {
   is_owner: boolean;
   shared_with_me: boolean;
   source: TrackSource;
+  /** Browser-local multi-folder bookkeeping. Present only when the
+   *  Track was adapted from a `LocalTrack` (i.e. id < 0). Tells the
+   *  IndexedDB write path which folder this rel_path belongs to so
+   *  it doesn't need to reverse-lookup. */
+  local_folder_id?: number;
 }
 
 export interface ShareUser {

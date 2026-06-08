@@ -92,6 +92,7 @@ function pictureToDataUrl(picture: {
 }
 
 async function parseOneFile(
+  folder_id: number,
   rel_path: string,
   file_handle: FileSystemFileHandle,
   has_lrc: boolean,
@@ -103,6 +104,7 @@ async function parseOneFile(
     const meta = await parseBlob(file, { duration: true, skipCovers: false });
     const cover = meta.common.picture?.[0];
     return {
+      folder_id,
       rel_path,
       title: meta.common.title?.trim() || fallbackTitle,
       artist: meta.common.artist?.trim() || null,
@@ -122,6 +124,7 @@ async function parseOneFile(
     // Malformed / unparseable tag: still index the file so the user
     // can play it — title falls back to filename.
     return {
+      folder_id,
       rel_path,
       title: fallbackTitle,
       artist: null,
@@ -138,6 +141,7 @@ async function parseOneFile(
 
 export async function scanFolder(
   root: FileSystemDirectoryHandle,
+  folder_id: number,
   onProgress?: (p: ScanProgress) => void,
 ): Promise<ScanResult> {
   const start = Date.now();
@@ -158,14 +162,16 @@ export async function scanFolder(
     });
   }
 
-  const existing = await listLocalTracks();
+  // Removal-detection is scoped to THIS folder so a track in another
+  // folder doesn't get nuked by a scan of an unrelated handle.
+  const existing = await listLocalTracks(folder_id);
   const existingByPath = new Map(existing.map((t) => [t.rel_path, t]));
   const foundPaths = new Set(found.map((f) => f.rel_path));
 
   let removed = 0;
   for (const t of existing) {
     if (!foundPaths.has(t.rel_path)) {
-      await deleteLocalTrack(t.rel_path);
+      await deleteLocalTrack(folder_id, t.rel_path);
       removed++;
     }
   }
@@ -176,7 +182,7 @@ export async function scanFolder(
   let n = 0;
   for (const item of found) {
     try {
-      const t = await parseOneFile(item.rel_path, item.file_handle, item.has_lrc);
+      const t = await parseOneFile(folder_id, item.rel_path, item.file_handle, item.has_lrc);
       await putLocalTrack(t);
       if (existingByPath.has(item.rel_path)) updated++;
       else inserted++;

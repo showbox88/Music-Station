@@ -88,7 +88,11 @@ export default function AddToPlaylistMenu({ track, onClose, onAdded, anchor }: P
     setErr(null);
     try {
       const item = isLocalTrack
-        ? { kind: 'local' as const, rel_path: track.rel_path }
+        ? {
+            kind: 'local' as const,
+            folder_id: track.local_folder_id ?? -1,
+            rel_path: track.rel_path,
+          }
         : { kind: 'server' as const, track_id: track.id };
       await addToLocalPlaylist(p.id, item);
       onAdded();

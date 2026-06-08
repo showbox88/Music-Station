@@ -15,8 +15,25 @@
  */
 import type { Track } from '../types';
 
+/**
+ * One registered local folder. Multiple folders are supported as of
+ * v4. `id` is a negative integer (see `newLocalFolderId` in db.ts);
+ * the migrated default folder always lives at id === -1.
+ * `name` is the user-editable display label (sidebar uses this);
+ * defaults to handle.name on first add.
+ */
+export interface LocalFolder {
+  id: number;
+  handle: FileSystemDirectoryHandle;
+  name: string;
+  /** ISO-8601 creation timestamp. */
+  created_at: string;
+}
+
 export interface LocalTrack {
-  /** Path relative to the chosen folder, forward slashes. */
+  /** Which folder this track belongs to. */
+  folder_id: number;
+  /** Path relative to that folder's handle, forward slashes. */
   rel_path: string;
   title: string | null;
   artist: string | null;
@@ -39,6 +56,7 @@ export interface LocalTrack {
  * See db.ts `patchLocalUserState`.
  */
 export interface LocalUserState {
+  folder_id: number;
   rel_path: string;
   favorited?: boolean;
   rating?: number; // 0..5
@@ -54,7 +72,7 @@ export interface LocalUserState {
  */
 export type LocalPlaylistItem =
   | { kind: 'server'; track_id: number }
-  | { kind: 'local'; rel_path: string };
+  | { kind: 'local'; folder_id: number; rel_path: string };
 
 /**
  * A browser-local playlist. Lives in IndexedDB on this browser only —
@@ -79,12 +97,27 @@ export function isLocalPlaylistId(id: number): boolean {
 }
 
 /**
- * Stable negative integer derived from rel_path.
+ * Stable negative integer derived from (folder_id, rel_path).
  * Uses FNV-1a 32-bit folded into the negative range so server ids
- * (positive) and local ids (negative) never collide.
+ * (positive) and local ids (negative) never collide, and so two
+ * folders' "song.mp3" produce different ids.
  */
-export function localIdFromRelPath(relPath: string): number {
+export function localIdFromFolderAndPath(
+  folderId: number,
+  relPath: string,
+): number {
   let h = 0x811c9dc5;
+  // Fold folder_id into the hash byte-by-byte so renaming a folder
+  // doesn't change ids (only id-renumbering would, which we never do).
+  const fid = folderId | 0;
+  h ^= fid & 0xff;
+  h = Math.imul(h, 0x01000193);
+  h ^= (fid >>> 8) & 0xff;
+  h = Math.imul(h, 0x01000193);
+  h ^= (fid >>> 16) & 0xff;
+  h = Math.imul(h, 0x01000193);
+  h ^= (fid >>> 24) & 0xff;
+  h = Math.imul(h, 0x01000193);
   for (let i = 0; i < relPath.length; i++) {
     h ^= relPath.charCodeAt(i);
     h = Math.imul(h, 0x01000193);
@@ -99,6 +132,10 @@ export function localIdFromRelPath(relPath: string): number {
  * Pass '' when only using the row for list rendering.
  * Optional `userState` merges browser-local favorited/rating so the
  * adapted Track reflects what the user previously set.
+ *
+ * Sets `local_folder_id` on the resulting Track so downstream code
+ * (PlayerBar / NowPlayingView) can write to IndexedDB without a
+ * reverse-lookup of folder_id by negative track id.
  */
 export function localToTrack(
   lt: LocalTrack,
@@ -108,8 +145,9 @@ export function localToTrack(
   const fallbackTitle =
     lt.rel_path.replace(/\.[^.]+$/, '').split('/').pop() ?? lt.rel_path;
   return {
-    id: localIdFromRelPath(lt.rel_path),
+    id: localIdFromFolderAndPath(lt.folder_id, lt.rel_path),
     rel_path: lt.rel_path,
+    local_folder_id: lt.folder_id,
     title: lt.title ?? fallbackTitle,
     artist: lt.artist,
     album: lt.album,

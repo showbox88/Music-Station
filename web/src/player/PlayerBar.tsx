@@ -80,11 +80,17 @@ export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
     if (!t) return;
     const next = !isFav;
     // Local-folder tracks (negative id) aren't in the server DB —
-    // persist favorited to browser-local IndexedDB instead.
+    // persist favorited to browser-local IndexedDB instead. v4+
+    // tracks carry their folder_id on the Track DTO so we don't have
+    // to reverse-lookup; default to DEFAULT_FOLDER_ID for safety.
     if (t.id < 0) {
       setFavOpt(next);
       try {
-        await patchLocalUserState(t.rel_path, { favorited: next || null });
+        await patchLocalUserState(
+          t.local_folder_id ?? -1,
+          t.rel_path,
+          { favorited: next || null },
+        );
         (t as { favorited: boolean }).favorited = next;
       } catch (err: unknown) {
         setFavOpt(!next);
