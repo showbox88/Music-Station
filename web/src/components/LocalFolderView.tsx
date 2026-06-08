@@ -565,10 +565,18 @@ export default function LocalFolderView() {
                       : undefined
                   }
                 >
-                  <button
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => playFromIndex(idx)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        playFromIndex(idx);
+                      }
+                    }}
                     title={isCur ? (playing ? 'Pause' : 'Resume') : 'Play'}
-                    className="relative block w-full aspect-square bg-zinc-800"
+                    className="relative block w-full aspect-square bg-zinc-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500/40"
                   >
                     {t.cover_data_url ? (
                       <img
@@ -657,7 +665,7 @@ export default function LocalFolderView() {
                         lrc
                       </span>
                     )}
-                  </button>
+                  </div>
 
                   <div className="px-2 py-1.5 min-w-0">
                     <div className="text-sm font-medium truncate" title={t.title || t.rel_path}>
