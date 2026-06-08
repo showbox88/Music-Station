@@ -72,7 +72,17 @@ export default function Header({ onRescanned, onUploaded, onOpenSidebar }: Heade
             <line x1="4" y1="17" x2="20" y2="17" />
           </svg>
         </button>
-        <h1 className="text-base md:text-lg font-semibold tracking-tight glow-text truncate">♪ Music Station</h1>
+        <h1 className="text-base md:text-lg font-semibold tracking-tight glow-text truncate flex items-baseline gap-1.5">
+          <span>♪ Music Station</span>
+          {/* Build version — short git hash, with full build time in
+              tooltip. Lets the user see "did my hard refresh land?". */}
+          <span
+            className="text-[10px] font-normal text-zinc-500 tabular-nums shrink-0"
+            title={`built ${__BUILD_TIME__}`}
+          >
+            {__BUILD_HASH__}
+          </span>
+        </h1>
         <span className="hidden md:inline text-xs text-zinc-500">
           {status ? `${status.tracks} tracks · ${status.playlists} playlists` : 'loading…'}
         </span>

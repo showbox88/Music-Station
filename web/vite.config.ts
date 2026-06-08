@@ -1,6 +1,15 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
+import { execSync } from 'node:child_process';
+
+function gitShortHash(): string {
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim();
+  } catch {
+    return 'dev';
+  }
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => ({
@@ -9,6 +18,14 @@ export default defineConfig(({ command }) => ({
   // Dev: served at root by Vite dev server, no prefix needed.
   base: command === 'build' ? '/app/' : '/',
   plugins: [react()],
+  // Build-time constants exposed to the app. Header.tsx reads them
+  // to show "what version am I looking at right now?". Both are
+  // wrapped in JSON.stringify so they show up as string literals in
+  // the bundled JS.
+  define: {
+    __BUILD_HASH__: JSON.stringify(gitShortHash()),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   build: {
     outDir: resolve(__dirname, 'dist'),
     emptyOutDir: true,
