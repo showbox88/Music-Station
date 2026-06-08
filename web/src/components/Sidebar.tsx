@@ -106,10 +106,12 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
 
   async function onAddLocalFolder() {
     try {
+      // No `id` — the spec caps it at 32 chars and we don't need
+      // per-folder picker memory (each click can start at the
+      // default location).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const picked: FileSystemDirectoryHandle = await (window as any).showDirectoryPicker({
         mode: 'read',
-        id: `music-station-local-folder-${Date.now()}`,
       });
       const f = await createLocalFolder(picked);
       load();

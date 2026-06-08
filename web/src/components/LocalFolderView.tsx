@@ -202,10 +202,11 @@ export default function LocalFolderView({ folderId, onChanged }: Props) {
   const swapHandle = useCallback(async () => {
     setErr(null);
     try {
+      // No `id` — the spec caps it at 32 chars; folderId pushes us
+      // past it. We don't need per-folder picker memory.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const picked: FileSystemDirectoryHandle = await (window as any).showDirectoryPicker({
         mode: 'read',
-        id: `music-station-local-folder-${folderId}`,
       });
       await replaceLocalFolderHandle(folderId, picked);
       await clearLocalTracksForFolder(folderId);
