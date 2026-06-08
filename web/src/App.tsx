@@ -8,6 +8,7 @@ import VisualizerLab from './components/VisualizerLab';
 import AdminPanel from './components/AdminPanel';
 import UserFavoritesView from './components/UserFavoritesView';
 import LocalFolderView from './components/LocalFolderView';
+import LocalPlaylistView from './components/LocalPlaylistView';
 import Login from './components/Login';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import { PlayerProvider, usePlayer } from './player/PlayerContext';
@@ -191,6 +192,12 @@ function AppContent() {
           />
         ) : view.kind === 'local-folder' ? (
           <LocalFolderView />
+        ) : view.kind === 'local-playlist' ? (
+          <LocalPlaylistView
+            playlistId={view.id}
+            refreshKey={refreshKey}
+            onChanged={refresh}
+          />
         ) : (
           <PlaylistView playlistId={view.id} refreshKey={refreshKey} onChanged={refresh} />
         )}

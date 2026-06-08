@@ -9,6 +9,13 @@ import { usePlayer } from '../player/PlayerContext';
 import { useAuth } from '../AuthContext';
 import { useT } from '../i18n/useT';
 import FavoritesShareModal from './FavoritesShareModal';
+import {
+  listLocalPlaylists,
+  createLocalPlaylist,
+  renameLocalPlaylist as renameLocalPl,
+  deleteLocalPlaylist as deleteLocalPl,
+} from '../local/db';
+import type { LocalPlaylist } from '../local/types';
 
 export type View =
   | { kind: 'all' }
@@ -18,7 +25,8 @@ export type View =
   | { kind: 'visualizer-lab' }
   | { kind: 'admin' }
   | { kind: 'local-folder' }
-  | { kind: 'playlist'; id: number };
+  | { kind: 'playlist'; id: number }
+  | { kind: 'local-playlist'; id: number };
 
 /** True iff this browser supports the File System Access API. We hide
  *  the "本地文件夹" entry on browsers that can't open it (Safari, FF,
@@ -38,10 +46,12 @@ interface Props {
 
 export default function Sidebar({ view, setView, refreshKey, onChanged, open = false, onClose }: Props) {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [localPlaylists, setLocalPlaylists] = useState<LocalPlaylist[]>([]);
   const [favOwners, setFavOwners] = useState<FavoritesOwner[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newScope, setNewScope] = useState<'server' | 'local'>('server');
   const [favShareOpen, setFavShareOpen] = useState(false);
   const player = usePlayer();
   const { user } = useAuth();
@@ -52,7 +62,8 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
   // Favorites is equivalent to "go to My Favorites" — that's what fires
   // both the highlight and the auto-expansion below.
   const favExpanded = view.kind === 'favorites' || view.kind === 'user-favorites';
-  const playlistsActive = view.kind === 'playlist';
+  const playlistsActive =
+    view.kind === 'playlist' || view.kind === 'local-playlist';
 
   // Group playlists by visibility relationship for the sidebar. Order:
   //   1. mine            — playlists I own
@@ -79,6 +90,9 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
       .visibleFavoritesOwners()
       .then((r) => setFavOwners(r.owners))
       .catch(() => setFavOwners([]));
+    listLocalPlaylists()
+      .then(setLocalPlaylists)
+      .catch(() => setLocalPlaylists([]));
   }
   useEffect(load, [refreshKey]);
 
@@ -87,14 +101,54 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
     const name = newName.trim();
     if (!name) return;
     try {
-      const p = await api.createPlaylist(name);
-      setNewName('');
-      setCreating(false);
-      load();
-      setView({ kind: 'playlist', id: p.id });
+      if (newScope === 'local') {
+        const p = await createLocalPlaylist(name);
+        setNewName('');
+        setCreating(false);
+        load();
+        setView({ kind: 'local-playlist', id: p.id });
+      } else {
+        const p = await api.createPlaylist(name);
+        setNewName('');
+        setCreating(false);
+        load();
+        setView({ kind: 'playlist', id: p.id });
+      }
       onChanged();
     } catch (e: any) {
       setErr(String(e?.message ?? e));
+    }
+  }
+
+  async function onRenameLocal(p: LocalPlaylist) {
+    const next = prompt('Rename local playlist', p.name);
+    if (!next || next.trim() === p.name) return;
+    try {
+      await renameLocalPl(p.id, next.trim());
+      load();
+      onChanged();
+    } catch (e: any) {
+      alert(String(e?.message ?? e));
+    }
+  }
+
+  async function onDeleteLocal(p: LocalPlaylist) {
+    if (
+      !confirm(
+        `删除本地 playlist「${p.name}」？里面的曲目不会被删，只是这个列表本身没了。`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await deleteLocalPl(p.id);
+      if (view.kind === 'local-playlist' && view.id === p.id) {
+        setView({ kind: 'all' });
+      }
+      load();
+      onChanged();
+    } catch (e: any) {
+      alert(String(e?.message ?? e));
     }
   }
 
@@ -324,16 +378,43 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
         </div>
 
         {creating && (
-          <form onSubmit={onCreate} className="px-2 pb-2">
+          <form onSubmit={onCreate} className="px-2 pb-2 space-y-1">
             <input
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder={t('sidebar.playlist_name_placeholder')}
               autoFocus
-              onBlur={() => !newName && setCreating(false)}
               className="input text-xs"
             />
+            {/* Scope toggle: server (default, cross-device, shareable)
+                vs local (this browser only, can mix in local files). */}
+            <div className="flex gap-1 text-[10px]">
+              {(
+                [
+                  ['server', '服务端'],
+                  ['local', '本地'],
+                ] as Array<['server' | 'local', string]>
+              ).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setNewScope(k)}
+                  className={`px-2 py-0.5 rounded-full bezel ${
+                    newScope === k
+                      ? 'glow-text glow-ring text-white'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                  title={
+                    k === 'server'
+                      ? '跨设备同步、可分享'
+                      : '只存这台浏览器、可混本地曲目、不可分享'
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </form>
         )}
 
@@ -394,7 +475,31 @@ export default function Sidebar({ view, setView, refreshKey, onChanged, open = f
             </>
           )}
 
-          {playlists.length === 0 && !creating && (
+          {localPlaylists.length > 0 && (
+            <>
+              <div className="text-[10px] uppercase text-zinc-600 px-3 pt-2 pb-0.5 flex items-center gap-1.5">
+                <span>本地</span>
+                <span
+                  className="text-[8px] uppercase text-pink-300/70"
+                  title="只存这台浏览器，不跨设备"
+                >
+                  local
+                </span>
+              </div>
+              {localPlaylists.map((pl) => (
+                <LocalPlaylistRow
+                  key={pl.id}
+                  pl={pl}
+                  selected={view.kind === 'local-playlist' && view.id === pl.id}
+                  onSelect={() => setView({ kind: 'local-playlist', id: pl.id })}
+                  onRename={() => onRenameLocal(pl)}
+                  onDelete={() => onDeleteLocal(pl)}
+                />
+              ))}
+            </>
+          )}
+
+          {playlists.length === 0 && localPlaylists.length === 0 && !creating && (
             <div className="text-xs text-zinc-600 px-2 py-3">{t('sidebar.no_playlists')}</div>
           )}
         </div>
@@ -498,6 +603,63 @@ function PlaylistRow({
             ✕
           </button>
         )}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Sidebar row for a browser-local playlist. Visually parallel to
+ * PlaylistRow but always "mine" (no owner badge, no public/shared
+ * groups), and with a small "local" tag so the user can tell at a
+ * glance these don't sync.
+ */
+function LocalPlaylistRow({
+  pl,
+  selected,
+  onSelect,
+  onRename,
+  onDelete,
+}: {
+  pl: LocalPlaylist;
+  selected: boolean;
+  onSelect: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      className={`group flex items-center px-3 py-1.5 rounded-lg text-sm cursor-pointer ${
+        selected ? 'text-pink-300 bg-white/[0.04]' : 'text-zinc-300 hover:bg-white/5'
+      }`}
+      onClick={onSelect}
+    >
+      <span className="mr-2 opacity-70">▤</span>
+      <span className="flex-1 min-w-0 truncate align-middle">{pl.name}</span>
+      <span className="text-xs text-zinc-500 ml-2 tabular-nums">
+        {pl.items.length}
+      </span>
+      <span className="ml-2 opacity-0 group-hover:opacity-100 flex gap-1">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRename();
+          }}
+          className="text-xs px-1 text-zinc-400 hover:text-white"
+          title="Rename"
+        >
+          ✎
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="text-xs px-1 text-zinc-400 hover:text-red-400"
+          title="Delete"
+        >
+          ✕
+        </button>
       </span>
     </div>
   );

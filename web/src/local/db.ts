@@ -19,10 +19,11 @@
 import type { LocalTrack } from './types';
 
 const DB_NAME = 'music-station-local';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_META = 'meta';
 const STORE_TRACKS = 'tracks';
 const STORE_USER_STATE = 'user_state';
+const STORE_PLAYLISTS = 'local_playlists';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -43,6 +44,13 @@ export function openLocalDB(): Promise<IDBDatabase> {
       // these never leave this browser.
       if (!db.objectStoreNames.contains(STORE_USER_STATE)) {
         db.createObjectStore(STORE_USER_STATE, { keyPath: 'rel_path' });
+      }
+      // v3: local playlists. Mixed-content (can reference server
+      // tracks by id + local tracks by rel_path). Keys are negative
+      // integers so they can't collide with server playlist ids
+      // (positive AUTOINCREMENT). See newLocalPlaylistId().
+      if (!db.objectStoreNames.contains(STORE_PLAYLISTS)) {
+        db.createObjectStore(STORE_PLAYLISTS, { keyPath: 'id' });
       }
     };
     req.onerror = () => reject(req.error);
@@ -202,4 +210,122 @@ export async function setStoredFolderHandle(h: FileSystemDirectoryHandle): Promi
 
 export async function clearStoredFolderHandle(): Promise<void> {
   await metaDelete(FOLDER_KEY);
+}
+
+/* --------------------------- local_playlists --------------------------- */
+
+import type { LocalPlaylist, LocalPlaylistItem } from './types';
+
+/**
+ * Generate a unique negative integer id for a new local playlist.
+ * `Date.now()` + tiny random suffix so two clicks in the same ms still
+ * differ. Negated so it can never collide with server playlist ids
+ * (positive AUTOINCREMENT). Range: roughly -2^53 .. 0, plenty of room.
+ */
+function newLocalPlaylistId(): number {
+  return -(Date.now() * 1000 + Math.floor(Math.random() * 1000));
+}
+
+export async function listLocalPlaylists(): Promise<LocalPlaylist[]> {
+  const db = await openLocalDB();
+  const store = tx(db, STORE_PLAYLISTS, 'readonly');
+  const rows = await reqAsPromise(store.getAll() as IDBRequest<LocalPlaylist[]>);
+  // ids are negative timestamps → more-recent = more-negative; ascending
+  // order puts most-recent first.
+  return rows.sort((a, b) => a.id - b.id);
+}
+
+export async function getLocalPlaylist(
+  id: number,
+): Promise<LocalPlaylist | undefined> {
+  const db = await openLocalDB();
+  const store = tx(db, STORE_PLAYLISTS, 'readonly');
+  return reqAsPromise(store.get(id) as IDBRequest<LocalPlaylist | undefined>);
+}
+
+export async function createLocalPlaylist(name: string): Promise<LocalPlaylist> {
+  const pl: LocalPlaylist = {
+    id: newLocalPlaylistId(),
+    name: name.trim() || '未命名',
+    created_at: new Date().toISOString(),
+    items: [],
+  };
+  const db = await openLocalDB();
+  const store = tx(db, STORE_PLAYLISTS, 'readwrite');
+  await reqAsPromise(store.put(pl));
+  return pl;
+}
+
+export async function renameLocalPlaylist(id: number, name: string): Promise<void> {
+  const db = await openLocalDB();
+  const store = tx(db, STORE_PLAYLISTS, 'readwrite');
+  const cur = (await reqAsPromise(
+    store.get(id) as IDBRequest<LocalPlaylist | undefined>,
+  )) as LocalPlaylist | undefined;
+  if (!cur) return;
+  cur.name = name.trim() || cur.name;
+  await reqAsPromise(store.put(cur));
+}
+
+export async function deleteLocalPlaylist(id: number): Promise<void> {
+  const db = await openLocalDB();
+  const store = tx(db, STORE_PLAYLISTS, 'readwrite');
+  await reqAsPromise(store.delete(id));
+}
+
+/**
+ * Append an item. Allows duplicates (matches server playlist behavior:
+ * adding the same track twice yields two entries).
+ */
+export async function addToLocalPlaylist(
+  id: number,
+  item: LocalPlaylistItem,
+): Promise<LocalPlaylist | undefined> {
+  const db = await openLocalDB();
+  const store = tx(db, STORE_PLAYLISTS, 'readwrite');
+  const cur = (await reqAsPromise(
+    store.get(id) as IDBRequest<LocalPlaylist | undefined>,
+  )) as LocalPlaylist | undefined;
+  if (!cur) return undefined;
+  cur.items = [...cur.items, item];
+  await reqAsPromise(store.put(cur));
+  return cur;
+}
+
+export async function removeFromLocalPlaylistAt(
+  id: number,
+  position: number,
+): Promise<LocalPlaylist | undefined> {
+  const db = await openLocalDB();
+  const store = tx(db, STORE_PLAYLISTS, 'readwrite');
+  const cur = (await reqAsPromise(
+    store.get(id) as IDBRequest<LocalPlaylist | undefined>,
+  )) as LocalPlaylist | undefined;
+  if (!cur) return undefined;
+  if (position < 0 || position >= cur.items.length) return cur;
+  cur.items = cur.items.filter((_, i) => i !== position);
+  await reqAsPromise(store.put(cur));
+  return cur;
+}
+
+export async function moveItemInLocalPlaylist(
+  id: number,
+  from: number,
+  to: number,
+): Promise<LocalPlaylist | undefined> {
+  const db = await openLocalDB();
+  const store = tx(db, STORE_PLAYLISTS, 'readwrite');
+  const cur = (await reqAsPromise(
+    store.get(id) as IDBRequest<LocalPlaylist | undefined>,
+  )) as LocalPlaylist | undefined;
+  if (!cur) return undefined;
+  if (from === to) return cur;
+  if (from < 0 || from >= cur.items.length) return cur;
+  if (to < 0 || to >= cur.items.length) return cur;
+  const next = [...cur.items];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  cur.items = next;
+  await reqAsPromise(store.put(cur));
+  return cur;
 }

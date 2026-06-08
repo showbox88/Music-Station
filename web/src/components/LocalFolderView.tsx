@@ -41,6 +41,7 @@ import {
 import type { LocalTrack, LocalUserState } from '../local/types';
 import { localToTrack, localIdFromRelPath } from '../local/types';
 import StarRating from './StarRating';
+import AddToPlaylistMenu from './AddToPlaylistMenu';
 
 type Mode = 'need-picker' | 'need-permission' | 'ready' | 'scanning';
 
@@ -85,6 +86,11 @@ export default function LocalFolderView() {
   const [lastResult, setLastResult] = useState<ScanResult | null>(null);
   const [q, setQ] = useState('');
   const [favOnly, setFavOnly] = useState(false);
+  const [addingTo, setAddingTo] = useState<{
+    track: LocalTrack;
+    x: number;
+    y: number;
+  } | null>(null);
 
   const blobCacheRef = useRef<Map<string, string>>(new Map());
 
@@ -596,7 +602,8 @@ export default function LocalFolderView() {
                       )}
                     </span>
                     {/* Top-right action chips on hover. Heart always
-                        rendered (the main local-side action); + enqueue. */}
+                        rendered (the main local-side action); + enqueue;
+                        ▤ add-to-playlist. */}
                     <span className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
@@ -612,6 +619,19 @@ export default function LocalFolderView() {
                           <line x1="12" y1="5" x2="12" y2="19" />
                           <line x1="5" y1="12" x2="19" y2="12" />
                         </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          setAddingTo({ track: t, x: r.left, y: r.bottom + 4 });
+                        }}
+                        title="加到 playlist"
+                        className="w-7 h-7 rounded-full bezel flex items-center justify-center text-zinc-200 hover:text-pink-300"
+                      >
+                        ▤
                       </button>
                       <button
                         type="button"
@@ -755,6 +775,16 @@ export default function LocalFolderView() {
                       >
                         +
                       </button>
+                      <button
+                        onClick={(e) => {
+                          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          setAddingTo({ track: t, x: r.left, y: r.bottom + 4 });
+                        }}
+                        className="w-7 h-7 rounded-full bezel text-zinc-300 hover:text-pink-300 flex items-center justify-center"
+                        title="加到 playlist"
+                      >
+                        ▤
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -763,6 +793,23 @@ export default function LocalFolderView() {
           </table>
         )}
       </div>
+      {addingTo && (
+        <AddToPlaylistMenu
+          track={localToTrack(
+            addingTo.track,
+            '', // url unused — the menu only reads track.id / rel_path
+            userStateByPath[addingTo.track.rel_path],
+          )}
+          anchor={{ x: addingTo.x, y: addingTo.y }}
+          onClose={() => setAddingTo(null)}
+          onAdded={() => {
+            // Bumping refreshLocalTrackIndex isn't strictly needed for
+            // playlists (only EQ lookup uses it), but keeps PrefsContext
+            // and IndexedDB in lockstep.
+            void refreshLocalTrackIndex();
+          }}
+        />
+      )}
     </div>
   );
 }
