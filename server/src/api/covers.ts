@@ -20,6 +20,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import { unlink, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
+import { assertPublicUrl } from '../net_guard.js';
 
 /**
  * NetEase image URLs are obfuscated — the API returns a numeric picId
@@ -255,6 +256,12 @@ export function coversRouter({ db, coverDir }: Deps): Router {
     const url = String(req.body?.url ?? '').trim();
     if (!/^https?:\/\//i.test(url)) {
       res.status(400).json({ error: 'url must be http/https' });
+      return;
+    }
+    try {
+      await assertPublicUrl(url);
+    } catch (e: any) {
+      res.status(400).json({ error: String(e?.message ?? e) });
       return;
     }
     try {

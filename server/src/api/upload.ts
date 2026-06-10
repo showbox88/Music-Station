@@ -23,6 +23,7 @@ import { scanLibrary } from '../scanner.js';
 
 const SUPPORTED_RE = /\.(mp3|m4a|flac|ogg|opus|wav|aac)$/i;
 const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB ?? 60);
+const MAX_UPLOAD_BYTES_PER_REQUEST = Number(process.env.MAX_UPLOAD_BYTES_PER_REQUEST ?? 500_000_000);
 
 interface Deps {
   db: Database;
@@ -71,6 +72,13 @@ export function uploadRouter({ db, musicDir }: Deps): Router {
   });
 
   r.post('/', (req, res) => {
+    const cl = Number(req.headers['content-length'] ?? 0);
+    if (cl > MAX_UPLOAD_BYTES_PER_REQUEST) {
+      res.status(413).json({
+        error: `upload exceeds per-request cap (${cl} > ${MAX_UPLOAD_BYTES_PER_REQUEST} bytes); raise MAX_UPLOAD_BYTES_PER_REQUEST or split into multiple requests`,
+      });
+      return;
+    }
     upload.array('files', 50)(req, res, async (err) => {
       if (err) {
         res.status(400).json({ error: String(err.message ?? err) });
