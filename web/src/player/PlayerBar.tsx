@@ -71,7 +71,24 @@ export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
     setFavOpt(null);
   }, [p.current?.id]);
 
-  if (p.queue.length === 0 || !p.current) return null;
+  if (p.queue.length === 0 || !p.current) {
+    // Idle bar — keep a persistent bottom bar even with nothing playing, so
+    // an embedding shell (PD cockpit dock) never shows a blank strip.
+    return (
+      <div
+        className="border-t border-black/80 px-4 flex items-center gap-3 text-zinc-400"
+        style={{
+          minHeight: 72,
+          background: 'linear-gradient(180deg, #1f1f21 0%, #141415 100%)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 -4px 12px rgba(0,0,0,0.5)',
+        }}
+      >
+        <span className="text-lg leading-none" style={{ color: '#ec4899' }}>♪</span>
+        <span className="text-sm">未在播放</span>
+        <span className="text-xs text-zinc-600">选一首歌开始播放</span>
+      </div>
+    );
+  }
 
   const t = p.current;
   const isFav = favOpt ?? t.favorited;
