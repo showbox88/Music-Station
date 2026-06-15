@@ -78,7 +78,7 @@ export default function PlayerBar({ onExpand, onLibraryChange }: Props) {
       <div
         className="border-t border-black/80 px-4 flex items-center gap-3 text-zinc-400"
         style={{
-          minHeight: 72,
+          minHeight: 88,
           background: 'linear-gradient(180deg, #1f1f21 0%, #141415 100%)',
           boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 -4px 12px rgba(0,0,0,0.5)',
         }}
